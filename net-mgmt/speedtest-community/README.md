@@ -109,7 +109,10 @@ GUI tests use native configd detachment and poll an atomic progress snapshot,
 so they continue after leaving the page without holding a long HTTP request.
 The status action detects interrupted workers when their lock is no longer
 held. Version checks are bounded at 10 seconds.
-GUI, cron, terminal-wrapper runs and history clearing share an exclusive lock.
+GUI, cron, terminal-wrapper runs and history clearing share an exclusive lock,
+including runs using an alternate history file. A status query reports `busy`
+while another history's test, an initializing test, or a history operation
+holds the lock.
 An unreachable server is recorded as a failure; an explicit comparison
 continues with its remaining requested servers without choosing replacements.
 
@@ -133,7 +136,7 @@ than forwarding arbitrary arguments through a root command.
 | `--json`, `--json-stream` | Validated reports and live GUI progress; terminal streaming remains available directly from the native engine |
 | `--bytes`, `--mebibytes` | Equivalent GUI display conversions; the upstream JSON/CSV values themselves are always Mbps |
 | `--simple`, `--csv`, `--csv-delimiter`, `--csv-header` | Wrapper text/JSON/CSV, stable nine-column export and detailed JSONL; exact upstream formatting/delimiters/header-only output remain direct-client features |
-| `--list` | Configured-server picker and wrapper `list`, without public discovery |
+| `--list` | Configured-server picker and wrapper `list`; uses official public discovery when enabled and no local list is configured |
 | `--distance` | Direct-client presentation only; plugin does not collect ISP/geolocation distance |
 | `--debug` / hidden `--verbose` alias | Direct-client diagnostics only; not forwarded as privileged arbitrary GUI arguments |
 | `--server-json` | Remote list fetching intentionally excluded; authorize and save local server definitions instead |
@@ -182,10 +185,13 @@ opn-librespeed log
 
 `opn-librespeed` shares the GUI lock and history, defaults to readable text,
 supports JSON/CSV output and returns nonzero on errors. `--history` selects an
-alternate CSV file; `--config` selects an alternate server list. Existing
-`configctl speedtest run [serverid]` cron jobs remain supported, including
-automatic selection when the ID is omitted. Review old server IDs before
-reenabling jobs; IDs must belong to your configured LibreSpeed servers.
+alternate CSV file without changing the shared lock; `--config` selects an
+alternate server list. Runs require permission to use the plugin's shared lock,
+normally through a root shell. `--server` and `--all-servers` are mutually
+exclusive. Existing `configctl speedtest run [serverid]` cron jobs remain
+supported, including automatic selection when the ID is omitted. Review old
+server IDs before reenabling jobs; IDs must belong to your configured
+LibreSpeed servers.
 
 For one daily run, open **Schedule**, enable the schedule, choose **Daily**,
 set the firewall-local hour/minute, and select server `0` (lowest latency),

@@ -117,6 +117,9 @@ page.elements.get('#save_settings').handlers.click();
 const save = page.request('/settings/set');
 assert.equal(save.options.data.speedtest.general.servers, '[{"id":42}]');
 assert.equal(save.options.data.speedtest.general.public_servers, '1');
+for (const [key, value] of Object.entries(defaults)) {
+    assert.equal(save.options.data.speedtest.general[key], value, 'Saved defaults must include ' + key);
+}
 assert.equal(page.elements.get('#test_controls').properties.disabled, true);
 save.resolve({result: 'failed', error: 'Invalid server JSON'});
 assert.equal(page.elements.get('#save_settings').properties.disabled, false);
@@ -219,6 +222,86 @@ vm.runInContext('followStatus()', race.context);
 race.request('/status').resolve({status: 'completed', results: []});
 assert.equal(race.elements.get('#serverlistAct').properties.disabled, false,
              'Server refresh must recover after a concurrent run ends');
+
+const busy = fixture();
+busy.request('/defaults').resolve(defaults);
+busy.request('/version').resolve({message: 'librespeed-cli v1.2.1'});
+busy.request('/serverlist').resolve([{id: '42', name: 'Lab'}]);
+busy.request('/status').resolve({status: 'busy'});
+assert.equal(busy.elements.get('#reportAct').properties.disabled, true,
+             'A run using a different history must disable new measurements');
+assert.equal(busy.elements.get('#deletelogAct').properties.disabled, true);
+assert.match(busy.elements.get('#test_status').message, /another test/i);
+vm.runInContext('followStatus()', busy.context);
+busy.request('/status').resolve({status: 'idle'});
+assert.equal(busy.elements.get('#reportAct').properties.disabled, false,
+             'Controls must recover when the other run finishes');
+
+const optionsPage = fixture();
+optionsPage.request('/defaults').resolve(defaults);
+optionsPage.request('/version').resolve({message: 'librespeed-cli v1.2.1'});
+optionsPage.request('/serverlist').resolve([{id: '42', name: 'Lab'}, {id: '84', name: 'Other'}]);
+optionsPage.request('/status').resolve({status: 'idle'});
+vm.runInContext('$("#mode")', optionsPage.context);
+const submittedOptions = {duration: '3', timeout: '4', concurrent: '2', chunks: '5', upload_size: '32',
+    family: 'ipv4', source: '127.0.0.1', exclude: '', icmp: '1', http2: '1',
+    no_pre_allocate: '1', private_ca: '1'};
+for (const [key, value] of Object.entries(submittedOptions)) {
+    if (['icmp', 'http2', 'no_pre_allocate', 'private_ca'].includes(key)) {
+        optionsPage.elements.get('#' + key).prop('checked', value === '1');
+    } else {
+        optionsPage.elements.get('#' + key).val(value);
+    }
+}
+for (const [mode, selector, custom, expectedServer] of [
+    ['both', '0', '', '0'], ['download', '42', '', '42'],
+    ['upload', 'custom', '42,84', '42%2C84'], ['latency', '-1', '', '-1']
+]) {
+    optionsPage.elements.get('#mode').val(mode);
+    optionsPage.elements.get('#serverid').val(selector);
+    optionsPage.elements.get('#custom_servers').val(custom);
+    optionsPage.elements.get('#test_form').handlers.submit.call(
+        optionsPage.elements.get('#test_form')[0], {preventDefault() {}});
+    const request = optionsPage.request('/start/' + expectedServer + '/' + mode);
+    assert.ok(request, 'Every measurement mode and server selection must be submitted');
+    assert.equal(JSON.stringify(request.options.data), JSON.stringify(submittedOptions));
+    request.resolve({error: 'Fixture reset'});
+}
+
+const schedulePage = fixture();
+schedulePage.request('/defaults').resolve(defaults);
+schedulePage.request('/schedule/get').resolve({schedule: {enabled: '0', cadence: 'daily', hour: '3',
+    minute: '15', weekday: '1', server: '0', mode: 'both', timezone: 'UTC', other_jobs: 0}});
+for (const cadence of ['hourly', 'daily', 'weekdays', 'weekly']) {
+    schedulePage.elements.get('#schedule_enabled').prop('checked', true);
+    schedulePage.elements.get('#schedule_cadence').val(cadence);
+    schedulePage.elements.get('#schedule_hour').val('5');
+    schedulePage.elements.get('#schedule_minute').val('20');
+    schedulePage.elements.get('#schedule_weekday').val('2');
+    schedulePage.elements.get('#schedule_server').val('42,84');
+    schedulePage.elements.get('#schedule_mode').val('latency');
+    schedulePage.elements.get('#schedule_cadence, #schedule_hour, #schedule_minute, #schedule_weekday').handlers.change();
+    assert.equal(schedulePage.elements.get('#schedule_hour').properties.disabled, cadence === 'hourly');
+    assert.equal(schedulePage.elements.get('#schedule_weekday').properties.disabled, cadence !== 'weekly');
+    schedulePage.elements.get('#schedule_form').handlers.submit.call(
+        schedulePage.elements.get('#schedule_form')[0], {preventDefault() {}});
+    const request = schedulePage.request('/schedule/set');
+    assert.equal(JSON.stringify(request.options.data.schedule), JSON.stringify({enabled: '1', cadence,
+        hour: '5', minute: '20', weekday: '2', server: '42,84', mode: 'latency'}));
+    request.resolve({result: 'saved'});
+}
+
+const filtersPage = fixture();
+vm.runInContext('historyReload()', filtersPage.context);
+for (const [selector, value] of Object.entries({'#history_days': '90', '#history_server': '42',
+    '#history_mode': 'latency', '#history_provider': 'librespeed', '#history_outcome': 'failed',
+    '#history_origin': 'scheduled', '#history_family': 'ipv6', '#history_source': '::1'})) {
+    filtersPage.elements.get(selector).val(value);
+}
+vm.runInContext('historyReload()', filtersPage.context);
+assert.equal(JSON.stringify(filtersPage.request('/history').options.data), JSON.stringify({page: 1, days: '90',
+    server: '42', mode: 'latency', provider: 'librespeed', status: 'failed',
+    origin: 'scheduled', family: 'ipv6', source: '::1'}));
 
 const unconfigured = fixture();
 unconfigured.request('/defaults').resolve(defaults);

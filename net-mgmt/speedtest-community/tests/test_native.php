@@ -134,12 +134,34 @@ check($started['result'] === 'started' && strlen($started['run_id']) === 32, 'De
 check(SpeedtestTestBackend::$call[2] === true, 'Long measurements use native configd detachment');
 SpeedtestTestBackend::$status = '{"status":"running"}';
 check(isset($controller->startAction()['error']), 'An active run cannot be queued again');
+SpeedtestTestBackend::$status = '{"status":"busy"}';
+check(isset($controller->startAction()['error']), 'A run with a different history cannot be queued again');
+SpeedtestTestBackend::$status = '{"status":"unexpected"}';
+check(isset($controller->startAction()['error']), 'Unknown measurement status cannot queue a run');
 SpeedtestTestBackend::$status = '{"status":"idle"}';
 $request->post = ['family' => 'ipv4', 'source' => '192.0.2.10', 'duration' => '15'];
 $controller->runAction(42, 'latency');
 check(json_decode(base64_decode(SpeedtestTestBackend::$call[1][2]), true) === [
     'duration' => 15, 'family' => 'ipv4', 'source' => '192.0.2.10'
 ], 'Explicit API overrides are validated and encoded');
+foreach (['duration' => 30, 'timeout' => 15, 'concurrent' => 8, 'chunks' => 1000, 'upload_size' => 16384] as $key => $maximum) {
+    foreach ([0, $maximum + 1] as $invalid) {
+        $request->post = [$key => (string)$invalid];
+        check(isset($controller->runAction()['error']), "$key outside its bounds must be rejected");
+    }
+    $request->post = [$key => (string)$maximum];
+    $controller->runAction(42, 'latency');
+    check(json_decode(base64_decode(SpeedtestTestBackend::$call[1][2]), true)[$key] === $maximum,
+          "$key at its maximum must be forwarded");
+}
+foreach (['icmp', 'http2', 'no_pre_allocate', 'private_ca'] as $key) {
+    $request->post = [$key => '1'];
+    $controller->runAction(42, 'latency');
+    check(json_decode(base64_decode(SpeedtestTestBackend::$call[1][2]), true)[$key] === true,
+          "$key must be forwarded");
+    $request->post = [$key => 'yes'];
+    check(isset($controller->runAction()['error']), "$key must reject invalid booleans");
+}
 $request->post = ['duration' => '31'];
 check(isset($controller->runAction()['error']), 'Invalid API limits are rejected');
 $request->isPost = false;

@@ -750,8 +750,19 @@ librespeed-cli --help</pre>
         clearTimeout(pollTimer);
         request('status', {}, function(state) {
             if (generation !== pollGeneration) return;
-            if (!['idle', 'running', 'completed', 'failed'].includes(state?.status)) {
+            if (!['idle', 'running', 'busy', 'completed', 'failed'].includes(state?.status)) {
                 showStatus('#test_status', readableError(state?.error) || "{{ lang._('Unable to read test status. Use Refresh status to retry.') }}", true);
+                return;
+            }
+            if (state.status === 'busy') {
+                if (!running) renderResults([]);
+                running = true;
+                updateControls();
+                $('#run_progress').prop('hidden', true);
+                renderLive(null);
+                $('#readout_hint').text("{{ lang._('Live progress is unavailable for this operation.') }}");
+                showStatus('#test_status', "{{ lang._('Another test or history operation is in progress. Wait for it to finish.') }}");
+                pollTimer = setTimeout(() => followStatus(expected, queued, generation), 1500);
                 return;
             }
             if (expected && state.run_id !== expected && state.status !== 'running') {

@@ -150,10 +150,12 @@ class ServiceController extends ApiControllerBase
         if ($background) {
             $backend = new Backend();
             $state = json_decode($backend->configdRun('speedtest status'), true);
-            if (!is_array($state) || isset($state['error']) && ($state['status'] ?? '') !== 'failed') {
+            if (!is_array($state)
+                || !in_array($state['status'] ?? '', ['idle', 'running', 'busy', 'completed', 'failed'], true)
+                || isset($state['error']) && $state['status'] !== 'failed') {
                 return ['error' => gettext('Unable to check measurement status')];
             }
-            if (($state['status'] ?? '') === 'running') {
+            if (in_array($state['status'], ['running', 'busy'], true)) {
                 return ['error' => gettext('A speedtest is already running')];
             }
             $runId = bin2hex(random_bytes(16));

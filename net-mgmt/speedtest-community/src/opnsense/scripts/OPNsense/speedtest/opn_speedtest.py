@@ -32,6 +32,7 @@ import json
 import re
 import errno
 import fcntl
+import hashlib
 import heapq
 import math
 import os
@@ -54,6 +55,7 @@ librespeed = "/usr/local/bin/librespeed-cli"
 librespeed_servers = "/usr/local/etc/speedtest-community/librespeed-servers.json"
 public_servers_url = "https://librespeed.org/backend-servers/servers.php"
 csvfile = "/usr/local/opnsense/scripts/OPNsense/speedtest/speedtest.csv"
+lockfile = csvfile + '.lock'
 ca_bundle = "/usr/local/etc/speedtest-community/ca.pem"
 config_xml = "/conf/config.xml"
 
@@ -66,8 +68,9 @@ parser.add_argument('action', nargs='?', default='run',
 parser.add_argument('legacy_mode', nargs='?', help=argparse.SUPPRESS)
 parser.add_argument('encoded_options', nargs='?', help=argparse.SUPPRESS)
 parser.add_argument('--cli', action='store_true', help=argparse.SUPPRESS)
-parser.add_argument('--server', action='append', help='configured server ID; repeat to compare servers; 0 selects the fastest')
-parser.add_argument('--all-servers', action='store_true', help='compare all configured servers sequentially')
+selection = parser.add_mutually_exclusive_group()
+selection.add_argument('--server', action='append', help='configured server ID; repeat to compare servers; 0 selects the fastest')
+selection.add_argument('--all-servers', action='store_true', help='compare all configured servers sequentially')
 parser.add_argument('--exclude', action='append', help='exclude a configured server ID from automatic selection')
 parser.add_argument('--run-id', help=argparse.SUPPRESS)
 parser.add_argument('--origin', choices=('manual', 'scheduled', 'cli'), default='cli', help=argparse.SUPPRESS)
@@ -246,27 +249,42 @@ def update_state(**changes):
         active_run.update(changes, updated=time.time())
         atomic_write(state_file, lambda stream: json.dump(active_run, stream, allow_nan=False))
 
-def run_status():
+def lock_owner(run_id):
+    history_id = hashlib.sha256(os.fsencode(os.path.abspath(state_file))).hexdigest()
+    return run_id + ':' + history_id
+
+def read_state():
     try:
         with open(state_file, encoding='utf-8') as stream:
             state = json.load(stream)
     except FileNotFoundError:
-        return {'status': 'idle'}
-    if not isinstance(state, dict) or state.get('status') not in ('running', 'completed', 'failed'):
+        state = {'status': 'idle'}
+    if not isinstance(state, dict) or state.get('status') not in ('idle', 'running', 'completed', 'failed'):
         raise ValueError('Invalid measurement status file')
+    return state
+
+def run_status():
+    try:
+        descriptor = os.open(lockfile, os.O_RDWR | os.O_NOFOLLOW)
+    except FileNotFoundError:
+        state = read_state()
+    else:
+        with os.fdopen(descriptor, 'r+') as stream:
+            try:
+                fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError as error:
+                if error.errno not in (errno.EACCES, errno.EAGAIN):
+                    raise
+                owner = stream.read(128).strip()
+                state = read_state()
+                run_id = state.get('run_id')
+                if (state['status'] != 'running' or not isinstance(run_id, str)
+                        or not re.fullmatch(r'[a-f0-9]{32}', run_id) or owner != lock_owner(run_id)):
+                    return {'status': 'busy'}
+                return state
+            state = read_state()
     if state.get('status') == 'running':
-        try:
-            descriptor = os.open(csvfile + '.lock', os.O_RDWR | os.O_NOFOLLOW)
-        except FileNotFoundError:
-            state.update(status='failed', error='The measurement process stopped before completing')
-        else:
-            with os.fdopen(descriptor, 'r+') as stream:
-                try:
-                    fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    state.update(status='failed', error='The measurement process stopped before completing')
-                except OSError as error:
-                    if error.errno not in (errno.EACCES, errno.EAGAIN):
-                        raise
+        state.update(status='failed', error='The measurement process stopped before completing')
     return state
 
 def parsed_timestamp(value):
@@ -738,7 +756,7 @@ try:
     server_argument = arg in ('', '0', '-1') or re.fullmatch(r'[1-9][0-9]{0,18}(?:,[1-9][0-9]{0,18}){0,9}', arg) is not None
     hold_lock = server_argument or arg == 'clear'
     if hold_lock or not os.path.exists(csvfile):
-        lock_fd = os.open(csvfile + '.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        lock_fd = os.open(lockfile, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
         lock = os.fdopen(lock_fd, 'r+')
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -748,6 +766,9 @@ try:
             emit({'error': 'A speedtest is already running'})
             quit()
 
+        lock.seek(0)
+        lock.truncate()
+        lock.flush()
         # A process started before package removal must not recreate its history.
         if not os.path.isfile(__file__):
             raise FileNotFoundError('LibreSpeed was uninstalled before history could be updated')
@@ -838,6 +859,8 @@ try:
                       'started': time.time(), 'mode': mode, 'results': [], 'phase': 'selecting',
                       'total': 1, 'completed': 0, 'progress': 0, 'deadline': time.time() + 250,
                       'samples': {'download': [], 'upload': []}}
+        lock.write(lock_owner(active_run['run_id']))
+        lock.flush()
         update_state()
     if arg in ('v', 'version'):
         if not os.access(librespeed, os.X_OK):

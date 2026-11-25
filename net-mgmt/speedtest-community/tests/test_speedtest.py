@@ -33,8 +33,8 @@ class WrapperTests(unittest.TestCase):
             "</general></speedtest></OPNsense></opnsense>"
         )
 
-    def run_wrapper(self, arg, calls, *options):
-        source = SCRIPT.read_text().replace(
+    def wrapper_source(self):
+        return SCRIPT.read_text().replace(
             '"/usr/local/opnsense/scripts/OPNsense/speedtest/speedtest.csv"',
             repr(str(self.csvfile)),
         ).replace('"/usr/local/etc/speedtest-community/librespeed-servers.json"',
@@ -42,6 +42,9 @@ class WrapperTests(unittest.TestCase):
                                                              repr(str(self.librespeed))).replace(
             '"/conf/config.xml"', repr(str(self.config_xml))
         ).replace('"/usr/local/etc/speedtest-community/ca.pem"', repr(str(self.ca_bundle)))
+
+    def run_wrapper(self, arg, calls, *options):
+        source = self.wrapper_source()
         output = io.StringIO()
         with patch.object(sys, "argv", [str(SCRIPT), arg, *options]), \
                 patch("subprocess.run", side_effect=calls) as run, \
@@ -203,6 +206,32 @@ class WrapperTests(unittest.TestCase):
             self.assertEqual(command[command.index('--duration') + 1], expected)
             self.assertEqual('--no-pre-allocate' in command, '--pre-allocate' not in args)
 
+    def test_terminal_boolean_flags_override_saved_defaults(self):
+        server = self.configure_librespeed()[0]
+        self.ca_bundle.touch()
+        self.config_xml.write_text(
+            '<opnsense><OPNsense><speedtest><general><public_servers>0</public_servers>'
+            '<icmp>1</icmp><http2>1</http2><no_pre_allocate>1</no_pre_allocate><private_ca>1</private_ca>'
+            '</general></speedtest></OPNsense></opnsense>')
+        response = subprocess.CompletedProcess([], 0, stdout=json.dumps([self.report(server)]).encode())
+        output, run = self.run_wrapper('run', [response], '--server', '42', '--mode', 'latency',
+                                       '--no-icmp', '--no-http2', '--pre-allocate', '--system-ca')
+        self.assertTrue(all(not output['options'][key]
+                            for key in ('icmp', 'http2', 'no_pre_allocate', 'private_ca')))
+        command = run.call_args.args[0]
+        self.assertIn('--no-icmp', command)
+        for flag in ('--http2', '--no-pre-allocate', '--ca-cert'):
+            self.assertNotIn(flag, command)
+
+        output, run = self.run_wrapper('run', [response], '--server', '42', '--mode', 'latency',
+                                       '--icmp', '--http2', '--no-pre-allocate', '--private-ca')
+        self.assertTrue(all(output['options'][key]
+                            for key in ('icmp', 'http2', 'no_pre_allocate', 'private_ca')))
+        command = run.call_args.args[0]
+        self.assertNotIn('--no-icmp', command)
+        for flag in ('--http2', '--no-pre-allocate', '--ca-cert'):
+            self.assertIn(flag, command)
+
     def test_invalid_settings_rejected_before_save_without_history_write(self):
         for servers in ('[{"id":1}]', 42, None, []):
             with self.subTest(servers=servers):
@@ -235,11 +264,22 @@ class WrapperTests(unittest.TestCase):
                                      capture_output=True, text=True)
         self.assertEqual(help_result.returncode, 0)
         self.assertIn('--private-ca', help_result.stdout)
-        failure = subprocess.run([sys.executable, '-B', str(SCRIPT), '--cli', 'run',
+        script = Path(self.directory.name) / 'opn_speedtest.py'
+        script.write_text(self.wrapper_source())
+        failure = subprocess.run([sys.executable, '-B', str(script), '--cli', 'run',
                                   '--history', str(self.csvfile), '--config', str(self.librespeed_servers)],
                                  capture_output=True, text=True)
         self.assertEqual(failure.returncode, 1)
         self.assertIn('Configure', failure.stdout)
+
+    def test_explicit_and_all_server_selection_are_mutually_exclusive(self):
+        script = Path(self.directory.name) / 'opn_speedtest.py'
+        script.write_text(self.wrapper_source())
+        result = subprocess.run([sys.executable, '-B', str(script), '--cli', 'run',
+                                 '--server', '42', '--all-servers'], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('not allowed with argument', result.stderr)
+        self.assertFalse(self.csvfile.exists())
 
     def test_server_names_cannot_inject_csv_formulas(self):
         servers = self.configure_librespeed()
@@ -398,6 +438,20 @@ class WrapperTests(unittest.TestCase):
         self.assertEqual(output["error"], "A speedtest is already running")
         run.assert_not_called()
 
+    def test_alternate_history_cannot_bypass_shared_run_lock(self):
+        server = self.configure_librespeed()[0]
+        alternate = Path(self.directory.name) / 'alternate.csv'
+        response = subprocess.CompletedProcess([], 0, stdout=json.dumps([self.report(server)]).encode())
+        with open(str(self.csvfile) + '.lock', 'w') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            output, run = self.run_wrapper('run', [response], '--history', str(alternate))
+            alternate.write_text('preserve history\n')
+            cleared, _ = self.run_wrapper('clear', [], '--history', str(alternate))
+        self.assertEqual(output['error'], 'A speedtest is already running')
+        self.assertEqual(cleared['error'], 'A speedtest is already running')
+        self.assertEqual(alternate.read_text(), 'preserve history\n')
+        run.assert_not_called()
+
     def test_existing_history_remains_readable_during_a_test(self):
         self.csvfile.write_text("Timestamp,ClientIp,ServerId,ServerName,Country,DlSpeed,UlSpeed,Latency,Link\n")
         with open(str(self.csvfile) + '.lock', 'w') as lock:
@@ -548,15 +602,44 @@ class WrapperTests(unittest.TestCase):
         self.assertEqual(path.read_text(), 'broken\n')
 
     def test_status_distinguishes_active_and_interrupted_measurements(self):
-        self.run_wrapper('stat', [])
-        path = Path(str(self.csvfile) + '.state.json')
-        path.write_text(json.dumps({'status': 'running', 'run_id': 'a' * 32}))
-        with open(str(self.csvfile) + '.lock', 'r+') as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            self.assertEqual(self.run_wrapper('status', [])[0]['status'], 'running')
-        status = self.run_wrapper('status', [])[0]
+        server = self.configure_librespeed()[0]
+        alternate = Path(self.directory.name) / 'alternate.csv'
+        path = Path(str(alternate) + '.state.json')
+        Path(str(self.csvfile) + '.state.json').write_text(
+            json.dumps({'status': 'running', 'run_id': 'a' * 32}))
+        response = subprocess.CompletedProcess([], 0, stdout=json.dumps([self.report(server)]).encode())
+
+        def while_running(*args, **kwargs):
+            current, _ = self.run_wrapper('status', [], '--history', str(alternate))
+            self.assertEqual(current['status'], 'running')
+            Path(str(self.csvfile) + '.state.json').write_text(
+                json.dumps({'status': 'running', 'run_id': current['run_id']}))
+            self.assertEqual(self.run_wrapper('status', [])[0]['status'], 'busy')
+            other, run = self.run_wrapper('run', [response])
+            self.assertEqual(other['error'], 'A speedtest is already running')
+            run.assert_not_called()
+            return response
+
+        self.run_wrapper('42', while_running, '--history', str(alternate))
+        self.assertEqual(self.run_wrapper('status', [], '--history', str(alternate))[0]['status'], 'completed')
+        path.write_text(json.dumps({'status': 'running', 'run_id': 'b' * 32}))
+        status = self.run_wrapper('status', [], '--history', str(alternate))[0]
         self.assertEqual(status['status'], 'failed')
         self.assertIn('stopped', status['error'])
+
+    def test_status_does_not_report_failure_if_a_run_just_completed(self):
+        state = Path(str(self.csvfile) + '.state.json')
+        state.write_text(json.dumps({'status': 'running', 'run_id': 'a' * 32}))
+        Path(str(self.csvfile) + '.lock').touch()
+        open_file = os.open
+
+        def finish_before_probe(path, flags, *args, **kwargs):
+            if str(path) == str(self.csvfile) + '.lock':
+                state.write_text(json.dumps({'status': 'completed', 'run_id': 'a' * 32}))
+            return open_file(path, flags, *args, **kwargs)
+
+        with patch('os.open', side_effect=finish_before_probe):
+            self.assertEqual(self.run_wrapper('status', [])[0]['status'], 'completed')
 
     def test_async_setup_errors_reach_the_matching_run_status(self):
         token = 'a' * 32

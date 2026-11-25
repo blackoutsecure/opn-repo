@@ -207,7 +207,8 @@ class Config {
 
     def assert_inflight_command_cannot_recreate_history(self, action, pause_before="flock"):
         wrapper = self.data / "opn_speedtest.py"
-        wrapper.write_text((ROOT / "src/opnsense/scripts/OPNsense/speedtest/opn_speedtest.py").read_text())
+        wrapper.write_text((ROOT / "src/opnsense/scripts/OPNsense/speedtest/opn_speedtest.py").read_text().replace(
+            '"/usr/local/opnsense/scripts/OPNsense/speedtest/speedtest.csv"', repr(str(self.history))))
         (self.data / "administrator-note").write_text("keep directory")
         paused = self.root / "paused"
         resume = self.root / "resume"
