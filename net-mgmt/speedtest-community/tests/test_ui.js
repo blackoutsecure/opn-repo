@@ -237,6 +237,30 @@ busy.request('/status').resolve({status: 'idle'});
 assert.equal(busy.elements.get('#reportAct').properties.disabled, false,
              'Controls must recover when the other run finishes');
 
+vm.runInContext('followStatus()', busy.context);
+busy.request('/status').resolve({status: 'busy'});
+vm.runInContext('followStatus()', busy.context);
+busy.request('/status').resolve({status: 'completed', results: [
+    {serverid: 42, servername: 'Earlier', download: 80, latency: 1, jitter: 0}]});
+assert.equal(busy.elements.get('#test_status').message,
+             'Another operation finished. Showing the most recent saved test.');
+assert.equal(busy.elements.get('#download').message, '80 Mbps');
+assert.equal(busy.elements.get('#deletelogAct').properties.disabled, false);
+
+vm.runInContext('followStatus()', busy.context);
+busy.request('/status').resolve({status: 'busy'});
+vm.runInContext('followStatus()', busy.context);
+busy.request('/status').resolve({status: 'failed', error: 'Speedtest failed: Older failure', results: []});
+assert.equal(busy.elements.get('#test_status').message,
+             'Another operation finished. The most recent saved test failed. Older failure');
+
+vm.runInContext('followStatus()', busy.context);
+busy.request('/status').resolve({status: 'busy'});
+vm.runInContext(`followStatus('${'b'.repeat(32)}')`, busy.context);
+busy.request('/status').resolve({status: 'completed', run_id: 'b'.repeat(32), results: []});
+assert.match(busy.elements.get('#test_status').message, /Test complete\. Results saved to history/,
+             'A queued test that owns the completed run must retain its completion message');
+
 const optionsPage = fixture();
 optionsPage.request('/defaults').resolve(defaults);
 optionsPage.request('/version').resolve({message: 'librespeed-cli v1.2.1'});

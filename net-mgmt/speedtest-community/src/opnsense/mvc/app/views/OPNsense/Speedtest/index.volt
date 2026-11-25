@@ -400,6 +400,7 @@ librespeed-cli --help</pre>
     let historyLoaded = false;
     let running = false;
     let starting = false;
+    let otherOperation = false;
     let engineReady = false;
     let serversReady = false;
     let serversLoading = false;
@@ -755,6 +756,7 @@ librespeed-cli --help</pre>
                 return;
             }
             if (state.status === 'busy') {
+                otherOperation = true;
                 if (!running) renderResults([]);
                 running = true;
                 updateControls();
@@ -770,6 +772,7 @@ librespeed-cli --help</pre>
                     pollTimer = setTimeout(() => followStatus(expected, queued, generation), 1500);
                 } else {
                     running = false;
+                    otherOperation = false;
                     renderResults([]);
                     updateControls();
                     $('#run_progress').prop('hidden', true);
@@ -777,6 +780,8 @@ librespeed-cli --help</pre>
                 }
                 return;
             }
+            const finishedOtherOperation = otherOperation && !expected;
+            otherOperation = false;
             const wasRunning = running;
             if (state.status === 'running' && !wasRunning) renderResults([]);
             running = state.status === 'running';
@@ -798,9 +803,16 @@ librespeed-cli --help</pre>
                 pollTimer = setTimeout(() => followStatus(state.run_id, queued, generation), 1500);
             } else if (state.status !== 'idle') {
                 renderResults(state.results || []);
-                showStatus('#test_status', state.status === 'failed'
-                    ? readableError(state.error) || "{{ lang._('The test failed. Check backend logs.') }}"
-                    : "{{ lang._('Test complete. Results saved to history.') }}", state.status === 'failed');
+                const failure = readableError(state.error);
+                let message = state.status === 'failed'
+                    ? failure || "{{ lang._('The test failed. Check backend logs.') }}"
+                    : "{{ lang._('Test complete. Results saved to history.') }}";
+                if (finishedOtherOperation) {
+                    message = state.status === 'failed'
+                        ? "{{ lang._('Another operation finished. The most recent saved test failed.') }}" + (failure ? ' ' + failure : '')
+                        : "{{ lang._('Another operation finished. Showing the most recent saved test.') }}";
+                }
+                showStatus('#test_status', message, state.status === 'failed');
                 historyLoaded = false;
             } else if (wasRunning) {
                 $('#readout_hint').text("{{ lang._('Run a test to see measurements here.') }}");

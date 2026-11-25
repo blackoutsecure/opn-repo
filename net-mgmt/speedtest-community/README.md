@@ -1,7 +1,7 @@
 # LibreSpeedtest for OPNsense
 
 [LibreSpeed](https://librespeed.org/) is the only measurement provider.
-Version **0.15** bundles the pinned native Rust `librespeed-cli 1.2.1`.
+Version **0.17** bundles the pinned native Rust `librespeed-cli 1.2.1`.
 There are **no additional runtime package dependencies**: integration uses
 OPNsense's existing PHP/Volt, configd and Python standard library. No compiler,
 Go, Node.js, extra Python package, daemon or network listener is installed.
@@ -112,7 +112,8 @@ held. Version checks are bounded at 10 seconds.
 GUI, cron, terminal-wrapper runs and history clearing share an exclusive lock,
 including runs using an alternate history file. A status query reports `busy`
 while another history's test, an initializing test, or a history operation
-holds the lock.
+holds the lock. After that operation finishes, the GUI identifies the displayed
+result as the most recent saved test without assuming where it came from.
 An unreachable server is recorded as a failure; an explicit comparison
 continues with its remaining requested servers without choosing replacements.
 
