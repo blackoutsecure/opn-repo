@@ -6,7 +6,7 @@
 for the OPNsense community.**
 
 [LibreSpeed](https://librespeed.org/) is the only measurement provider.
-Version **0.19** bundles the pinned native Rust `librespeed-cli 1.2.1`.
+Version **0.20** bundles the pinned native Rust `librespeed-cli 1.2.1`.
 There are **no additional runtime package dependencies**: integration uses
 OPNsense's existing PHP/Volt, configd and Python standard library. No compiler,
 Go, Node.js, extra Python package, daemon or network listener is installed.
@@ -444,6 +444,10 @@ before doing so. If cleanup reports an error, inspect the package output and
 remove any remaining data after tests have stopped; if the cron apply failed,
 run `configctl cron restart` after resolving the error.
 
+OPNsense configd can retain the removed plugin's action definitions in memory
+until configd is restarted. The corresponding executables are already gone,
+so those stale actions cannot run the plugin.
+
 Administrator-created `/usr/local/etc/speedtest-community/` server lists and
 CA files, alternate `--history` files, configuration backups and user/group
 privilege assignments are not deleted. Review and remove them separately if
@@ -451,6 +455,10 @@ they are no longer needed. Legacy standalone speed-test packages installed by
 older versions are also left alone because they may be used independently.
 Cleanup is skipped for an alternate package root; it must be performed within
 that installation instead.
+
+The repository ignores common local firewall configuration backups, environment
+files, private keys, certificate bundles, custom LibreSpeed server lists and
+measurement history. Ignore rules do not remove files already tracked by Git.
 
 The previous packaging framework could declare a package in conflict with
 itself, causing a misconfigured firmware status. `Mk/plugins.mk` now omits that

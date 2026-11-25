@@ -1,0 +1,18 @@
+# Local firewall configurations and backups can contain credentials.
+config.xml
+config.xml.*
+config-*.xml
+config-*.xml.*
+
+# Local environment files, private keys, and certificate bundles.
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Local LibreSpeed server configuration and measurement history.
+librespeed-servers.json
+speedtest.csv*

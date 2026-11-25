@@ -96,4 +96,6 @@ else
     cleanup_status=1
 fi
 
+echo "LibreSpeed uninstall: configd may retain cached actions until it is restarted."
+
 exit "$cleanup_status"
