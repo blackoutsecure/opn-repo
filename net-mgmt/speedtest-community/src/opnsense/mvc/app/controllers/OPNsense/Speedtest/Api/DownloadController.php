@@ -28,6 +28,7 @@
 namespace OPNsense\Speedtest\Api;
 
 use OPNsense\Base\ApiControllerBase;
+use OPNsense\Base\UserException;
 
 class DownloadController extends ApiControllerBase
 {
@@ -35,11 +36,31 @@ class DownloadController extends ApiControllerBase
 
     public function csvAction()
     {
+        return $this->sendHistory(self::DATA_CSV, 'speedtest.csv', 'text/csv');
+    }
+
+    public function jsonAction()
+    {
+        return $this->sendHistory(self::DATA_CSV . '.jsonl', 'speedtest.jsonl', 'application/x-ndjson');
+    }
+
+    protected function sendHistory($path, $filename, $contentType)
+    {
+        if (!is_file($path) || !is_readable($path)) {
+            throw new UserException(gettext('No readable measurement history is available'));
+        }
         $this->response->setStatusCode(200, "OK");
-        $this->response->setContentType('text/csv', 'UTF-8');
-        $this->response->setHeader("Content-Disposition", "attachment; filename=\"speedtest.csv\"");
-        $data = file_get_contents(self::DATA_CSV);
-        $this->response->setContent($data);
+        $this->response->setContentType($contentType, 'UTF-8');
+        $this->response->setHeader("Content-Disposition", 'attachment; filename="' . $filename . '"');
+        if (method_exists($this->response, 'setFileToSend')) {
+            $this->response->setFileToSend($path, $filename, true);
+        } else {
+            $stream = fopen($path, 'rb');
+            if ($stream === false) {
+                throw new UserException(gettext('Unable to open measurement history'));
+            }
+            $this->response->setContent($stream, true);
+        }
     }
 
     public function afterExecuteRoute($dispatcher)

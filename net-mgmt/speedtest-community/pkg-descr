@@ -1,5 +1,4 @@
-An OPNsense wrapper for the speedtest CLI test.
-Plugin allows speedtests to be executed periodically
-through CRON, generates history of past tests, shows
-statistics (avg, min, max) for latency, download and
-upload results in the dashboard widget.
+Run interactive or scheduled measurements against administrator-configured
+LibreSpeed servers. The plugin bundles a pinned native Rust CLI, supports
+saved measurement defaults and separate user/group permissions, and
+displays latency and throughput history on the dashboard.

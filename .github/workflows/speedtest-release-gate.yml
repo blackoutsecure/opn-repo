@@ -1,0 +1,75 @@
+name: LibreSpeed Rust release gate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'net-mgmt/speedtest-community/**'
+      - 'Mk/plugins.mk'
+      - '.github/workflows/speedtest-release-gate.yml'
+      - '.github/instructions/speedtest-community.instructions.md'
+  push:
+    paths:
+      - 'net-mgmt/speedtest-community/**'
+      - 'Mk/plugins.mk'
+      - '.github/workflows/speedtest-release-gate.yml'
+      - '.github/instructions/speedtest-community.instructions.md'
+
+permissions:
+  contents: read
+
+jobs:
+  freebsd-integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: vmactions/freebsd-vm@811efaaac0668df8bfb8308c3ec997b5ab50037b # v1.6.0
+        with:
+          release: "15.1"
+          arch: x86_64
+          copyback: false
+          prepare: pkg install -y rust python3 curl php85 php85-dom php85-simplexml
+          run: |
+            set -eu
+            cd net-mgmt/speedtest-community
+            php -r 'if (!extension_loaded("SimpleXML") || !extension_loaded("dom")) { fwrite(STDERR, "PHP XML extensions are required\n"); exit(1); }'
+            sh contrib/build.sh /tmp/librespeed-engine
+            LIBRESPEED_TEST_BINARY=/tmp/librespeed-engine/bin/librespeed-cli \
+              python3 -B -m unittest discover -s tests -v
+            ldd /tmp/librespeed-engine/bin/librespeed-cli
+            echo "FreeBSD engine/adapter checks do not replace native OPNsense framework/package checks."
+
+  rust-integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: net-mgmt/speedtest-community
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Check builder tools
+        run: |
+          cargo --version
+          rustc --version
+          python3 --version
+          openssl version
+      - name: Build pinned Rust engine and collect licenses
+        run: sh contrib/build.sh "$RUNNER_TEMP/librespeed-engine"
+      - name: Test adapter and real verified HTTPS engine
+        env:
+          LIBRESPEED_TEST_BINARY: ${{ runner.temp }}/librespeed-engine/bin/librespeed-cli
+        run: python3 -B -m unittest discover -s tests -v
+      - name: Check plugin scripts
+        run: |
+          sh -n contrib/build.sh src/bin/opn-librespeed
+          find src -name '*.php' -print0 | xargs -0 -n 1 php -l
+          node tests/test_ui.js src/opnsense/mvc/app/views/OPNsense/Speedtest/index.volt
+      - name: Record platform qualification boundary
+        run: |
+          echo "Linux Rust checks passed; this does not qualify a FreeBSD package."
+          echo "Run the native OPNsense model, ACL, API and package checks before release."

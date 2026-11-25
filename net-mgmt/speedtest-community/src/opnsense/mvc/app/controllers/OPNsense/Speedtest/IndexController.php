@@ -32,12 +32,12 @@ class IndexController extends \OPNsense\Base\IndexController
 {
     public function indexAction()
     {
-        // pick the template to serve to our users.
+        $acl = new \OPNsense\Core\ACL();
+        $readOnly = $acl->hasPrivilege($this->getUserName(), 'user-config-readonly');
+        $this->view->canRun = !$readOnly && $acl->isPageAccessible($this->getUserName(), '/api/speedtest/service/run/0/both');
+        $this->view->canConfigure = !$readOnly && $acl->isPageAccessible($this->getUserName(), '/api/speedtest/settings/set');
+        $this->view->canClear = !$readOnly && $acl->isPageAccessible($this->getUserName(), '/api/speedtest/service/deletelog');
+        $this->view->canSchedule = !$readOnly && $acl->isPageAccessible($this->getUserName(), '/api/speedtest/schedule/set');
         $this->view->pick('OPNsense/Speedtest/index');
-    }
-    public function installAction()
-    {
-        // pick the template to serve to our users.
-        $this->view->pick('OPNsense/Speedtest/install');
     }
 }

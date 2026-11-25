@@ -1,8 +1,48 @@
 <model>
     <mount>//OPNsense/speedtest</mount>
+    <version>1.1.0</version>
     <description>
         Speedtest plugin
     </description>
     <items>
+        <general>
+            <servers type="TextField">
+                <Required>N</Required>
+                <Mask>/^.{0,65536}$/s</Mask>
+                <ValidationMessage>Server JSON must not exceed 64 KiB.</ValidationMessage>
+            </servers>
+            <duration type="IntegerField"><default>10</default><Required>Y</Required><MinimumValue>1</MinimumValue><MaximumValue>30</MaximumValue></duration>
+            <timeout type="IntegerField"><default>8</default><Required>Y</Required><MinimumValue>1</MinimumValue><MaximumValue>15</MaximumValue></timeout>
+            <concurrent type="IntegerField"><default>3</default><Required>Y</Required><MinimumValue>1</MinimumValue><MaximumValue>8</MaximumValue></concurrent>
+            <chunks type="IntegerField"><default>100</default><Required>Y</Required><MinimumValue>1</MinimumValue><MaximumValue>1000</MaximumValue></chunks>
+            <upload_size type="IntegerField"><default>1024</default><Required>Y</Required><MinimumValue>1</MinimumValue><MaximumValue>16384</MaximumValue></upload_size>
+            <family type="OptionField">
+                <default>auto</default><Required>Y</Required>
+                <OptionValues><auto>Automatic</auto><ipv4>IPv4</ipv4><ipv6>IPv6</ipv6></OptionValues>
+            </family>
+            <source type="TextField"><Required>N</Required></source>
+            <icmp type="BooleanField"><default>0</default><Required>Y</Required></icmp>
+            <http2 type="BooleanField"><default>0</default><Required>Y</Required></http2>
+            <no_pre_allocate type="BooleanField"><default>0</default><Required>Y</Required></no_pre_allocate>
+            <private_ca type="BooleanField"><default>0</default><Required>Y</Required></private_ca>
+            <exclude type="TextField"><Required>N</Required><Mask>/^[0-9,]{0,199}$/D</Mask></exclude>
+            <retention_days type="IntegerField"><default>0</default><Required>Y</Required><MinimumValue>0</MinimumValue><MaximumValue>3650</MaximumValue></retention_days>
+            <history_limit type="IntegerField"><default>0</default><Required>Y</Required><MinimumValue>0</MinimumValue><MaximumValue>100000</MaximumValue></history_limit>
+        </general>
+        <schedule>
+            <enabled type="BooleanField"><default>0</default><Required>Y</Required></enabled>
+            <cadence type="OptionField">
+                <default>daily</default><Required>Y</Required>
+                <OptionValues><hourly>Hourly</hourly><daily>Daily</daily><weekdays>Weekdays</weekdays><weekly>Weekly</weekly></OptionValues>
+            </cadence>
+            <hour type="IntegerField"><default>3</default><Required>Y</Required><MinimumValue>0</MinimumValue><MaximumValue>23</MaximumValue></hour>
+            <minute type="IntegerField"><default>0</default><Required>Y</Required><MinimumValue>0</MinimumValue><MaximumValue>59</MaximumValue></minute>
+            <weekday type="IntegerField"><default>1</default><Required>Y</Required><MinimumValue>0</MinimumValue><MaximumValue>6</MaximumValue></weekday>
+            <server type="TextField"><default>0</default><Required>Y</Required><Mask>/^(?:0|-1|[1-9][0-9]{0,18}(?:,[1-9][0-9]{0,18}){0,9})$/D</Mask></server>
+            <mode type="OptionField">
+                <default>both</default><Required>Y</Required>
+                <OptionValues><both>Download and upload</both><download>Download only</download><upload>Upload only</upload><latency>Latency and jitter</latency></OptionValues>
+            </mode>
+        </schedule>
     </items>
 </model>

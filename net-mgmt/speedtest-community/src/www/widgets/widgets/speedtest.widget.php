@@ -28,10 +28,20 @@ require_once("guiconfig.inc");
 ?>
 <script>
     $(document).ready(function() {
-        ajaxGet("/api/speedtest/service/showrecent", {}, function(l,status) {
-			$('#stat_recent').html("<a href='" + l.url + "' target='_blank'>"+l.date+"</a> <b>Down: "+l.download+" Mbps<\/b><small> (up: "+l.upload+" Mbps, latency: "+l.latency +" ms)</small>");
-		});
         ajaxGet("/api/speedtest/service/showstat", {}, function(l,status) {
+            if (!l || l.error || !l.latency || !l.download || !l.upload) {
+                $('#stat_recent').text(l?.error || 'Unable to load speedtest statistics');
+                return;
+            }
+            const recent = l.recent;
+            if (!recent || recent.error) {
+                $('#stat_recent').text(recent?.error || 'Unable to load the latest result');
+            } else {
+                $('#stat_recent').text(recent.date).append(
+                    $('<b/>').text(` Down: ${recent.download} Mbps`),
+                    $('<small/>').text(` (up: ${recent.upload} Mbps, latency: ${recent.latency} ms)`)
+                );
+            }
             $('#stat_samples').html("<b>"+l.samples+"<\/b>");
             $('#stat_latency').html("<b>"+l.latency.avg+" ms<\/b><small> (min: "+l.latency.min+" ms, max: "+l.latency.max +" ms)</small>");
             $('#stat_download').html("<b>"+l.download.avg+" Mbps<\/b><small> (min: "+l.download.min+" Mbps, max: "+l.download.max +" Mbps)</small>");

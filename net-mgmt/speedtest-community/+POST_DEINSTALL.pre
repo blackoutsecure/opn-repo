@@ -1,0 +1,4 @@
+if [ "${PKG_ROOTDIR:-/}" != "/" ]; then
+    echo "Skipping LibreSpeed data cleanup for an alternate package root."
+    exit 0
+fi

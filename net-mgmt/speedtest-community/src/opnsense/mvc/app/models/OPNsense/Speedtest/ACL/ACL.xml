@@ -1,8 +1,35 @@
 <acl>
     <page-reporting-speedtest>
-        <name>Monitoring: Speedtest</name>
+        <name>Reporting: LibreSpeed: View results</name>
         <patterns>
-            <pattern>api/speedtest/service/*</pattern>
+            <pattern>ui/speedtest/*</pattern>
+            <pattern>api/speedtest/service/version</pattern>
+            <pattern>api/speedtest/service/defaults</pattern>
+            <pattern>api/speedtest/service/serverlist</pattern>
+            <pattern>api/speedtest/service/showstat</pattern>
+            <pattern>api/speedtest/service/showrecent</pattern>
+            <pattern>api/speedtest/service/showlog</pattern>
+            <pattern>api/speedtest/service/stat</pattern>
+            <pattern>api/speedtest/service/status</pattern>
+            <pattern>api/speedtest/service/history</pattern>
+            <pattern>api/speedtest/download/csv</pattern>
+            <pattern>api/speedtest/download/json</pattern>
         </patterns>
     </page-reporting-speedtest>
+    <page-reporting-speedtest-run>
+        <name>Reporting: LibreSpeed: Run measurements</name>
+        <patterns><pattern>api/speedtest/service/run/*</pattern><pattern>api/speedtest/service/run</pattern><pattern>api/speedtest/service/start</pattern><pattern>api/speedtest/service/start/*</pattern></patterns>
+    </page-reporting-speedtest-run>
+    <page-reporting-speedtest-settings>
+        <name>Reporting: LibreSpeed: Configure settings</name>
+        <patterns><pattern>api/speedtest/settings/get</pattern><pattern>api/speedtest/settings/set</pattern></patterns>
+    </page-reporting-speedtest-settings>
+    <page-reporting-speedtest-schedule>
+        <name>Reporting: LibreSpeed: Manage schedule</name>
+        <patterns><pattern>api/speedtest/schedule/get</pattern><pattern>api/speedtest/schedule/set</pattern><pattern>api/speedtest/schedule/apply</pattern></patterns>
+    </page-reporting-speedtest-schedule>
+    <page-reporting-speedtest-clear>
+        <name>Reporting: LibreSpeed: Clear history</name>
+        <patterns><pattern>api/speedtest/service/deletelog</pattern><pattern>api/speedtest/service/deletelog/*</pattern></patterns>
+    </page-reporting-speedtest-clear>
 </acl>

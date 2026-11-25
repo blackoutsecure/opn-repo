@@ -2,7 +2,6 @@
     <speedtest>
         <filename>Speedtest.js</filename>
         <endpoints>
-            <endpoint>/api/speedtest/service/showrecent</endpoint>
             <endpoint>/api/speedtest/service/showstat</endpoint>
         </endpoints>
         <translations>
