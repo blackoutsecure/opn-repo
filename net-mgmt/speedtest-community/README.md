@@ -6,7 +6,7 @@
 for the OPNsense community.**
 
 [LibreSpeed](https://librespeed.org/) is the only measurement provider.
-Version **0.18** bundles the pinned native Rust `librespeed-cli 1.2.1`.
+Version **0.19** bundles the pinned native Rust `librespeed-cli 1.2.1`.
 There are **no additional runtime package dependencies**: integration uses
 OPNsense's existing PHP/Volt, configd and Python standard library. No compiler,
 Go, Node.js, extra Python package, daemon or network listener is installed.
