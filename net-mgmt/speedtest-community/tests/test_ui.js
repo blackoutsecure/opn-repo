@@ -2,7 +2,13 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
-const rawScript = fs.readFileSync(process.argv[2], 'utf8').match(/<script>([\s\S]*?)<\/script>/)[1];
+const markup = fs.readFileSync(process.argv[2], 'utf8');
+const rawScript = markup.match(/<script>([\s\S]*?)<\/script>/)[1];
+const measurement = markup.slice(markup.indexOf('id="measurement"'), markup.indexOf('id="history"'));
+const setup = markup.slice(markup.indexOf('id="setup"'), markup.indexOf('<script>'));
+assert.ok(!measurement.includes('id="units"'), 'Throughput units are selected automatically');
+assert.ok(!measurement.includes('id="duration"') && setup.includes('id="duration"'),
+          'Measurement options belong in settings, not the run screen');
 // CI substitutes only script tokens; native OPNsense separately compiles the full Volt template.
 function scriptTokens(source, privileged) {
     return source.replace(/\{\{\s*lang\._\('((?:\\.|[^'])*)'\)\s*\}\}/g,
@@ -18,11 +24,11 @@ function fixture(source = script) {
     function element(selector) {
         const result = {
             properties: {}, attributes: {}, handlers: {}, classes: new Set(), children: [],
-            value: ({'#units': 'Mbps', '#serverid': '0',
+            value: ({'#serverid': '0',
                 '#history_days': '30', '#history_provider': 'librespeed',
                 '#history_mode': 'all', '#history_server': 'all', '#history_outcome': 'all',
                 '#history_origin': 'all', '#history_family': 'all', '#history_source': 'all'})[selector] || '', message: '',
-            0: {addEventListener() {}, reportValidity: () => true},
+            0: {listeners: {}, addEventListener(event, handler) { this.listeners[event] = handler; }, reportValidity: () => true},
             prop(key, value) {
                 if (value === undefined) return this.properties[key];
                 this.properties[key] = value;
@@ -113,6 +119,17 @@ assert.equal(page.requests.some(r => r.options.url.endsWith('/settings/set')), f
 page.request('/settings/get').resolve({speedtest: {general: {servers: '[{"id":42}]'}}});
 assert.equal(page.elements.get('#save_settings').properties.disabled, false);
 assert.equal(page.elements.get('#public_servers').properties.checked, true);
+page.elements.get('#open_test_settings').handlers.click({preventDefault() {}});
+assert.equal(page.elements.get('#setup_tab').properties.tab, 'show');
+assert.equal(page.elements.get('#measurement_settings_heading').properties.trigger, 'focus');
+page.elements.get('#measurement_options_form')[0].reportValidity = () => false;
+page.elements.get('#measurement_options_form')[0].listeners.invalid();
+assert.equal(page.elements.get('#setup_tab').properties.tab, 'show',
+             'Invalid measurement settings must be revealed before reporting the error');
+page.elements.get('#save_settings').handlers.click();
+assert.equal(page.requests.some(r => r.options.url.endsWith('/settings/set')), false,
+             'Invalid measurement settings must not be saved');
+page.elements.get('#measurement_options_form')[0].reportValidity = () => true;
 page.elements.get('#save_settings').handlers.click();
 const save = page.request('/settings/set');
 assert.equal(save.options.data.speedtest.general.servers, '[{"id":42}]');
@@ -135,10 +152,10 @@ staleHistory.resolve({error: 'Stale history failed'});
 assert.equal(page.elements.get('#history_status').message, 'Current history failed',
              'A stale response must not overwrite the current history state');
 assert.equal(vm.runInContext('metricValue("upload", null)', page.context), 'Not measured');
-page.elements.get('#units').val('MBps');
-assert.equal(vm.runInContext('speed(80)', page.context), '10 MB/s');
-page.elements.get('#units').val('MiBps');
-assert.equal(vm.runInContext('speed(83.88608)', page.context), '10 MiB/s');
+for (const [value, expected] of [[0, '0 Mbps'], [0.0005, '500 bps'], [0.001, '1 kbps'],
+    [0.75, '750 kbps'], [1, '1 Mbps'], [999, '999 Mbps'], [1000, '1 Gbps'], [1500, '1.5 Gbps']]) {
+    assert.equal(vm.runInContext(`speed(${value})`, page.context), expected);
+}
 page.request('/status').resolve({status: 'idle'});
 page.request('/version').resolve({message: 'librespeed-cli v1.2.1 (built on 1970-01-01 00:00:00 UTC)'});
 assert.equal(page.elements.get('#version').message, 'LibreSpeed CLI v1.2.1');
@@ -160,22 +177,23 @@ assert.equal(page.elements.get('#selecting_progress').value, 100);
 assert.equal(page.elements.get('#ping_progress').value, 100);
 assert.equal(page.elements.get('#download_progress').value, 50);
 assert.equal(page.elements.get('#upload_stage').properties.hidden, true);
-assert.equal(page.elements.get('#download').message, '4.77 MiB/s');
+assert.equal(page.elements.get('#download').message, '40 Mbps');
 assert.equal(page.elements.get('#live_chart_region').properties.hidden, false);
 assert.equal(page.chartConfigs[0].data.datasets[0].data.length, 2);
-page.elements.get('#units').val('MBps').handlers.change();
-assert.equal(page.elements.get('#download').message, '5 MB/s');
-assert.equal(page.chartConfigs[0].data.datasets[0].data[1].y, 5);
-assert.equal(page.chartConfigs[0].options.scales.y.title.text, 'MB/s');
-assert.match(page.elements.get('#readout_hint').message, /running averages/,
-             'Changing units during a run must not show the empty-state prompt');
+assert.equal(page.chartConfigs[0].options.scales.y.title.text, 'Mbps');
+vm.runInContext(`renderLive({status:'running', mode:'download', phase:'download',
+    samples:{download:[{seconds:1,mbps:40},{seconds:2,mbps:1200}]}})`, page.context);
+assert.equal(page.elements.get('#download').message, '1.2 Gbps');
+assert.equal(page.chartConfigs[0].options.scales.y.title.text, 'Gbps');
+assert.equal(vm.runInContext('liveChart.data.datasets[0].data[0].y', page.context), 0.04,
+             'A live unit change must rescale earlier samples onto the same axis');
 vm.runInContext('followStatus()', page.context);
 page.request('/status').resolve({status: 'completed', run_id: 'a'.repeat(32),
     phase: 'finished', server: 'Lab', samples: {download: [{seconds: 2, mbps: 40}], upload: []},
     results: [{serverid: 42, servername: 'Lab', download: 80, latency: 1, jitter: 0, mode: 'download'}]});
 assert.equal(page.elements.get('#reportAct').properties.disabled, false);
 assert.match(page.elements.get('#test_status').message, /Results saved to history/);
-assert.equal(page.elements.get('#download').message, '10 MB/s');
+assert.equal(page.elements.get('#download').message, '80 Mbps');
 assert.equal(page.elements.get('#upload').message, 'Not measured');
 assert.equal(page.elements.get('#jitter').message, '0 ms', 'Zero is a measured value');
 assert.equal(page.elements.get('#jitter').classes.has('is-empty'), false);
@@ -266,6 +284,11 @@ optionsPage.request('/defaults').resolve(defaults);
 optionsPage.request('/version').resolve({message: 'librespeed-cli v1.2.1'});
 optionsPage.request('/serverlist').resolve([{id: '42', name: 'Lab'}, {id: '84', name: 'Other'}]);
 optionsPage.request('/status').resolve({status: 'idle'});
+optionsPage.elements.get('#measurement_options_form')[0].reportValidity = () => false;
+optionsPage.elements.get('#test_form').handlers.submit.call(optionsPage.elements.get('#test_form')[0], {preventDefault() {}});
+assert.equal(optionsPage.requests.some(r => r.options.url.includes('/start/')), false,
+             'A manual test must not start with invalid measurement settings');
+optionsPage.elements.get('#measurement_options_form')[0].reportValidity = () => true;
 vm.runInContext('$("#mode")', optionsPage.context);
 const submittedOptions = {duration: '3', timeout: '4', concurrent: '2', chunks: '5', upload_size: '32',
     family: 'ipv4', source: '127.0.0.1', exclude: '', icmp: '1', http2: '1',
@@ -371,9 +394,6 @@ assert.equal(unconfigured.elements.get('#reportAct').properties.disabled, false)
 unconfigured.elements.get('#test_form').handlers.submit.call(unconfigured.elements.get('#test_form')[0], {preventDefault() {}});
 unconfigured.request('/start/0/both').reject();
 assert.match(unconfigured.elements.get('#readout_hint').message, /unknown/);
-unconfigured.elements.get('#units').val('MBps').handlers.change();
-assert.match(unconfigured.elements.get('#readout_hint').message, /unknown/,
-             'A lost start response must remain uncertain when units change');
 vm.runInContext('followStatus("a".repeat(32), Date.now() - 16000)', unconfigured.context);
 unconfigured.request('/status').resolve({status: 'idle'});
 assert.match(unconfigured.elements.get('#test_status').message, /did not start/);
@@ -403,12 +423,17 @@ assert.equal(page.elements.get('#trend_charts').properties.hidden, true);
 assert.match(page.elements.get('#log_block').children[0].children[0].message, /No measurements/);
 vm.runInContext('historyReload()', page.context);
 const priorCharts = page.chartConfigs.length;
-page.request('/history').resolve({rows: [], series: [{epoch: 1700000000, download: 80, upload: 20, latency: 2, jitter: 0}],
-    metrics: {}, successful: 1, failed: 0, bytes_received: 1, bytes_sent: 1,
+page.request('/history').resolve({rows: [], series: [{epoch: 1700000000, download: 1500, upload: 20, latency: 2, jitter: 0}],
+    metrics: {download: {avg: 1500, min: 1500, max: 1500}}, successful: 1, failed: 0, bytes_received: 1, bytes_sent: 1,
     servers: {}, sources: [], total: 1, limit: 50, bucket_days: 1});
 assert.equal(page.elements.get('#trend_charts').properties.hidden, false);
 assert.equal(page.chartConfigs.length, priorCharts + 2);
-assert.equal(page.chartConfigs[priorCharts].data.datasets[0].data[0].y, 10);
+const throughput = page.chartConfigs[priorCharts];
+assert.equal(throughput.options.scales.y.title.text, 'Gbps');
+assert.equal(throughput.data.datasets[0].data[0].y, 1.5);
+assert.equal(throughput.data.datasets[1].data[0].y, 0.02);
+assert.equal(page.chartConfigs[priorCharts + 1].options.scales.y.title.text, 'ms');
+assert.equal(page.elements.get('#history_metrics').children[0].children[1].message, '1.5 Gbps');
 
 const failed = fixture();
 failed.request('/defaults').resolve(defaults);
@@ -432,7 +457,20 @@ viewer.request('/serverlist').resolve({code: 'servers_unconfigured'});
 assert.equal(viewer.elements.get('#server_setup_notice').properties.hidden, false);
 assert.equal(viewer.elements.has('#open_server_setup'), false);
 assert.equal(viewer.elements.get('#reportAct').properties.disabled, true);
+assert.equal(viewer.elements.get('#measurement_options_controls').properties.disabled, true);
 assert.equal(viewer.requests.some(r => r.options.url.includes('/schedule/')), false);
+const runner = fixture(script.replace('const canConfigure = true;', 'const canConfigure = false;'));
+runner.request('/defaults').resolve(defaults);
+runner.request('/version').resolve({message: 'librespeed-cli v1.2.1'});
+runner.request('/serverlist').resolve([{id: '42', name: 'Lab'}]);
+runner.request('/status').resolve({status: 'idle'});
+assert.equal(runner.elements.get('#measurement_options_controls').properties.disabled, false);
+runner.elements.get('#duration').val('5');
+vm.runInContext('$("#mode").val("latency")', runner.context);
+runner.elements.get('#test_form').handlers.submit.call(runner.elements.get('#test_form')[0], {preventDefault() {}});
+assert.equal(runner.request('/start/0/latency').options.data.duration, '5',
+             'Run-only users can still use temporary measurement overrides');
+assert.equal(runner.requests.some(r => r.options.url.endsWith('/settings/set')), false);
 vm.runInContext('renderResults([{error:"failed",servername:"One"},{error:"failed",servername:"Two"}])', page.context);
 assert.equal(page.elements.get('#latest_success').properties.hidden, true, 'An all-failed comparison must not show stale successful values');
 assert.equal(page.elements.get('#download').message, 'Not measured');

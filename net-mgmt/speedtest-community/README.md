@@ -1,7 +1,7 @@
 # LibreSpeedtest for OPNsense
 
 [LibreSpeed](https://librespeed.org/) is the only measurement provider.
-Version **0.17** bundles the pinned native Rust `librespeed-cli 1.2.1`.
+Version **0.18** bundles the pinned native Rust `librespeed-cli 1.2.1`.
 There are **no additional runtime package dependencies**: integration uses
 OPNsense's existing PHP/Volt, configd and Python standard library. No compiler,
 Go, Node.js, extra Python package, daemon or network listener is installed.
@@ -28,7 +28,7 @@ When no custom or administrator-managed server list is available, the plugin
 uses the official LibreSpeed.org public list by default. It retrieves the list
 from [`servers.php`](https://librespeed.org/backend-servers/servers.php) over
 HTTPS, validates the entries, then selects the lowest-latency server. In
-**Reporting > Speedtest > Setup and CLI**, disable **Use the official
+**Reporting > Speedtest > Settings and CLI**, disable **Use the official
 LibreSpeed.org public server list** to opt out. The registry and selected test
 servers can see the firewall's public IP; the plugin does not share results or
 send telemetry. List retrieval or validation failures are reported
@@ -60,7 +60,11 @@ Choose specific IDs or exclude servers from automatic/all-server selection.
 Explicit IDs cannot be combined with exclusions. A local source binding is
 retained for like-for-like history filtering. Existing CSV data is preserved.
 
-Saving also persists advanced measurement defaults under
+The run screen keeps server and mode selection. **Settings and CLI** contains
+the measurement options: edits apply to manual tests in the current page
+without saving, including for users with run permission but not configure
+permission. Saving makes them defaults for future runs. Saving also persists
+measurement defaults under
 `OPNsense/speedtest/general` in `/conf/config.xml`, using native model validation,
 configuration locking, revisions and backups. New GUI, cron, API and terminal
 runs inherit these defaults; explicit run options override them. No restart is
@@ -91,7 +95,7 @@ being truncated. Use the external file for unusually long lists or URLs.
 | HTTP/2 | Optional; multiplexing changes connection/concurrency semantics |
 | Upload memory | Optional reduced preallocation; server must accept chunked uploads |
 | Private CA | Optional PEM bundle, with certificate verification retained |
-| Display units | Mbps, MB/s or MiB/s; stored measurements remain Mbps |
+| Display units | Throughput automatically scales in bits per second; charts share one unit per axis. Stored measurements remain Mbps. |
 | History retention | Optional days (1-3650) and/or records (1-100000); 0 disables each limit |
 | Scheduled measurements | Disabled by default; hourly, daily, weekdays or weekly; selected mode and server IDs |
 
@@ -135,7 +139,7 @@ than forwarding arbitrary arguments through a root command.
 | `--secure`, `--ca-cert` | HTTPS always enforced; optional administrator-managed CA bundle |
 | `--local-json` | Validated saved JSON or local file, passed to the engine on stdin; no temporary server-list file |
 | `--json`, `--json-stream` | Validated reports and live GUI progress; terminal streaming remains available directly from the native engine |
-| `--bytes`, `--mebibytes` | Equivalent GUI display conversions; the upstream JSON/CSV values themselves are always Mbps |
+| `--bytes`, `--mebibytes` | Upstream terminal display conversions; the upstream JSON/CSV values themselves are always Mbps |
 | `--simple`, `--csv`, `--csv-delimiter`, `--csv-header` | Wrapper text/JSON/CSV, stable nine-column export and detailed JSONL; exact upstream formatting/delimiters/header-only output remain direct-client features |
 | `--list` | Configured-server picker and wrapper `list`; uses official public discovery when enabled and no local list is configured |
 | `--distance` | Direct-client presentation only; plugin does not collect ISP/geolocation distance |
