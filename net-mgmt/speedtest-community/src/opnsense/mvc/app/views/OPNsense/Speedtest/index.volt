@@ -57,6 +57,15 @@
     .speedtest-metrics dd.is-empty { font-size: 1em; font-weight: 400; }
     .speedtest-metrics .download-icon { color: #b52da5; }
     .speedtest-metrics .upload-icon { color: #00818b; }
+    .speedtest-live-stages { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 20px; }
+    .speedtest-live-stage > div { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 5px; }
+    .speedtest-live-stage span:last-child { white-space: nowrap; }
+    .speedtest-live-chart { position: relative; height: 220px; margin: 12px 0; }
+    .speedtest-live-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 20px; margin-top: 20px; }
+    .speedtest-live-heading h4 { margin: 0; font-weight: 600; }
+    .speedtest-live-heading p { margin: 0; font-variant-numeric: tabular-nums; }
+    #download_progress { accent-color: #b52da5; }
+    #upload_progress { accent-color: #00818b; }
     .speedtest-result-details { display: flex; flex-wrap: wrap; gap: 12px 28px; margin: 20px 0 0; }
     .speedtest-result-details > div { min-width: 0; }
     .speedtest-result-details dd { margin: 4px 0 0; overflow-wrap: anywhere; }
@@ -88,6 +97,7 @@
     }
     @media (max-width: 560px) {
         .speedtest-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .speedtest-live-stages { grid-template-columns: minmax(0, 1fr); }
         .speedtest-readout { padding: 16px; }
     }
 </style>
@@ -151,11 +161,12 @@
                     <div class="speedtest-field">
                         <label for="mode">{{ lang._('Test mode') }}</label>
                         <select id="mode" class="form-control">
-                            <option value="both">{{ lang._('Download and upload') }}</option>
+                            <option value="both">{{ lang._('Full test (recommended)') }}</option>
                             <option value="download">{{ lang._('Download only') }}</option>
                             <option value="upload">{{ lang._('Upload only') }}</option>
                             <option value="latency">{{ lang._('Latency and jitter only') }}</option>
                         </select>
+                        <span class="help-block">{{ lang._('All modes measure latency and jitter. The full test also measures download and upload.') }}</span>
                         <span class="help-block">{{ lang._('Diagnostics and failures are saved in history. Dashboard widgets use successful full tests.') }}</span>
                     </div>
                     {% if canRun %}
@@ -206,9 +217,21 @@
                     <div><dt>{{ lang._('Jitter') }}</dt><dd id="jitter" class="is-empty">{{ lang._('Not measured') }}</dd></div>
                 </dl>
                 <div id="run_progress" hidden>
-                    <p id="phase_status"></p>
-                    <progress id="measurement_progress" max="100" value="0" aria-label="{{ lang._('Current measurement phase progress') }}"></progress>
+                    <p id="phase_status" role="status" aria-live="polite"></p>
+                    <div class="speedtest-live-stages">
+                        <div class="speedtest-live-stage"><div><span>{{ lang._('Server selection') }}</span><span id="selecting_status"></span></div><progress id="selecting_progress" max="100" value="0" aria-label="{{ lang._('Server selection progress') }}"></progress></div>
+                        <div class="speedtest-live-stage"><div><span>{{ lang._('Latency and jitter') }}</span><span id="ping_status"></span></div><progress id="ping_progress" max="100" value="0" aria-label="{{ lang._('Latency and jitter progress') }}"></progress></div>
+                        <div id="download_stage" class="speedtest-live-stage"><div><span>{{ lang._('Download') }}</span><span id="download_status"></span></div><progress id="download_progress" max="100" value="0" aria-label="{{ lang._('Download progress') }}"></progress></div>
+                        <div id="upload_stage" class="speedtest-live-stage"><div><span>{{ lang._('Upload') }}</span><span id="upload_status"></span></div><progress id="upload_progress" max="100" value="0" aria-label="{{ lang._('Upload progress') }}"></progress></div>
+                    </div>
                     <p class="help-block">{{ lang._('The test continues if you leave this page. Avoid running the direct CLI at the same time.') }}</p>
+                </div>
+                <div id="live_chart_region" hidden>
+                    <div class="speedtest-live-heading"><h4>{{ lang._('Speed during this test') }}</h4><p id="live_speed"></p></div>
+                    <p id="live_chart_server" class="speedtest-secondary"></p>
+                    <p id="live_chart_status" class="speedtest-status" role="status"></p>
+                    <div class="speedtest-live-chart"><canvas id="live_chart" role="img" aria-label="{{ lang._('Download and upload running averages during the test; the latest value appears above') }}"></canvas></div>
+                    <p class="help-block">{{ lang._('Points show the running average reported by LibreSpeed. Time starts again for each direction.') }}</p>
                 </div>
                 <div id="test_results" hidden aria-live="polite">
                     <div id="latest_success">
@@ -289,7 +312,7 @@
                 <div class="form-group"><label for="schedule_minute" class="col-sm-3 control-label">{{ lang._('Minute') }}</label><div class="col-sm-9"><input id="schedule_minute" class="form-control" type="number" min="0" max="59" value="0" required></div></div>
                 <div class="form-group"><label for="schedule_weekday" class="col-sm-3 control-label">{{ lang._('Day of week') }}</label><div class="col-sm-9"><select id="schedule_weekday" class="form-control"><option value="0">{{ lang._('Sunday') }}</option><option value="1">{{ lang._('Monday') }}</option><option value="2">{{ lang._('Tuesday') }}</option><option value="3">{{ lang._('Wednesday') }}</option><option value="4">{{ lang._('Thursday') }}</option><option value="5">{{ lang._('Friday') }}</option><option value="6">{{ lang._('Saturday') }}</option></select></div></div>
                 <div class="form-group"><label for="schedule_server" class="col-sm-3 control-label">{{ lang._('Server selection') }}</label><div class="col-sm-9"><input id="schedule_server" class="form-control" type="text" value="0" pattern="0|-1|[1-9][0-9]*(,[1-9][0-9]*)*" required><span class="help-block">{{ lang._('0: lowest latency. -1: compare all. Or enter configured IDs, such as 42,84. Comparisons run sequentially.') }}</span></div></div>
-                <div class="form-group"><label for="schedule_mode" class="col-sm-3 control-label">{{ lang._('Test mode') }}</label><div class="col-sm-9"><select id="schedule_mode" class="form-control"><option value="both">{{ lang._('Download and upload') }}</option><option value="download">{{ lang._('Download only') }}</option><option value="upload">{{ lang._('Upload only') }}</option><option value="latency">{{ lang._('Latency and jitter only') }}</option></select></div></div>
+                <div class="form-group"><label for="schedule_mode" class="col-sm-3 control-label">{{ lang._('Test mode') }}</label><div class="col-sm-9"><select id="schedule_mode" class="form-control"><option value="both">{{ lang._('Full test (recommended)') }}</option><option value="download">{{ lang._('Download only') }}</option><option value="upload">{{ lang._('Upload only') }}</option><option value="latency">{{ lang._('Latency and jitter only') }}</option></select><span class="help-block">{{ lang._('All modes measure latency and jitter. The full test also measures download and upload.') }}</span></div></div>
                 <div class="form-group"><div class="col-sm-offset-3 col-sm-9"><p id="schedule_preview"></p><p class="help-block">{{ lang._('Saved measurement defaults apply at execution time. Overlapping tests are refused. Cron uses the firewall timezone and may skip or repeat a wall-clock time at daylight-saving changes.') }}</p><button id="save_schedule" class="btn btn-primary" type="submit">{{ lang._('Save and apply schedule') }}</button> <button id="apply_schedule" class="btn btn-default" type="button">{{ lang._('Apply saved schedule') }}</button></div></div>
             </fieldset></form>
             <div id="schedule_status" class="speedtest-status" role="status" aria-live="polite"></div>
@@ -392,6 +415,8 @@ librespeed-cli --help</pre>
     let pollGeneration = 0;
     let pollTimer = null;
     let charts = [];
+    let liveChart = null;
+    let liveState = null;
     const canRun = {% if canRun %}true{% else %}false{% endif %};
     const canConfigure = {% if canConfigure %}true{% else %}false{% endif %};
     const canSchedule = {% if canSchedule %}true{% else %}false{% endif %};
@@ -486,9 +511,12 @@ librespeed-cli --help</pre>
         return value === undefined || value === null ? "{{ lang._('Not measured') }}"
             : Number(value).toLocaleString(undefined, {maximumFractionDigits: 2}) + suffix;
     }
+    function speedDivisor() {
+        return $('#units').val() === 'MiBps' ? 8.388608 : $('#units').val() === 'MBps' ? 8 : 1;
+    }
     function speed(value) {
         const unit = $('#units').val();
-        return number(value === undefined || value === null ? null : value / (unit === 'MiBps' ? 8.388608 : unit === 'MBps' ? 8 : 1),
+        return number(value === undefined || value === null ? null : value / speedDivisor(),
             unit === 'MiBps' ? ' MiB/s' : unit === 'MBps' ? ' MB/s' : ' Mbps');
     }
     function metricValue(key, value) {
@@ -525,6 +553,90 @@ librespeed-cli --help</pre>
             rows.append(row);
         });
         if (results.length > 1) $('#test_results').prop('hidden', false);
+    }
+    function renderLive(state) {
+        liveState = state;
+        const samples = {};
+        ['download', 'upload'].forEach(key => {
+            const points = state?.samples?.[key];
+            samples[key] = Array.isArray(points) ? points.filter(point => point
+                && Number.isFinite(point.seconds) && point.seconds >= 0
+                && Number.isFinite(point.mbps) && point.mbps >= 0) : [];
+        });
+        if (state?.status === 'running') {
+            const phases = ['selecting', 'ping'];
+            if (['both', 'download'].includes(state.mode)) phases.push('download');
+            if (['both', 'upload'].includes(state.mode)) phases.push('upload');
+            const current = phases.indexOf(state.phase);
+            $('#download_stage').prop('hidden', !phases.includes('download'));
+            $('#upload_stage').prop('hidden', !phases.includes('upload'));
+            phases.forEach((phase, index) => {
+                const bar = $('#' + phase + '_progress');
+                const label = $('#' + phase + '_status');
+                if (current === index && ['selecting', 'ping'].includes(phase)) {
+                    bar.removeAttr('value');
+                    label.text("{{ lang._('In progress') }}");
+                } else {
+                    const value = current > index ? 100 : current === index
+                        ? Math.max(0, Math.min(100, Number(state.progress) || 0)) : 0;
+                    bar.val(value);
+                    label.text(value === 100 ? "{{ lang._('Complete') }}"
+                        : current === index ? value + '%' : "{{ lang._('Waiting') }}");
+                }
+            });
+            ['download', 'upload'].forEach(key => {
+                const point = samples[key].at(-1);
+                $('#' + key).text(speed(point?.mbps)).toggleClass('is-empty', !point);
+            });
+        }
+        const hasSamples = samples.download.length || samples.upload.length;
+        $('#live_chart_region').prop('hidden', !hasSamples);
+        if (!hasSamples) {
+            if (liveChart) liveChart.destroy();
+            liveChart = null;
+            return;
+        }
+        const direction = ['download', 'upload'].includes(state.phase) ? state.phase
+            : samples.upload.length ? 'upload' : 'download';
+        const point = samples[direction].at(-1);
+        $('#live_chart_server').text(state.server || '');
+        $('#live_speed').text(point ? metricNames[direction] + ': ' + speed(point.mbps)
+            : "{{ lang._('Waiting for the first speed sample.') }}");
+        if (typeof Chart !== 'function') {
+            $('.speedtest-live-chart').prop('hidden', true);
+            showStatus('#live_chart_status', "{{ lang._('Live chart unavailable. Progress and the latest speed remain visible.') }}", true);
+            return;
+        }
+        $('.speedtest-live-chart').prop('hidden', false);
+        showStatus('#live_chart_status', '');
+        const unit = $('#units').val();
+        const color = getComputedStyle(document.body).color;
+        const datasets = ['download', 'upload'].map((key, index) => ({
+            label: metricNames[key],
+            data: samples[key].map(item => ({x: item.seconds, y: item.mbps / speedDivisor()})),
+            borderColor: index ? '#00818b' : '#b52da5', backgroundColor: index ? '#00818b' : '#b52da5',
+            borderWidth: 2, pointRadius: 2, spanGaps: false
+        }));
+        const unitLabel = unit === 'MiBps' ? 'MiB/s' : unit === 'MBps' ? 'MB/s' : 'Mbps';
+        if (!liveChart) {
+            liveChart = new Chart(document.getElementById('live_chart'), {
+                type: 'line', data: {datasets: datasets},
+                options: {
+                    responsive: true, maintainAspectRatio: false, animation: false, parsing: false,
+                    interaction: {mode: 'nearest', intersect: false},
+                    plugins: {legend: {labels: {color: color}}},
+                    scales: {
+                        x: {type: 'linear', beginAtZero: true, ticks: {color: color, maxTicksLimit: 6},
+                            title: {display: true, color: color, text: "{{ lang._('Seconds per direction') }}"}},
+                        y: {beginAtZero: true, ticks: {color: color}, title: {display: true, color: color, text: unitLabel}}
+                    }
+                }
+            });
+        } else {
+            liveChart.data.datasets = datasets;
+            liveChart.options.scales.y.title.text = unitLabel;
+            liveChart.update('none');
+        }
     }
     function renderCharts(data) {
         charts.forEach(chart => chart.destroy());
@@ -659,15 +771,14 @@ librespeed-cli --help</pre>
             running = state.status === 'running';
             updateControls();
             $('#run_progress').prop('hidden', !running);
+            renderLive(state.status === 'idle' ? null : state);
             if (running) {
                 const phases = {selecting: "{{ lang._('Selecting server') }}", ping: "{{ lang._('Measuring latency') }}",
                     download: "{{ lang._('Measuring download') }}", upload: "{{ lang._('Measuring upload') }}"};
                 const parts = [state.server, phases[state.phase] || state.phase];
                 if (state.total > 1) parts.push("{{ lang._('Server') }} " + Math.min(state.completed + 1, state.total) + '/' + state.total);
-                if (state.mbps !== null && state.mbps !== undefined) parts.push(speed(state.mbps));
-                $('#phase_status').text(parts.filter(Boolean).join(' · '));
-                $('#measurement_progress').val(state.progress || 0);
-                $('#readout_hint').text("{{ lang._('Test in progress. Results appear when it finishes.') }}");
+                showStatus('#phase_status', parts.filter(Boolean).join(' · '));
+                $('#readout_hint').text("{{ lang._('Live speeds are running averages. Final results appear when the test finishes.') }}");
                 showStatus('#test_status', "{{ lang._('Test in progress. Throughput measurements may saturate the connection.') }}");
                 if (Date.now() / 1000 > state.deadline + 30) {
                     showStatus('#test_status', "{{ lang._('The test exceeded its expected deadline. Check backend logs; a lock may still be held. Refresh status to check again.') }}", true);
@@ -745,6 +856,7 @@ librespeed-cli --help</pre>
             $('#serverid').on('change', updateControls);
             $('#units').on('change', function() {
                 if (!running) renderResults(latestResults);
+                if (liveState) renderLive(liveState);
                 if (historyData) renderHistory(historyData);
             });
             $(window).on('pagehide', function() { ++pollGeneration; clearTimeout(pollTimer); });
@@ -847,6 +959,9 @@ librespeed-cli --help</pre>
             if (!historyLoaded) historyReload();
             charts.forEach(chart => chart.resize());
         });
+        $('a[href="#measurement"]').on('shown.bs.tab', function() {
+            if (liveChart) liveChart.resize();
+        });
         $('#history_filters').on('change', function() { historyPage = 1; historyReload(); });
         $('#history_previous').on('click', function() { if (historyPage > 1) { historyPage--; historyReload(); } });
         $('#history_next').on('click', function() { if (historyPage < 200) { historyPage++; historyReload(); } });
@@ -863,6 +978,7 @@ librespeed-cli --help</pre>
             running = true;
             updateControls();
             renderResults([]);
+            renderLive(null);
             showStatus('#test_status', "{{ lang._('Starting test...') }}");
             request('start/' + encodeURIComponent(server) + '/' + mode, options, function(data) {
                 if (data?.result !== 'started' || !data.run_id) {

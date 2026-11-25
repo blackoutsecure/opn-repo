@@ -42,6 +42,7 @@ function fixture(source = script) {
                 this.attributes[key] = value;
                 return this;
             },
+            removeAttr(key) { this.attributes[key] = null; return this; },
             empty() { this.children = []; return this; },
             append(child) { this.children.push(child); return this; },
             tab(action) { this.properties.tab = action; return this; },
@@ -87,7 +88,14 @@ function fixture(source = script) {
         return request;
     };
     const context = vm.createContext({$, window: {location: {reload() {}}, confirm: () => true},
-        Chart: function(canvas, config) { chartConfigs.push(config); this.destroy = () => {}; this.resize = () => {}; },
+        Chart: function(canvas, config) {
+            chartConfigs.push(config);
+            this.data = config.data;
+            this.options = config.options;
+            this.destroy = () => {};
+            this.resize = () => {};
+            this.update = () => {};
+        },
         getComputedStyle: () => ({color: '#333'}), document: {body: {}, getElementById: () => ({})},
         setTimeout: () => 1, clearTimeout() {}});
     vm.runInContext(source, context);
@@ -142,21 +150,63 @@ assert.equal(page.elements.get('#download').message, 'Not measured', 'Starting a
 assert.equal(page.elements.get('#test_results').properties.hidden, true);
 start.resolve({result: 'started', run_id: 'a'.repeat(32)});
 page.request('/status').resolve({status: 'running', run_id: 'a'.repeat(32), phase: 'download',
-    server: 'Lab', total: 1, progress: 50, deadline: Date.now() / 1000 + 60});
+    mode: 'download', server: 'Lab', total: 1, progress: 50, deadline: Date.now() / 1000 + 60,
+    samples: {download: [{seconds: 1, mbps: 20}, {seconds: 2, mbps: 40}], upload: []}});
 assert.equal(page.elements.get('#run_progress').properties.hidden, false);
-assert.match(page.elements.get('#readout_hint').message, /in progress/);
-page.elements.get('#units').val('Mbps').handlers.change();
-assert.match(page.elements.get('#readout_hint').message, /in progress/,
+assert.equal(page.elements.get('#selecting_progress').value, 100);
+assert.equal(page.elements.get('#ping_progress').value, 100);
+assert.equal(page.elements.get('#download_progress').value, 50);
+assert.equal(page.elements.get('#upload_stage').properties.hidden, true);
+assert.equal(page.elements.get('#download').message, '4.77 MiB/s');
+assert.equal(page.elements.get('#live_chart_region').properties.hidden, false);
+assert.equal(page.chartConfigs[0].data.datasets[0].data.length, 2);
+page.elements.get('#units').val('MBps').handlers.change();
+assert.equal(page.elements.get('#download').message, '5 MB/s');
+assert.equal(page.chartConfigs[0].data.datasets[0].data[1].y, 5);
+assert.equal(page.chartConfigs[0].options.scales.y.title.text, 'MB/s');
+assert.match(page.elements.get('#readout_hint').message, /running averages/,
              'Changing units during a run must not show the empty-state prompt');
 vm.runInContext('followStatus()', page.context);
 page.request('/status').resolve({status: 'completed', run_id: 'a'.repeat(32),
+    phase: 'finished', server: 'Lab', samples: {download: [{seconds: 2, mbps: 40}], upload: []},
     results: [{serverid: 42, servername: 'Lab', download: 80, latency: 1, jitter: 0, mode: 'download'}]});
 assert.equal(page.elements.get('#reportAct').properties.disabled, false);
 assert.match(page.elements.get('#test_status').message, /Results saved to history/);
-assert.equal(page.elements.get('#download').message, '80 Mbps');
+assert.equal(page.elements.get('#download').message, '10 MB/s');
 assert.equal(page.elements.get('#upload').message, 'Not measured');
 assert.equal(page.elements.get('#jitter').message, '0 ms', 'Zero is a measured value');
 assert.equal(page.elements.get('#jitter').classes.has('is-empty'), false);
+assert.equal(page.elements.get('#live_chart_region').properties.hidden, false,
+             'The last live trace remains visible after completion');
+
+const live = fixture();
+vm.runInContext(`renderLive({status:'running', mode:'both', phase:'selecting', server:'Lab',
+    samples:{download:[],upload:[]}})`, live.context);
+assert.equal(live.elements.get('#selecting_progress').attributes.value, null,
+             'Server selection has indeterminate progress');
+assert.equal(live.elements.get('#ping_status').message, 'Waiting');
+vm.runInContext(`renderLive({status:'running', mode:'both', phase:'ping', server:'Lab',
+    samples:{download:[],upload:[]}})`, live.context);
+assert.equal(live.elements.get('#ping_progress').attributes.value, null,
+             'Latency has indeterminate progress');
+vm.runInContext(`renderLive({status:'running', mode:'both', phase:'upload', progress:25, server:'Lab',
+    samples:{download:[{seconds:1,mbps:80}],upload:[{seconds:1,mbps:24}]}})`, live.context);
+assert.equal(live.elements.get('#download_progress').value, 100);
+assert.equal(live.elements.get('#upload_progress').value, 25);
+assert.equal(live.elements.get('#live_speed').message, 'Upload: 24 Mbps');
+assert.equal(live.chartConfigs[0].data.datasets[0].data[0].y, 80);
+assert.equal(live.chartConfigs[0].data.datasets[1].data[0].y, 24);
+vm.runInContext(`renderLive({status:'running', mode:'both', phase:'selecting', server:'Next server',
+    samples:{download:[],upload:[]}})`, live.context);
+assert.equal(live.elements.get('#live_chart_region').properties.hidden, true,
+             'A comparison must not carry the previous server trace forward');
+assert.equal(live.elements.get('#download').message, 'Not measured');
+vm.runInContext('Chart = undefined', live.context);
+vm.runInContext(`renderLive({status:'running', mode:'both', phase:'download', progress:10, server:'Lab',
+    samples:{download:[{seconds:1,mbps:12}],upload:[]}})`, live.context);
+assert.match(live.elements.get('#live_chart_status').message, /unavailable/i);
+assert.equal(live.elements.get('#download').message, '12 Mbps',
+             'Current speed remains available if the chart asset fails to load');
 
 const race = fixture();
 race.request('/defaults').resolve(defaults);
@@ -245,12 +295,13 @@ page.request('/history').resolve({rows: [], series: [], metrics: {}, successful:
 assert.equal(page.elements.get('#trend_charts').properties.hidden, true);
 assert.match(page.elements.get('#log_block').children[0].children[0].message, /No measurements/);
 vm.runInContext('historyReload()', page.context);
+const priorCharts = page.chartConfigs.length;
 page.request('/history').resolve({rows: [], series: [{epoch: 1700000000, download: 80, upload: 20, latency: 2, jitter: 0}],
     metrics: {}, successful: 1, failed: 0, bytes_received: 1, bytes_sent: 1,
     servers: {}, sources: [], total: 1, limit: 50, bucket_days: 1});
 assert.equal(page.elements.get('#trend_charts').properties.hidden, false);
-assert.equal(page.chartConfigs.length, 2);
-assert.equal(page.chartConfigs[0].data.datasets[0].data[0].y, 80);
+assert.equal(page.chartConfigs.length, priorCharts + 2);
+assert.equal(page.chartConfigs[priorCharts].data.datasets[0].data[0].y, 10);
 
 const failed = fixture();
 failed.request('/defaults').resolve(defaults);

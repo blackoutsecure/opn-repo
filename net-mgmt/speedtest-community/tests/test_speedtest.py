@@ -122,6 +122,8 @@ class WrapperTests(unittest.TestCase):
             subprocess.CompletedProcess([], 0, stdout=json.dumps([result]).encode()),
         ])
         self.assertIn("did not complete", output["error"])
+        self.assertIn("Lab", output["error"], 'The automatically selected server must be identified on failure')
+        self.assertEqual(self.run_wrapper('status', [])[0]['server'], 'Lab')
         self.assertEqual(self.run_wrapper("stat", [])[0]["samples"], 0)
 
     def test_librespeed_malformed_result_does_not_pollute_history(self):
@@ -566,8 +568,11 @@ class WrapperTests(unittest.TestCase):
 
     def test_real_stream_parser_persists_progress_and_validated_results(self):
         server = self.configure_librespeed()[0]
-        events = [{'event': 'phase', 'phase': 'download'},
-                  {'event': 'progress', 'phase': 'download', 'progress': 67, 'mbps': 42.5},
+        events = [{'event': 'phase', 'phase': 'ping'},
+                  {'event': 'phase', 'phase': 'download'},
+                  {'event': 'progress', 'phase': 'download', 'seconds': 1.5, 'progress': 67, 'mbps': 42.5},
+                  {'event': 'phase', 'phase': 'upload'},
+                  {'event': 'progress', 'phase': 'upload', 'seconds': 1, 'progress': 33, 'mbps': 0},
                   {'event': 'result', 'reports': [self.report(server)]}]
         self.librespeed.write_text('#!' + sys.executable + '\nimport sys\nsys.stdin.read()\n'
                                   + '\n'.join('print(' + repr(json.dumps(event)) + ', flush=True)' for event in events))
@@ -582,6 +587,46 @@ class WrapperTests(unittest.TestCase):
         self.assertEqual(output['download'], 100)
         self.assertTrue(any(row.get('progress') == 67 and row.get('mbps') == 42.5 for row in snapshots))
         self.assertEqual(snapshots[-1]['status'], 'completed')
+        self.assertEqual(snapshots[-1]['server'], 'Lab')
+        self.assertEqual(snapshots[-1]['samples'], {
+            'download': [{'seconds': 1.5, 'mbps': 42.5}], 'upload': [{'seconds': 1, 'mbps': 0}]})
+
+    def test_comparison_resets_live_samples_for_each_server(self):
+        servers = self.configure_librespeed()
+        servers.append(dict(servers[0], id=84, name='Other', server='https://other.example.net/'))
+        self.librespeed_servers.write_text(json.dumps(servers))
+        self.librespeed.write_text('#!' + sys.executable + '\n'
+                                  'import json,sys\n'
+                                  'server=json.load(sys.stdin)[0]\n'
+                                  'print(json.dumps({"event":"progress","phase":"download","seconds":1,'
+                                  '"progress":50,"mbps":server["id"]}),flush=True)\n'
+                                  'print(json.dumps({"event":"result","reports":[{'
+                                  '"timestamp":"2026-11-25T03:00:00Z","server":{"url":server["server"]},'
+                                  '"ping":1,"jitter":0,"download":100,"upload":50,'
+                                  '"bytes_received":1000,"bytes_sent":500}]}),flush=True)\n')
+        snapshots = []
+        replace = os.replace
+        def capture(source, destination):
+            if str(destination).endswith('.state.json'):
+                snapshots.append(json.loads(Path(source).read_text()))
+            replace(source, destination)
+        with patch('os.replace', side_effect=capture):
+            output, _ = self.run_wrapper('42,84', [], '--run-id', 'c' * 32)
+        self.assertEqual(len(output['results']), 2)
+        self.assertTrue(any(row.get('phase') == 'selecting' and row.get('completed') == 1
+                            and row.get('samples') == {'download': [], 'upload': []} for row in snapshots))
+        self.assertEqual(snapshots[-1]['server'], 'Other')
+        self.assertEqual(snapshots[-1]['samples']['download'], [{'seconds': 1, 'mbps': 84}])
+
+    def test_invalid_stream_sample_is_reported_as_a_failed_measurement(self):
+        self.configure_librespeed()
+        event = {'event': 'progress', 'phase': 'download', 'seconds': -1, 'progress': 50, 'mbps': 10}
+        self.librespeed.write_text('#!' + sys.executable + '\nimport sys\nsys.stdin.read()\nprint('
+                                  + repr(json.dumps(event)) + ',flush=True)\n')
+        output, _ = self.run_wrapper('42', [], '--run-id', 'd' * 32)
+        self.assertIn('Invalid LibreSpeed progress sample', output['error'])
+        self.assertEqual(self.run_wrapper('status', [])[0]['status'], 'failed')
+        self.assertEqual(self.query_history(status='failed')['total'], 1)
 
     def test_schedule_validation_checks_server_selection_without_writing_history(self):
         self.configure_librespeed()

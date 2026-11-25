@@ -1,7 +1,7 @@
 # LibreSpeedtest for OPNsense
 
 [LibreSpeed](https://librespeed.org/) is the only measurement provider.
-Version **0.14** bundles the pinned native Rust `librespeed-cli 1.2.1`.
+Version **0.15** bundles the pinned native Rust `librespeed-cli 1.2.1`.
 There are **no additional runtime package dependencies**: integration uses
 OPNsense's existing PHP/Volt, configd and Python standard library. No compiler,
 Go, Node.js, extra Python package, daemon or network listener is installed.
@@ -16,6 +16,11 @@ progress, sequential server comparisons, throughput and latency/jitter trends,
 filtered/paged history, detailed exports and an optional native cron schedule.
 Diagnostics and failures are retained, not silently discarded. Charts reuse
 the Chart.js already shipped by OPNsense; no external assets are loaded.
+During GUI and scheduled tests, per-phase bars show progress and the live
+graph plots the engine's running-average download and upload rates. Server
+selection and latency have indeterminate progress because the engine does not
+report a percentage for those phases. The live graph contains the current or
+most recently tested server in a comparison and resets for the next server.
 
 ## Setup and saved defaults
 
@@ -74,7 +79,7 @@ being truncated. Use the external file for unusually long lists or URLs.
 
 | Control | Default / supported range |
 | --- | --- |
-| Mode | Full download and upload; download-only, upload-only, latency/jitter-only |
+| Mode | Recommended full test (download, upload, latency and jitter); download-only, upload-only, latency/jitter-only. Every mode measures latency and jitter. |
 | Duration per direction | 10 seconds; 1-30 |
 | HTTP request timeout | 15 seconds; 1-15. Upgrades change the former default of 8 to 15 while preserving other saved values. |
 | Concurrent requests | 3; 1-8 |
@@ -293,7 +298,7 @@ that installation instead.
 The previous packaging framework could declare a package in conflict with
 itself, causing a misconfigured firmware status. `Mk/plugins.mk` now omits that
 self-conflict while preserving real stable/development conflicts. Source
-changes alone do not repair an installed package: build/install **0.14** for
+changes alone do not repair an installed package: build/install **0.14 or newer** for
 the matching OPNsense repository, FreeBSD ABI and architecture, then refresh
 firmware status. This work does not automatically install or publish it.
 

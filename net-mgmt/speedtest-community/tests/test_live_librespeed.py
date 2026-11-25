@@ -112,7 +112,8 @@ class LiveEngineTests(unittest.TestCase):
 
                     self.assertIn('error', run('run', '--mode', 'latency', success=False))
                     for mode in ('both', 'download', 'upload', 'latency'):
-                        result = run('run', '--mode', mode, '--private-ca', '--duration', '1',
+                        result = run('run', '--mode', mode, '--private-ca', '--duration',
+                                     '2' if mode == 'both' else '1',
                                      '--concurrent', '1', '--family', 'ipv4', '--source', '127.0.0.1',
                                      '--no-pre-allocate', '--http2', '--run-id', 'a' * 32)
                         self.assertIn(result['tls']['version'], ('TLS 1.2', 'TLS 1.3'))
@@ -122,6 +123,12 @@ class LiveEngineTests(unittest.TestCase):
                                 self.assertGreater(result[direction], 0)
                             else:
                                 self.assertNotIn(direction, result)
+                        if mode == 'both':
+                            samples = run('status')['samples']
+                            for direction in ('download', 'upload'):
+                                self.assertTrue(samples[direction], samples)
+                                self.assertTrue(any(point['mbps'] > 0 and point['seconds'] > 0
+                                                    for point in samples[direction]), samples)
                     self.assertEqual(run('stat')['samples'], 1)
                     detailed = run('history')
                     self.assertEqual((detailed['successful'], detailed['failed']), (4, 1))

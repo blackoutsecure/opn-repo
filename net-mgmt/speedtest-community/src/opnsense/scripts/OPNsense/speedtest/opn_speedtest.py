@@ -479,6 +479,21 @@ def streamed_command(command, timeout, content):
                                 if mbps is not None and (type(mbps) not in (int, float)
                                                          or not math.isfinite(mbps) or mbps < 0):
                                     raise ValueError('Invalid LibreSpeed progress rate')
+                                if event['event'] == 'progress':
+                                    seconds = event.get('seconds')
+                                    if (phase not in ('download', 'upload') or mbps is None
+                                            or type(seconds) not in (int, float)
+                                            or not math.isfinite(seconds) or not 0 <= seconds <= timeout):
+                                        raise ValueError('Invalid LibreSpeed progress sample')
+                                    samples = active_run['samples'][phase]
+                                    if samples and seconds < samples[-1]['seconds']:
+                                        raise ValueError('LibreSpeed progress samples are out of order')
+                                    point = {'seconds': seconds, 'mbps': mbps}
+                                    if samples and seconds == samples[-1]['seconds']:
+                                        samples[-1] = point
+                                    else:
+                                        samples.append(point)
+                                        del samples[:-64]
                                 update_state(phase=phase, progress=progress, mbps=mbps)
                 returncode = process.wait(timeout=max(0.01, deadline - time.monotonic()))
             if returncode:
@@ -583,6 +598,7 @@ def run_librespeed(servers, server_id, mode, options):
     selected = next((server for server in servers if server['server'] == result['server'].get('url')), None)
     if selected is None:
         raise ValueError('LibreSpeed reported an unconfigured server')
+    update_state(server=selected['name'])
     out = {'provider': 'librespeed', 'timestamp': result['timestamp'], 'clientip': '',
            'serverid': selected['id'], 'servername': selected['name'], 'country': '', 'link': ''}
     for field, key in [('latency', 'ping'), ('jitter', 'jitter')] + [(d, d) for d, _ in directions]:
@@ -592,7 +608,8 @@ def run_librespeed(servers, server_id, mode, options):
         out[field] = round(value, 2)
     for direction, counter in directions:
         if out[direction] <= 0 or type(result.get(counter)) is not int or result[counter] <= 0:
-            raise ValueError(f'LibreSpeed did not complete the {direction} measurement')
+            raise ValueError(f'LibreSpeed did not complete the {direction} measurement on {selected["name"]}. '
+                             'Try another server or check connectivity')
         out[counter] = result[counter]
     out['mode'] = mode
     out['options'] = options
@@ -819,7 +836,8 @@ try:
             raise ValueError('Invalid measurement run ID')
         active_run = {'run_id': args.run_id or uuid.uuid4().hex, 'origin': args.origin, 'status': 'running',
                       'started': time.time(), 'mode': mode, 'results': [], 'phase': 'selecting',
-                      'total': 1, 'completed': 0, 'progress': 0, 'deadline': time.time() + 250}
+                      'total': 1, 'completed': 0, 'progress': 0, 'deadline': time.time() + 250,
+                      'samples': {'download': [], 'upload': []}}
         update_state()
     if arg in ('v', 'version'):
         if not os.access(librespeed, os.X_OK):
@@ -859,6 +877,7 @@ try:
             for index, selection in enumerate(selections):
                 selected = next((server for server in servers if str(server['id']) == selection), None)
                 update_state(phase='selecting', progress=0, mbps=None, completed=index,
+                             samples={'download': [], 'upload': []},
                              server=selected['name'] if selected else 'Automatic selection')
                 try:
                     result = run_librespeed(servers, selection, mode, options)
