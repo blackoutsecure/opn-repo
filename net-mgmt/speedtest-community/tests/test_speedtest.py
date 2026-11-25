@@ -28,6 +28,10 @@ class WrapperTests(unittest.TestCase):
         self.librespeed = Path(self.directory.name) / "librespeed-cli"
         self.config_xml = Path(self.directory.name) / "config.xml"
         self.ca_bundle = Path(self.directory.name) / "ca.pem"
+        self.config_xml.write_text(
+            "<opnsense><OPNsense><speedtest><general><public_servers>0</public_servers>"
+            "</general></speedtest></OPNsense></opnsense>"
+        )
 
     def run_wrapper(self, arg, calls, *options):
         source = SCRIPT.read_text().replace(
@@ -166,6 +170,16 @@ class WrapperTests(unittest.TestCase):
         self.assertEqual(command[command.index('--source') + 1], '192.0.2.10')
         self.assertEqual(self.run_wrapper('stat', [])[0]['samples'], 0)
 
+    def test_default_request_timeout_accommodates_slow_opnsense_dns(self):
+        servers = self.configure_librespeed()
+        result = {'timestamp': '2026-11-25T03:00:00Z', 'server': {'url': servers[0]['server']},
+                  'ping': 2.5, 'jitter': 1.1}
+        _, run = self.run_wrapper('42', [
+            subprocess.CompletedProcess([], 0, stdout=json.dumps([result]).encode())
+        ], 'latency')
+        command = run.call_args.args[0]
+        self.assertEqual(command[command.index('--timeout') + 1], '15')
+
     def test_saved_native_settings_apply_to_cron_and_cli_can_override(self):
         servers = self.configure_librespeed()
         self.librespeed_servers.unlink()
@@ -246,7 +260,79 @@ class WrapperTests(unittest.TestCase):
             with self.subTest(action=action):
                 output, run = self.run_wrapper(action, [])
                 self.assertIn(f"Configure the LibreSpeed server list at {self.librespeed_servers}", output["error"])
+                if action == "list":
+                    self.assertEqual(output["code"], "servers_unconfigured")
                 run.assert_not_called()
+
+    def test_public_registry_is_used_when_no_custom_list_exists(self):
+        servers = [{"id": 109, "name": "Detroit", "server": "https://bench.example.net/",
+                    "dlURL": "backend/garbage.php", "ulURL": "backend/empty.php",
+                    "pingURL": "backend/empty.php", "getIpURL": "backend/getIP.php"}]
+        self.config_xml.write_text(
+            "<opnsense><OPNsense><speedtest><general><public_servers>1</public_servers>"
+            "</general></speedtest></OPNsense></opnsense>"
+        )
+
+        class RegistryResponse:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                pass
+
+            def geturl(self):
+                return "https://librespeed.org/backend-servers/servers.php"
+
+            def read(self, limit):
+                self.limit = limit
+                return json.dumps(servers).encode()
+
+        response = RegistryResponse()
+        with patch("urllib.request.urlopen", return_value=response) as fetch:
+            output, run = self.run_wrapper("list", [])
+        self.assertEqual(output, [{"id": "109", "name": "Detroit", "location": "", "country": ""}])
+        fetch.assert_called_once_with(
+            "https://librespeed.org/backend-servers/servers.php", timeout=20
+        )
+        self.assertEqual(response.limit, 65537)
+        run.assert_not_called()
+
+    def test_public_registry_failure_is_explicit_and_never_uses_a_fallback(self):
+        self.config_xml.write_text(
+            "<opnsense><OPNsense><speedtest><general><public_servers>1</public_servers>"
+            "</general></speedtest></OPNsense></opnsense>"
+        )
+        with patch("urllib.request.urlopen", side_effect=OSError("network unavailable")):
+            output, run = self.run_wrapper("list", [])
+        self.assertIn("Unable to retrieve the official LibreSpeed.org server list", output["error"])
+        self.assertNotIn("code", output)
+        run.assert_not_called()
+
+    def test_custom_admin_server_file_takes_precedence_over_public_registry(self):
+        self.configure_librespeed()
+        with patch("urllib.request.urlopen", side_effect=AssertionError("unexpected registry request")):
+            output, run = self.run_wrapper("list", [])
+        self.assertEqual(output[0]["id"], "42")
+        run.assert_not_called()
+
+    def test_public_registry_setting_can_disable_discovery(self):
+        self.config_xml.write_text(
+            "<opnsense><OPNsense><speedtest><general><public_servers>0</public_servers>"
+            "</general></speedtest></OPNsense></opnsense>"
+        )
+        with patch("urllib.request.urlopen", side_effect=AssertionError("discovery is disabled")):
+            output, run = self.run_wrapper("list", [])
+        self.assertEqual(output["code"], "servers_unconfigured")
+        run.assert_not_called()
+
+    def test_invalid_server_list_is_not_reported_as_unconfigured(self):
+        self.librespeed_servers.write_text("{invalid")
+        output, run = self.run_wrapper("list", [])
+        self.assertIn("error", output)
+        self.assertNotIn("code", output)
+        run.assert_not_called()
 
     def test_missing_rust_client_reports_the_install_path(self):
         self.configure_librespeed()

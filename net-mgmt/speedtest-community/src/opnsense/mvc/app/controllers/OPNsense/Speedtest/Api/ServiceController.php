@@ -36,7 +36,7 @@ class ServiceController extends ApiControllerBase
     {
         $general = (new \OPNsense\Speedtest\Speedtest())->general;
         $result = [];
-        foreach (['duration', 'timeout', 'concurrent', 'chunks', 'upload_size',
+        foreach (['public_servers', 'duration', 'timeout', 'concurrent', 'chunks', 'upload_size',
                   'family', 'source', 'icmp', 'http2', 'no_pre_allocate', 'private_ca',
                   'exclude', 'retention_days', 'history_limit'] as $key) {
             $result[$key] = (string)$general->{$key};

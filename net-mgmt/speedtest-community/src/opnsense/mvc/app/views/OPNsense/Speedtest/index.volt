@@ -22,184 +22,249 @@
 #}
 <script src="/ui/js/chart.umd.min.js"></script>
 <style>
+    .speedtest-tabs { display: flex; flex-wrap: wrap; }
+    .speedtest-tabs > li { float: none; }
+    .speedtest-surface [hidden] { display: none !important; }
+    .speedtest-surface .content-box-main { padding: 24px; }
+    .speedtest-surface h2 { margin: 0 0 8px; font-size: 1.55em; }
+    .speedtest-surface h3 { margin: 0 0 8px; font-size: 1.2em; }
+    .speedtest-surface .help-block, .speedtest-secondary { color: inherit; opacity: .82; line-height: 1.4; }
+    .speedtest-header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px 24px; margin-bottom: 20px; }
+    .speedtest-header p { margin: 0; }
+    .speedtest-engine { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+    .speedtest-notice { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; margin: 0 0 20px; border: 1px solid rgba(127, 127, 127, .45); border-radius: 3px; }
+    .speedtest-notice i { margin-top: 2px; }
+    .speedtest-notice p { margin: 4px 0; }
+    .speedtest-status:not(:empty) { margin: 0 0 16px; line-height: 1.4; }
+    .speedtest-workspace { display: grid; grid-template-columns: minmax(250px, 360px) minmax(0, 1fr); gap: 28px; align-items: start; max-width: 1300px; }
+    .speedtest-run-form fieldset { min-width: 0; }
+    .speedtest-field { margin: 0 0 16px; }
+    .speedtest-field > label, .speedtest-toolbar label { display: block; }
+    .speedtest-server-control { display: flex; gap: 8px; }
+    .speedtest-server-control select { min-width: 0; flex: 1; }
+    .speedtest-option-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; }
+    .speedtest-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 16px 0; }
+    .speedtest-readout { min-width: 0; padding: 20px; border: 1px solid rgba(127, 127, 127, .4); border-radius: 3px; }
+    .speedtest-readout-header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px 20px; }
+    .speedtest-readout-header p { margin: 0; }
+    .speedtest-readout-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+    .speedtest-readout-controls label { display: block; }
+    .speedtest-readout-controls select { width: auto; min-width: 92px; }
+    .speedtest-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 24px 0; }
+    .speedtest-metrics > div { min-width: 0; }
+    .speedtest-metrics dt { margin-bottom: 6px; font-weight: 600; overflow-wrap: anywhere; }
+    .speedtest-metrics dd { margin: 0; font-size: 1.7em; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .speedtest-metrics dd.is-empty { font-size: 1em; font-weight: 400; }
+    .speedtest-metrics .download-icon { color: #b52da5; }
+    .speedtest-metrics .upload-icon { color: #00818b; }
+    .speedtest-result-details { display: flex; flex-wrap: wrap; gap: 12px 28px; margin: 20px 0 0; }
+    .speedtest-result-details > div { min-width: 0; }
+    .speedtest-result-details dd { margin: 4px 0 0; overflow-wrap: anywhere; }
     .speedtest-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin: 16px 0; }
-    .speedtest-toolbar label { display: block; }
     .speedtest-chart { position: relative; height: 260px; margin: 12px 0 24px; }
-    .speedtest-surface details { margin: 12px 0 20px; }
-    .speedtest-surface summary { cursor: pointer; margin-bottom: 12px; }
-    .speedtest-surface progress { display: block; width: 100%; height: 16px; }
+    .speedtest-disclosure { margin: 16px 0; }
+    .speedtest-disclosure > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; }
+    .speedtest-disclosure > summary::-webkit-details-marker { display: none; }
+    .speedtest-disclosure > summary::marker { content: ''; }
+    .speedtest-disclosure > summary .fa { transition: transform 160ms ease-out; }
+    .speedtest-disclosure[open] > summary .fa { transform: rotate(90deg); }
+    .speedtest-disclosure > div { margin-top: 16px; }
+    .speedtest-disclosure > summary:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+    .speedtest-surface progress { display: block; width: 100%; height: 12px; accent-color: #c03e14; }
     .speedtest-surface pre { white-space: pre-wrap; overflow-wrap: anywhere; }
     .speedtest-surface .table td { vertical-align: middle; }
     .speedtest-surface .numeric { font-variant-numeric: tabular-nums; white-space: nowrap; }
     .speedtest-surface .section-note { max-width: 75ch; }
+    .speedtest-settings { max-width: 900px; }
+    .speedtest-settings h3 { margin-top: 24px; }
+    @media (prefers-reduced-motion: reduce) {
+        .speedtest-disclosure > summary .fa { transition: none; }
+    }
     @media (max-width: 767px) {
+        .speedtest-surface .content-box-main { padding: 16px; }
+        .speedtest-workspace { grid-template-columns: minmax(0, 1fr); gap: 20px; }
         .speedtest-toolbar > div { flex: 1 1 140px; min-width: 0; }
         .speedtest-chart { height: 220px; }
     }
+    @media (max-width: 560px) {
+        .speedtest-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .speedtest-readout { padding: 16px; }
+    }
 </style>
-<ul class="nav nav-tabs" role="tablist">
-    <li class="active"><a href="#measurement" data-toggle="tab" role="tab">{{ lang._('Run test') }}</a></li>
-    <li><a href="#history" data-toggle="tab" role="tab">{{ lang._('Trends and history') }}</a></li>
-    {% if canSchedule %}<li><a href="#schedule" data-toggle="tab" role="tab">{{ lang._('Schedule') }}</a></li>{% endif %}
-    <li><a href="#setup" data-toggle="tab" role="tab">{{ lang._('Setup and CLI') }}</a></li>
+<ul class="nav nav-tabs speedtest-tabs" role="tablist" aria-label="{{ lang._('Speedtest sections') }}">
+    <li class="active" role="presentation"><a id="measurement_tab" href="#measurement" data-toggle="tab" role="tab" aria-controls="measurement" aria-selected="true">{{ lang._('Run test') }}</a></li>
+    <li role="presentation"><a id="history_tab" href="#history" data-toggle="tab" role="tab" aria-controls="history" aria-selected="false" tabindex="-1">{{ lang._('Trends and history') }}</a></li>
+    {% if canSchedule %}<li role="presentation"><a id="schedule_tab" href="#schedule" data-toggle="tab" role="tab" aria-controls="schedule" aria-selected="false" tabindex="-1">{{ lang._('Schedule') }}</a></li>{% endif %}
+    <li role="presentation"><a id="setup_tab" href="#setup" data-toggle="tab" role="tab" aria-controls="setup" aria-selected="false" tabindex="-1">{{ lang._('Setup and CLI') }}</a></li>
 </ul>
 <div class="tab-content content-box speedtest-surface">
-    <div id="measurement" class="tab-pane active" role="tabpanel">
+    <div id="measurement" class="tab-pane active" role="tabpanel" aria-labelledby="measurement_tab">
         <div class="content-box-main">
-            <h2>LibreSpeedtest</h2>
-            <p>{{ lang._('Measure from the firewall to an authorized LibreSpeed server. Tests may saturate the connection.') }}</p>
-            <p>
-                {{ lang._('Provider') }}:
-                <a href="https://librespeed.org/" target="_blank" rel="noopener noreferrer">LibreSpeedtest</a>
-                <span id="version" role="status">{{ lang._('Checking LibreSpeed...') }}</span>
-            </p>
-            <div id="test_status" role="status" aria-live="polite"></div>
-            <div class="speedtest-toolbar">
-                <div><label for="units">{{ lang._('Speed display') }}</label><select id="units" class="form-control"><option value="Mbps">Mbps</option><option value="MBps">MB/s</option><option value="MiBps">MiB/s</option></select></div>
-                <button id="check_status" type="button" class="btn btn-default">{{ lang._('Check running test') }}</button>
+            <div class="speedtest-header">
+                <div>
+                    <h2>{{ lang._('Connection test') }}</h2>
+                    <p class="section-note">{{ lang._('Measure from this firewall to an authorized LibreSpeed server. A test may saturate your connection.') }}</p>
+                </div>
+                <div class="speedtest-engine">
+                    <span id="version" role="status">{{ lang._('Checking engine...') }}</span>
+                    <a href="https://librespeed.org/" target="_blank" rel="noopener noreferrer">{{ lang._('About LibreSpeed') }}</a>
+                </div>
             </div>
-            <div id="run_progress" hidden>
-                <p id="phase_status"></p>
-                <progress id="measurement_progress" max="100" value="0" aria-label="{{ lang._('Current measurement phase progress') }}"></progress>
-                <p class="help-block">{{ lang._('The measurement continues if you leave this page. Return here to follow progress; do not start a direct CLI test at the same time.') }}</p>
+            <div id="server_setup_notice" class="speedtest-notice" role="status" aria-live="polite" hidden>
+                <i class="fa fa-info-circle" aria-hidden="true"></i>
+                <div>
+                    <strong>{{ lang._('No test server configured') }}</strong>
+                    <p>{{ lang._('Add an authorized HTTPS LibreSpeed server before running a test.') }}</p>
+                    {% if canConfigure %}
+                    <a id="open_server_setup" href="#setup">{{ lang._('Set up servers') }} <i class="fa fa-angle-right" aria-hidden="true"></i></a>
+                    {% else %}
+                    <span>{{ lang._('Ask an administrator to add a server in Setup and CLI.') }}</span>
+                    {% endif %}
+                </div>
             </div>
+            <div id="test_status" class="speedtest-status" role="status" aria-live="polite"></div>
             {% if not canRun %}
-            <p>{{ lang._('Your account can view results but cannot run measurements. Ask an administrator for the LibreSpeed run privilege.') }}</p>
+            <p class="section-note">{{ lang._('You can view results, but need the LibreSpeed run privilege to start a test.') }}</p>
             {% endif %}
-            <form id="test_form" class="form-horizontal">
+            <div class="speedtest-workspace">
+            <form id="test_form" class="speedtest-run-form">
                 <fieldset id="test_controls" disabled>
-                    <div class="form-group">
-                        <label for="serverid" class="col-sm-3 control-label">{{ lang._('Server') }}</label>
-                        <div class="col-sm-9">
+                    <h3>{{ lang._('Test options') }}</h3>
+                    <div class="speedtest-field">
+                        <label for="serverid">{{ lang._('Server') }}</label>
+                        <div class="speedtest-server-control">
                             <select id="serverid" class="form-control">
-                                <option value="0">{{ lang._('Automatic server selection') }}</option>
-                                <option value="-1">{{ lang._('Compare all configured servers') }}</option>
+                                <option value="0">{{ lang._('Automatic selection') }}</option>
+                                <option value="-1">{{ lang._('Compare all servers') }}</option>
                                 <option value="custom">{{ lang._('Choose server IDs') }}</option>
                             </select>
-                            <span class="help-block">{{ lang._('Only administrator-configured servers are used. Automatic selection chooses the lowest latency.') }}</span>
-                            <button class="btn btn-default" id="serverlistAct" type="button">{{ lang._('Refresh servers') }}</button>
+                            <button class="btn btn-default" id="serverlistAct" type="button" title="{{ lang._('Refresh servers') }}" aria-label="{{ lang._('Refresh servers') }}"><i class="fa fa-refresh" aria-hidden="true"></i></button>
                         </div>
-                        <div class="form-group" id="custom_server_group" hidden>
-                            <label for="custom_servers" class="col-sm-3 control-label">{{ lang._('Server IDs') }}</label>
-                            <div class="col-sm-9"><input id="custom_servers" type="text" class="form-control" pattern="[1-9][0-9]*(,[1-9][0-9]*)*" placeholder="42,84" disabled required><span class="help-block">{{ lang._('Comma-separated configured IDs. Servers are tested sequentially, never in parallel. Each additional server transfers more data.') }}</span></div>
-                        </div>
+                        <span class="help-block">{{ lang._('Automatic selection uses the configured server with the lowest latency.') }}</span>
+                        <div id="server_status" class="speedtest-status" role="status" aria-live="polite"></div>
                     </div>
-                    <div class="form-group">
-                        <label for="mode" class="col-sm-3 control-label">{{ lang._('Test mode') }}</label>
-                        <div class="col-sm-9">
-                            <select id="mode" class="form-control">
-                                <option value="both">{{ lang._('Download and upload') }}</option>
-                                <option value="download">{{ lang._('Download only') }}</option>
-                                <option value="upload">{{ lang._('Upload only') }}</option>
-                                <option value="latency">{{ lang._('Latency and jitter only') }}</option>
-                            </select>
-                            <span class="help-block">{{ lang._('All modes and failed measurements enter detailed history. Legacy statistics and widgets continue to use full successful tests only.') }}</span>
-                        </div>
+                    <div class="speedtest-field" id="custom_server_group" hidden>
+                        <label for="custom_servers">{{ lang._('Server IDs') }}</label>
+                        <input id="custom_servers" type="text" class="form-control" pattern="[1-9][0-9]*(,[1-9][0-9]*)*" placeholder="42,84" disabled required>
+                        <span class="help-block">{{ lang._('Enter configured IDs separated by commas. Servers are tested one at a time; each test uses more data.') }}</span>
                     </div>
-                    <details>
-                        <summary>{{ lang._('Advanced measurement options') }}</summary>
-                        <div class="form-group">
-                            <label for="exclude" class="col-sm-3 control-label">{{ lang._('Exclude server IDs') }}</label>
-                            <div class="col-sm-9"><input id="exclude" type="text" class="form-control" pattern="([1-9][0-9]*(,[1-9][0-9]*)*)?"><span class="help-block">{{ lang._('Optional comma-separated IDs for automatic selection or Compare all. Clear exclusions when choosing explicit server IDs.') }}</span></div>
-                        </div>
-                        <div class="form-group">
-                            <label for="duration" class="col-sm-3 control-label">{{ lang._('Duration per direction') }}</label>
-                            <div class="col-sm-9"><input id="duration" type="number" min="1" max="30" value="10" class="form-control" required><span class="help-block">{{ lang._('Seconds, 1-30. Longer tests transfer more data.') }}</span></div>
-                        </div>
-                        <div class="form-group">
-                            <label for="timeout" class="col-sm-3 control-label">{{ lang._('Request timeout') }}</label>
-                            <div class="col-sm-9"><input id="timeout" type="number" min="1" max="15" value="8" class="form-control" required><span class="help-block">{{ lang._('Seconds, 1-15. An overall deadline also bounds the test.') }}</span></div>
-                        </div>
-                        <div class="form-group">
-                            <label for="concurrent" class="col-sm-3 control-label">{{ lang._('Concurrent requests') }}</label>
-                            <div class="col-sm-9"><input id="concurrent" type="number" min="1" max="8" value="3" class="form-control" required></div>
-                        </div>
-                        <div class="form-group">
-                            <label for="chunks" class="col-sm-3 control-label">{{ lang._('Download chunks') }}</label>
-                            <div class="col-sm-9"><input id="chunks" type="number" min="1" max="1000" value="100" class="form-control" required><span class="help-block">{{ lang._('Chunk size is determined by the server.') }}</span></div>
-                        </div>
-                        <div class="form-group">
-                            <label for="upload_size" class="col-sm-3 control-label">{{ lang._('Upload payload') }}</label>
-                            <div class="col-sm-9"><input id="upload_size" type="number" min="1" max="16384" value="1024" class="form-control" required><span class="help-block">{{ lang._('KiB per payload, 1-16384. Large payloads and concurrency consume more memory.') }}</span></div>
-                        </div>
-                        <div class="form-group">
-                            <label for="family" class="col-sm-3 control-label">{{ lang._('IP family') }}</label>
-                            <div class="col-sm-9"><select id="family" class="form-control"><option value="auto">{{ lang._('Automatic') }}</option><option value="ipv4">IPv4</option><option value="ipv6">IPv6</option></select></div>
-                        </div>
-                        <div class="form-group">
-                            <label for="source" class="col-sm-3 control-label">{{ lang._('Source IP') }}</label>
-                            <div class="col-sm-9"><input id="source" type="text" class="form-control" placeholder="{{ lang._('Optional local address') }}"><span class="help-block">{{ lang._('Use an address assigned to this firewall. Source binding does not override routing or multi-WAN policy. Interface binding is not supported by the FreeBSD engine.') }}</span></div>
-                        </div>
-                        <div class="form-group">
-                            <div class="col-sm-offset-3 col-sm-9">
-                                <div class="checkbox"><label><input id="icmp" type="checkbox">{{ lang._('Try ICMP latency; the engine may fall back to HTTP') }}</label></div>
-                                <div class="checkbox"><label><input id="http2" type="checkbox">{{ lang._('Allow HTTP/2; requests may share one connection') }}</label></div>
-                                <div class="checkbox"><label><input id="no_pre_allocate" type="checkbox">{{ lang._('Reduce upload buffer preallocation') }}</label></div>
-                                <div class="checkbox"><label><input id="private_ca" type="checkbox">{{ lang._('Use the private CA bundle at /usr/local/etc/speedtest-community/ca.pem') }}</label></div>
+                    <div class="speedtest-field">
+                        <label for="mode">{{ lang._('Test mode') }}</label>
+                        <select id="mode" class="form-control">
+                            <option value="both">{{ lang._('Download and upload') }}</option>
+                            <option value="download">{{ lang._('Download only') }}</option>
+                            <option value="upload">{{ lang._('Upload only') }}</option>
+                            <option value="latency">{{ lang._('Latency and jitter only') }}</option>
+                        </select>
+                        <span class="help-block">{{ lang._('Diagnostics and failures are saved in history. Dashboard widgets use successful full tests.') }}</span>
+                    </div>
+                    {% if canRun %}
+                    <div class="speedtest-actions"><button class="btn btn-primary" id="reportAct" type="submit"><i class="fa fa-play" aria-hidden="true"></i> {{ lang._('Run test') }} <i id="reportAct_progress" aria-hidden="true"></i></button></div>
+                    {% endif %}
+                    <details class="speedtest-disclosure">
+                        <summary><i class="fa fa-angle-right" aria-hidden="true"></i>{{ lang._('Advanced options') }}</summary>
+                        <div>
+                            <div class="speedtest-field">
+                                <label for="exclude">{{ lang._('Exclude server IDs') }}</label>
+                                <input id="exclude" type="text" class="form-control" pattern="([1-9][0-9]*(,[1-9][0-9]*)*)?">
+                                <span class="help-block">{{ lang._('Use comma-separated IDs with automatic selection or Compare all. Clear exclusions when choosing specific IDs.') }}</span>
                             </div>
+                            <div class="speedtest-option-grid">
+                                <div class="speedtest-field"><label for="duration">{{ lang._('Duration per direction') }}</label><input id="duration" type="number" min="1" max="30" value="10" class="form-control" required><span class="help-block">{{ lang._('Seconds, 1-30') }}</span></div>
+                                <div class="speedtest-field"><label for="timeout">{{ lang._('Request timeout') }}</label><input id="timeout" type="number" min="1" max="15" value="15" class="form-control" required><span class="help-block">{{ lang._('Seconds, 1-15') }}</span></div>
+                                <div class="speedtest-field"><label for="concurrent">{{ lang._('Concurrent requests') }}</label><input id="concurrent" type="number" min="1" max="8" value="3" class="form-control" required></div>
+                                <div class="speedtest-field"><label for="chunks">{{ lang._('Download chunks') }}</label><input id="chunks" type="number" min="1" max="1000" value="100" class="form-control" required><span class="help-block">{{ lang._('Size is set by the server.') }}</span></div>
+                                <div class="speedtest-field"><label for="upload_size">{{ lang._('Upload payload') }}</label><input id="upload_size" type="number" min="1" max="16384" value="1024" class="form-control" required><span class="help-block">{{ lang._('KiB per payload, 1-16384') }}</span></div>
+                                <div class="speedtest-field"><label for="family">{{ lang._('IP family') }}</label><select id="family" class="form-control"><option value="auto">{{ lang._('Automatic') }}</option><option value="ipv4">IPv4</option><option value="ipv6">IPv6</option></select></div>
+                            </div>
+                            <div class="speedtest-field">
+                                <label for="source">{{ lang._('Source IP') }}</label>
+                                <input id="source" type="text" class="form-control" placeholder="{{ lang._('Optional local address') }}">
+                                <span class="help-block">{{ lang._('Use an address on this firewall. Source binding does not select a gateway; interface binding is not supported on FreeBSD.') }}</span>
+                            </div>
+                            <div class="checkbox"><label><input id="icmp" type="checkbox">{{ lang._('Try ICMP latency; fallback to HTTP is possible') }}</label></div>
+                            <div class="checkbox"><label><input id="http2" type="checkbox">{{ lang._('Allow HTTP/2; requests may share a connection') }}</label></div>
+                            <div class="checkbox"><label><input id="no_pre_allocate" type="checkbox">{{ lang._('Reduce upload buffer preallocation') }}</label></div>
+                            <div class="checkbox"><label><input id="private_ca" type="checkbox">{{ lang._('Use the private CA bundle') }}</label></div>
+                            <p class="help-block">{{ lang._('Longer tests, larger payloads and more concurrent requests use more data or memory. Private CA setup is described under Setup and CLI.') }}</p>
                         </div>
                     </details>
-                    <div class="form-group">
-                        <div class="col-sm-offset-3 col-sm-9">
-                            {% if canRun %}
-                            <button class="btn btn-primary" id="reportAct" type="submit">{{ lang._('Run test') }} <i id="reportAct_progress" aria-hidden="true"></i></button>
-                            {% endif %}
-                        </div>
-                    </div>
                 </fieldset>
             </form>
-            <div id="test_results" hidden aria-live="polite">
-                <h3>{{ lang._('Latest measurement') }}</h3>
-                <div id="latest_success">
-                <table class="table table-condensed">
-                    <tbody>
-                        <tr><th scope="row">{{ lang._('Server') }}</th><td id="test_server"></td></tr>
-                        <tr><th scope="row">{{ lang._('Download') }}</th><td id="download"></td></tr>
-                        <tr><th scope="row">{{ lang._('Upload') }}</th><td id="upload"></td></tr>
-                        <tr><th scope="row">{{ lang._('Latency') }}</th><td id="latency"></td></tr>
-                        <tr><th scope="row">{{ lang._('Jitter') }}</th><td id="jitter"></td></tr>
-                        <tr><th scope="row">{{ lang._('Data transferred') }}</th><td id="transfer"></td></tr>
-                        <tr><th scope="row">{{ lang._('Probe TLS') }}</th><td id="tls"></td></tr>
-                    </tbody>
-                </table>
-                <p>{{ lang._('TLS details describe the server probe, not every transfer connection. Packet loss and loaded latency are not reported by this engine.') }}</p>
+            <section class="speedtest-readout" aria-labelledby="readout_heading">
+                <div class="speedtest-readout-header">
+                    <div><h3 id="readout_heading">{{ lang._('Latest result') }}</h3><p id="readout_hint" class="speedtest-secondary">{{ lang._('Run a test to see measurements here.') }}</p></div>
+                    <div class="speedtest-readout-controls">
+                        <div><label for="units">{{ lang._('Units') }}</label><select id="units" class="form-control"><option value="Mbps">Mbps</option><option value="MBps">MB/s</option><option value="MiBps">MiB/s</option></select></div>
+                        <button id="check_status" type="button" class="btn btn-default">{{ lang._('Refresh status') }}</button>
+                    </div>
                 </div>
-                <div class="table-responsive" id="comparison" hidden>
-                    <table class="table table-striped"><caption>{{ lang._('Sequential server comparison') }}</caption><thead><tr><th>{{ lang._('Server') }}</th><th>{{ lang._('Download') }}</th><th>{{ lang._('Upload') }}</th><th>{{ lang._('Latency') }}</th><th>{{ lang._('Status') }}</th></tr></thead><tbody id="comparison_rows"></tbody></table>
+                <dl class="speedtest-metrics">
+                    <div><dt><i class="fa fa-arrow-down download-icon" aria-hidden="true"></i> {{ lang._('Download') }}</dt><dd id="download" class="is-empty">{{ lang._('Not measured') }}</dd></div>
+                    <div><dt><i class="fa fa-arrow-up upload-icon" aria-hidden="true"></i> {{ lang._('Upload') }}</dt><dd id="upload" class="is-empty">{{ lang._('Not measured') }}</dd></div>
+                    <div><dt>{{ lang._('Latency') }}</dt><dd id="latency" class="is-empty">{{ lang._('Not measured') }}</dd></div>
+                    <div><dt>{{ lang._('Jitter') }}</dt><dd id="jitter" class="is-empty">{{ lang._('Not measured') }}</dd></div>
+                </dl>
+                <div id="run_progress" hidden>
+                    <p id="phase_status"></p>
+                    <progress id="measurement_progress" max="100" value="0" aria-label="{{ lang._('Current measurement phase progress') }}"></progress>
+                    <p class="help-block">{{ lang._('The test continues if you leave this page. Avoid running the direct CLI at the same time.') }}</p>
                 </div>
+                <div id="test_results" hidden aria-live="polite">
+                    <div id="latest_success">
+                        <dl class="speedtest-result-details">
+                            <div><dt>{{ lang._('Server') }}</dt><dd id="test_server"></dd></div>
+                            <div><dt>{{ lang._('Data transferred') }}</dt><dd id="transfer"></dd></div>
+                            <div><dt>{{ lang._('Probe TLS') }}</dt><dd id="tls"></dd></div>
+                        </dl>
+                        <details class="speedtest-disclosure"><summary><i class="fa fa-angle-right" aria-hidden="true"></i>{{ lang._('About these measurements') }}</summary><div><p>{{ lang._('TLS describes the server probe, not every transfer connection. Packet loss and loaded latency are not reported.') }}</p></div></details>
+                    </div>
+                    <div class="table-responsive" id="comparison" hidden>
+                        <table class="table table-striped"><caption>{{ lang._('Sequential server comparison') }}</caption><thead><tr><th>{{ lang._('Server') }}</th><th>{{ lang._('Download') }}</th><th>{{ lang._('Upload') }}</th><th>{{ lang._('Latency') }}</th><th>{{ lang._('Status') }}</th></tr></thead><tbody id="comparison_rows"></tbody></table>
+                    </div>
+                </div>
+            </section>
             </div>
         </div>
     </div>
-    <div id="history" class="tab-pane" role="tabpanel">
+    <div id="history" class="tab-pane" role="tabpanel" aria-labelledby="history_tab">
         <div class="content-box-main">
-            <h2>{{ lang._('Measurement history') }}</h2>
-            <div id="history_status" role="status" aria-live="polite"></div>
-            <p class="section-note">{{ lang._('Explore saved measurements, diagnostics and failures. Compare the same server, source address, IP family and test settings. Legacy results are kept separate from the Rust engine.') }}</p>
-            <form id="history_filters" class="speedtest-toolbar">
-                <div><label for="history_days">{{ lang._('Period') }}</label><select id="history_days" class="form-control"><option value="1">{{ lang._('24 hours') }}</option><option value="7">{{ lang._('7 days') }}</option><option value="30" selected>{{ lang._('30 days') }}</option><option value="90">{{ lang._('90 days') }}</option><option value="365">{{ lang._('1 year') }}</option><option value="0">{{ lang._('All dates') }}</option></select></div>
-                <div><label for="history_server">{{ lang._('Server') }}</label><select id="history_server" class="form-control"><option value="all">{{ lang._('All servers') }}</option></select></div>
-                <div><label for="history_mode">{{ lang._('Mode') }}</label><select id="history_mode" class="form-control"><option value="all">{{ lang._('All modes') }}</option><option value="both">{{ lang._('Full test') }}</option><option value="download">{{ lang._('Download') }}</option><option value="upload">{{ lang._('Upload') }}</option><option value="latency">{{ lang._('Latency') }}</option></select></div>
-                <div><label for="history_provider">{{ lang._('Engine') }}</label><select id="history_provider" class="form-control"><option value="librespeed">LibreSpeed Rust</option><option value="legacy">{{ lang._('Legacy CSV') }}</option></select></div>
-                <div><label for="history_outcome">{{ lang._('Outcome') }}</label><select id="history_outcome" class="form-control"><option value="all">{{ lang._('All outcomes') }}</option><option value="success">{{ lang._('Successful') }}</option><option value="failed">{{ lang._('Failed') }}</option></select></div>
-                <div><label for="history_origin">{{ lang._('Trigger') }}</label><select id="history_origin" class="form-control"><option value="all">{{ lang._('All triggers') }}</option><option value="manual">{{ lang._('GUI') }}</option><option value="scheduled">{{ lang._('Scheduled') }}</option><option value="cli">{{ lang._('CLI / legacy cron') }}</option><option value="legacy">{{ lang._('Imported CSV') }}</option></select></div>
-                <div><label for="history_family">{{ lang._('IP family setting') }}</label><select id="history_family" class="form-control"><option value="all">{{ lang._('All families') }}</option><option value="auto">{{ lang._('Automatic') }}</option><option value="ipv4">IPv4</option><option value="ipv6">IPv6</option></select></div>
-                <div><label for="history_source">{{ lang._('Source binding') }}</label><select id="history_source" class="form-control"><option value="all">{{ lang._('All sources') }}</option></select></div>
+            <h2>{{ lang._('Trends and history') }}</h2>
+            <p class="section-note">{{ lang._('Explore saved tests and diagnostics. For meaningful comparisons, use the same server and test settings.') }}</p>
+            <div id="history_status" class="speedtest-status" role="status" aria-live="polite"></div>
+            <form id="history_filters">
+                <div class="speedtest-toolbar">
+                    <div><label for="history_days">{{ lang._('Period') }}</label><select id="history_days" class="form-control"><option value="1">{{ lang._('24 hours') }}</option><option value="7">{{ lang._('7 days') }}</option><option value="30" selected>{{ lang._('30 days') }}</option><option value="90">{{ lang._('90 days') }}</option><option value="365">{{ lang._('1 year') }}</option><option value="0">{{ lang._('All dates') }}</option></select></div>
+                    <div><label for="history_server">{{ lang._('Server') }}</label><select id="history_server" class="form-control"><option value="all">{{ lang._('All servers') }}</option></select></div>
+                    <div><label for="history_mode">{{ lang._('Mode') }}</label><select id="history_mode" class="form-control"><option value="all">{{ lang._('All modes') }}</option><option value="both">{{ lang._('Full test') }}</option><option value="download">{{ lang._('Download') }}</option><option value="upload">{{ lang._('Upload') }}</option><option value="latency">{{ lang._('Latency') }}</option></select></div>
+                    <div><label for="history_provider">{{ lang._('Engine') }}</label><select id="history_provider" class="form-control"><option value="librespeed">LibreSpeed Rust</option><option value="legacy">{{ lang._('Legacy CSV') }}</option></select></div>
+                    <div><label for="history_outcome">{{ lang._('Outcome') }}</label><select id="history_outcome" class="form-control"><option value="all">{{ lang._('All outcomes') }}</option><option value="success">{{ lang._('Successful') }}</option><option value="failed">{{ lang._('Failed') }}</option></select></div>
+                </div>
+                <details class="speedtest-disclosure">
+                    <summary><i class="fa fa-angle-right" aria-hidden="true"></i>{{ lang._('More filters') }}</summary>
+                    <div class="speedtest-toolbar">
+                        <div><label for="history_origin">{{ lang._('Trigger') }}</label><select id="history_origin" class="form-control"><option value="all">{{ lang._('All triggers') }}</option><option value="manual">{{ lang._('GUI') }}</option><option value="scheduled">{{ lang._('Scheduled') }}</option><option value="cli">{{ lang._('CLI / legacy cron') }}</option><option value="legacy">{{ lang._('Imported CSV') }}</option></select></div>
+                        <div><label for="history_family">{{ lang._('IP family setting') }}</label><select id="history_family" class="form-control"><option value="all">{{ lang._('All families') }}</option><option value="auto">{{ lang._('Automatic') }}</option><option value="ipv4">IPv4</option><option value="ipv6">IPv6</option></select></div>
+                        <div><label for="history_source">{{ lang._('Source binding') }}</label><select id="history_source" class="form-control"><option value="all">{{ lang._('All sources') }}</option></select></div>
+                    </div>
+                </details>
             </form>
             <p id="history_summary" class="numeric"></p>
-            <div class="row">
+            <div class="row" id="trend_charts" hidden>
                 <div class="col-md-6"><h3>{{ lang._('Throughput trend') }}</h3><div class="speedtest-chart"><canvas id="throughput_chart" role="img" aria-label="{{ lang._('Historical download and upload averages; exact values are available in the table below') }}"></canvas></div></div>
                 <div class="col-md-6"><h3>{{ lang._('Latency and jitter trend') }}</h3><div class="speedtest-chart"><canvas id="latency_chart" role="img" aria-label="{{ lang._('Historical latency and jitter averages; exact values are available in the table below') }}"></canvas></div></div>
             </div>
             <p id="chart_note" class="help-block"></p>
-            <div class="table-responsive"><table class="table table-condensed"><caption>{{ lang._('Successful measurements in the selected window; unmeasured values are excluded, not treated as zero') }}</caption><thead><tr><th>{{ lang._('Metric') }}</th><th>{{ lang._('Average') }}</th><th>{{ lang._('Minimum') }}</th><th>{{ lang._('Maximum') }}</th></tr></thead><tbody id="history_metrics"></tbody></table></div>
-            <p>
+            <div class="table-responsive"><table class="table table-condensed"><caption>{{ lang._('Successful measurements only; unmeasured values are excluded.') }}</caption><thead><tr><th>{{ lang._('Metric') }}</th><th>{{ lang._('Average') }}</th><th>{{ lang._('Minimum') }}</th><th>{{ lang._('Maximum') }}</th></tr></thead><tbody id="history_metrics"></tbody></table></div>
+            <div class="speedtest-actions">
                 <a href="/api/speedtest/download/csv" class="btn btn-default">{{ lang._('Export full-test CSV') }}</a>
                 <a href="/api/speedtest/download/json" class="btn btn-default">{{ lang._('Export detailed JSONL') }}</a>
-                <button class="btn btn-default" id="refresh_history" type="button">{{ lang._('Refresh history') }}</button>
+                <button class="btn btn-default" id="refresh_history" type="button">{{ lang._('Refresh') }}</button>
                 {% if canClear %}<button class="btn btn-danger" id="deletelogAct" type="button">{{ lang._('Clear history') }}</button>{% endif %}
-            </p>
+            </div>
             <div class="table-responsive">
                 <table class="table table-striped table-condensed">
+                    <caption>{{ lang._('Recorded tests') }}</caption>
                     <thead><tr>
                         <th scope="col">{{ lang._('Time (browser local)') }}</th><th scope="col">{{ lang._('Server / details') }}</th><th scope="col">{{ lang._('Mode') }}</th>
                         <th scope="col">{{ lang._('Download') }}</th><th scope="col">{{ lang._('Upload') }}</th><th scope="col">{{ lang._('Latency') }}</th><th scope="col">{{ lang._('Jitter') }}</th><th scope="col">{{ lang._('Trigger / outcome') }}</th>
@@ -208,14 +273,14 @@
                 </table>
             </div>
             <div class="speedtest-toolbar"><button id="history_previous" type="button" class="btn btn-default">{{ lang._('Newer') }}</button><span id="history_page"></span><button id="history_next" type="button" class="btn btn-default">{{ lang._('Older') }}</button></div>
-            <p class="help-block">{{ lang._('Exports include all retained dates, independent of filters. JSONL contains detailed modern records; CSV also preserves older full tests. Clearing history removes both.') }}</p>
+            <p class="help-block">{{ lang._('Exports include all retained dates, not just the current filters. CSV contains full tests; JSONL contains detailed records and any consolidated legacy data. Clearing history removes both.') }}</p>
         </div>
     </div>
     {% if canSchedule %}
-    <div id="schedule" class="tab-pane" role="tabpanel">
+    <div id="schedule" class="tab-pane" role="tabpanel" aria-labelledby="schedule_tab">
         <div class="content-box-main">
-            <h2>{{ lang._('Scheduled measurements') }}</h2>
-            <p class="section-note">{{ lang._('Build a connection history without leaving a browser open. This uses native OPNsense cron, not a second scheduler. Start with one daily test outside busy hours; throughput tests can consume substantial data.') }}</p>
+            <h2>{{ lang._('Schedule') }}</h2>
+            <p class="section-note">{{ lang._('Run tests automatically using OPNsense cron. A daily test outside busy hours is a useful starting point; throughput tests can use substantial data.') }}</p>
             <p id="schedule_timezone"></p><p id="schedule_conflicts" class="text-warning"></p>
             <form id="schedule_form" class="form-horizontal"><fieldset id="schedule_controls" disabled>
                 <div class="form-group"><div class="col-sm-offset-3 col-sm-9"><div class="checkbox"><label><input id="schedule_enabled" type="checkbox">{{ lang._('Enable scheduled measurements') }}</label></div></div></div>
@@ -227,36 +292,60 @@
                 <div class="form-group"><label for="schedule_mode" class="col-sm-3 control-label">{{ lang._('Test mode') }}</label><div class="col-sm-9"><select id="schedule_mode" class="form-control"><option value="both">{{ lang._('Download and upload') }}</option><option value="download">{{ lang._('Download only') }}</option><option value="upload">{{ lang._('Upload only') }}</option><option value="latency">{{ lang._('Latency and jitter only') }}</option></select></div></div>
                 <div class="form-group"><div class="col-sm-offset-3 col-sm-9"><p id="schedule_preview"></p><p class="help-block">{{ lang._('Saved measurement defaults apply at execution time. Overlapping tests are refused. Cron uses the firewall timezone and may skip or repeat a wall-clock time at daylight-saving changes.') }}</p><button id="save_schedule" class="btn btn-primary" type="submit">{{ lang._('Save and apply schedule') }}</button> <button id="apply_schedule" class="btn btn-default" type="button">{{ lang._('Apply saved schedule') }}</button></div></div>
             </fieldset></form>
-            <div id="schedule_status" role="status" aria-live="polite"></div>
-            <p><a href="/ui/cron">{{ lang._('Open native cron for additional schedules or existing jobs') }}</a></p>
+            <div id="schedule_status" class="speedtest-status" role="status" aria-live="polite"></div>
+            <p><a href="/ui/cron">{{ lang._('Open OPNsense cron for additional schedules') }}</a></p>
         </div>
     </div>
     {% endif %}
-    <div id="setup" class="tab-pane" role="tabpanel">
-        <div class="content-box-main">
-            <h2>{{ lang._('Setup and terminal use') }}</h2>
-            <p>{{ lang._('The plugin includes the native Rust engine. Save one to ten authorized servers here, or maintain the root-owned file below. Saved server settings take precedence. No Rust compiler, Go, Node.js, or extra Python package is required on the firewall.') }}</p>
-            <code>/usr/local/etc/speedtest-community/librespeed-servers.json</code>
+    <div id="setup" class="tab-pane" role="tabpanel" aria-labelledby="setup_tab">
+        <div class="content-box-main speedtest-settings">
+            <h2>{{ lang._('Setup and CLI') }}</h2>
+            <p class="section-note">{{ lang._('Choose a server source and history retention. The advanced options on Run test can also be saved as defaults.') }}</p>
             {% if canConfigure %}
-            <h3>{{ lang._('Server configuration') }}</h3>
+            <div class="checkbox"><label><input id="public_servers" type="checkbox">{{ lang._('Use the official LibreSpeed.org public server list when no custom servers are saved') }}</label></div>
+            <p class="help-block">{{ lang._('The firewall retrieves the public list over HTTPS.') }} <a href="https://librespeed.org/backend-servers/servers.php" target="_blank" rel="noopener noreferrer">{{ lang._('View official server list') }}</a>. {{ lang._('The registry and selected test servers can see the firewall public IP. No results or telemetry are shared; opt out or use servers you operate or are authorized to use.') }}</p>
+            <h3>{{ lang._('Servers') }}</h3>
             <label for="servers_json">{{ lang._('Authorized servers (JSON)') }}</label>
-            <textarea id="servers_json" class="form-control" rows="10" spellcheck="false" aria-describedby="servers_help"></textarea>
-            <p id="servers_help">{{ lang._('Leave empty to use the administrator-managed file. Otherwise use the array format in this example, with unique IDs and relative endpoint paths.') }}</p>
-            <pre>[{"id":42,"name":"Lab","server":"https://bench.example.net/","dlURL":"garbage.php","ulURL":"empty.php","pingURL":"empty.php","getIpURL":"getIP.php"}]</pre>
+            <textarea id="servers_json" class="form-control" rows="7" spellcheck="false" aria-describedby="servers_help"></textarea>
+            <p id="servers_help" class="help-block">{{ lang._('Add up to 50 servers with unique IDs and relative endpoint paths. Saved servers take priority. If this list is empty, the firewall-managed file is checked before the optional public list:') }} <code>/usr/local/etc/speedtest-community/librespeed-servers.json</code></p>
+            <details class="speedtest-disclosure">
+                <summary><i class="fa fa-angle-right" aria-hidden="true"></i>{{ lang._('Show server example') }}</summary>
+                <div><p>{{ lang._('Replace the example address and paths with those for your authorized server.') }}</p>
+                <pre>[
+  {
+    "id": 42,
+    "name": "Lab",
+    "server": "https://bench.example.net/",
+    "dlURL": "garbage.php",
+    "ulURL": "empty.php",
+    "pingURL": "empty.php",
+    "getIpURL": "getIP.php"
+  }
+]</pre></div>
+            </details>
+            <h3>{{ lang._('History retention') }}</h3>
             <form id="retention_form" class="speedtest-toolbar">
                 <div><label for="retention_days">{{ lang._('Keep history for days') }}</label><input id="retention_days" class="form-control" type="number" min="0" max="3650" value="0" required></div>
                 <div><label for="history_limit">{{ lang._('Maximum history records') }}</label><input id="history_limit" class="form-control" type="number" min="0" max="100000" value="0" required></div>
             </form>
-            <p class="help-block">{{ lang._('0 preserves all history. Optional limits prune both detailed records and legacy CSV after the next measurement. For daily tests, 365 days and 5000 records are a useful starting point. Export before reducing retention.') }}</p>
-            <p>{{ lang._('Save also stores the advanced options selected on Run test as defaults for GUI, cron and terminal use. No service restart is needed.') }}</p>
-            <button id="save_settings" type="button" class="btn btn-primary" disabled>{{ lang._('Save servers and measurement defaults') }}</button>
-            <div id="settings_status" role="status" aria-live="polite"></div>
+            <p class="help-block">{{ lang._('0 keeps all history. Limits prune detailed records and legacy CSV after the next test. Export your data before reducing retention.') }}</p>
+            <p>{{ lang._('Saving also sets the current advanced options as defaults for GUI, cron and terminal tests. No restart is needed.') }}</p>
+            <button id="save_settings" type="button" class="btn btn-primary" disabled>{{ lang._('Save settings') }}</button>
+            <div id="settings_status" class="speedtest-status" role="status" aria-live="polite"></div>
+            {% else %}
+            <p>{{ lang._('You need the LibreSpeed configure privilege to change server and retention settings.') }}</p>
             {% endif %}
-            <h3>{{ lang._('HTTPS is for the test endpoint') }}</h3>
-            <p>{{ lang._('The OPNsense administration GUI can use HTTP or HTTPS independently. All measurement endpoints must use HTTPS, and certificates are verified. A browser certificate warning and a test-server certificate failure are different issues.') }}</p>
-            <p>{{ lang._('For private endpoints, install a PEM CA bundle at /usr/local/etc/speedtest-community/ca.pem and enable the private CA option. This replaces the engine trust store for that run. The issuing CA and server certificate must be separate certificates. Certificate verification cannot be disabled here.') }}</p>
-            <h3>{{ lang._('Terminal commands') }}</h3>
-            <pre>opn-librespeed --help
+            <details class="speedtest-disclosure">
+                <summary><i class="fa fa-angle-right" aria-hidden="true"></i>{{ lang._('Connection security and privacy') }}</summary>
+                <div>
+                    <p>{{ lang._('Test endpoints must use HTTPS with verified certificates. This is independent of whether the OPNsense GUI uses HTTP or HTTPS.') }}</p>
+                    <p>{{ lang._('For private endpoints, install a PEM CA bundle at /usr/local/etc/speedtest-community/ca.pem and enable the private CA option. It replaces the engine trust store for that run. Use separate issuing CA and server certificates.') }}</p>
+                    <p>{{ lang._('When enabled, the public server list is retrieved from LibreSpeed.org over HTTPS only if no saved or firewall-managed list is available. The registry and selected test server can see the firewall public IP. The plugin does not request result sharing or telemetry. A configured source binding is retained for comparison; older CSV data is preserved.') }}</p>
+                </div>
+            </details>
+            <details class="speedtest-disclosure">
+                <summary><i class="fa fa-angle-right" aria-hidden="true"></i>{{ lang._('Terminal commands') }}</summary>
+                <div><pre>opn-librespeed --help
 opn-librespeed list
 opn-librespeed run --server 42 --duration 15 --family ipv4
 opn-librespeed run --mode latency --format json
@@ -265,18 +354,21 @@ opn-librespeed run --all-servers
 opn-librespeed history --days 30 --format json
 opn-librespeed stat
 librespeed-cli --help</pre>
-            <p>{{ lang._('opn-librespeed shares the GUI lock and history. The native librespeed-cli exposes all upstream options, including JSON streaming, CSV, multi-server tests, and explicit telemetry; direct engine runs do not enter plugin history. Do not run direct engine tests concurrently with GUI or cron tests.') }}</p>
-            <h3>{{ lang._('Project and support') }}</h3>
-            <ul>
-                <li><a href="https://github.com/blackoutsecure/opn-repo/tree/main/net-mgmt/speedtest-community" target="_blank" rel="noopener noreferrer">{{ lang._('Plugin setup, build instructions, and capability notes') }}</a></li>
-                <li><a href="https://github.com/blackoutsecure/opn-repo/issues" target="_blank" rel="noopener noreferrer">{{ lang._('Report plugin integration issues') }}</a></li>
-                <li><a href="https://github.com/librespeed/speedtest-cli-rust" target="_blank" rel="noopener noreferrer">{{ lang._('Rust engine documentation and issues') }}</a></li>
-                <li><a href="https://github.com/librespeed/speedtest" target="_blank" rel="noopener noreferrer">{{ lang._('LibreSpeed server setup') }}</a></li>
-                <li><a href="https://github.com/librespeed/speedtest-rust" target="_blank" rel="noopener noreferrer">{{ lang._('Optional Rust server backend') }}</a></li>
-            </ul>
-            <p>{{ lang._('Public server discovery and telemetry are never requested by the plugin. The test server sees your public IP, which is not collected in new records. A configured local source binding is retained for comparison; older CSV data is preserved. Advanced options apply to the current run unless saved as defaults.') }}</p>
-            <h3>{{ lang._('User and group permissions') }}</h3>
-            <p>{{ lang._('Assign privileges under System > Access > Users or Groups. View results includes charts, dashboard data and exports. Run measurements, Configure settings, Manage schedule, and Clear history are separate privileges. Grant View results alongside additional privileges. Configuration-read-only accounts cannot run tests or change settings. Native cron access is needed only for additional or manually created jobs; terminal access follows operating-system permissions.') }}</p>
+                <p>{{ lang._('opn-librespeed shares the GUI lock and history. Direct librespeed-cli runs expose upstream options but do not enter plugin history; do not run them alongside GUI or cron tests.') }}</p></div>
+            </details>
+            <details class="speedtest-disclosure">
+                <summary><i class="fa fa-angle-right" aria-hidden="true"></i>{{ lang._('Permissions and support') }}</summary>
+                <div>
+                    <p>{{ lang._('Assign privileges under System > Access > Users or Groups. View results includes charts, dashboard data and exports. Running tests, configuring settings, managing the schedule and clearing history require separate privileges. Grant View results alongside additional privileges. Read-only accounts cannot run tests or change settings.') }}</p>
+                    <ul>
+                        <li><a href="https://github.com/blackoutsecure/opn-repo/tree/main/net-mgmt/speedtest-community" target="_blank" rel="noopener noreferrer">{{ lang._('Plugin setup and capability notes') }}</a></li>
+                        <li><a href="https://github.com/blackoutsecure/opn-repo/issues" target="_blank" rel="noopener noreferrer">{{ lang._('Report plugin issues') }}</a></li>
+                        <li><a href="https://github.com/librespeed/speedtest-cli-rust" target="_blank" rel="noopener noreferrer">{{ lang._('LibreSpeed Rust client') }}</a></li>
+                        <li><a href="https://github.com/librespeed/speedtest" target="_blank" rel="noopener noreferrer">{{ lang._('LibreSpeed server setup') }}</a></li>
+                        <li><a href="https://github.com/librespeed/speedtest-rust" target="_blank" rel="noopener noreferrer">{{ lang._('Optional Rust server backend') }}</a></li>
+                    </ul>
+                </div>
+            </details>
         </div>
     </div>
 </div>
@@ -286,6 +378,8 @@ librespeed-cli --help</pre>
     let running = false;
     let starting = false;
     let engineReady = false;
+    let serversReady = false;
+    let serversLoading = false;
     let defaultsReady = false;
     let settingsReady = false;
     let scheduleReady = false;
@@ -311,8 +405,10 @@ librespeed-cli --help</pre>
         cli: "{{ lang._('CLI / legacy cron') }}", legacy: "{{ lang._('Legacy') }}"};
     function updateControls() {
         $('#test_controls').prop('disabled', running || saving || !defaultsReady || (!canRun && !canConfigure));
-        $('#reportAct').prop('disabled', running || saving || !engineReady || !defaultsReady || !canRun);
+        $('#reportAct').prop('disabled', running || saving || !engineReady || !serversReady || !defaultsReady || !canRun);
+        $('#serverlistAct').prop('disabled', running || saving || serversLoading);
         $('#save_settings').prop('disabled', running || saving || !defaultsReady || !settingsReady);
+        $('#public_servers').prop('disabled', running || saving || !settingsReady);
         $('#servers_json').prop('disabled', running || saving || !settingsReady);
         $('#schedule_controls').prop('disabled', running || saving || !scheduleReady);
         $('#deletelogAct').prop('disabled', running || saving);
@@ -331,30 +427,60 @@ librespeed-cli --help</pre>
         if (target.text() !== message) target.text(message);
         target.toggleClass('text-danger', error);
     }
+    function readableError(message) {
+        return typeof message === 'string'
+            ? message.replace(/^Speedtest failed:\s*(?:[A-Za-z][A-Za-z0-9]*(?:Error|Exception):\s*)?/, '')
+            : '';
+    }
     function request(action, data, callback, status, timeout = 30000) {
         return $.ajax({url: action.startsWith('/') ? action : api + action, type: 'POST', data: data, dataType: 'json', timeout: timeout})
             .done(callback)
             .fail(function(xhr, reason) {
                 showStatus(status, reason === 'timeout'
-                    ? "{{ lang._('The request timed out. A test may still be running; wait before retrying.') }}"
+                    ? "{{ lang._('The request timed out. Check your session and backend logs.') }}"
                     : "{{ lang._('The service could not be reached. Check your session and backend logs.') }}", true);
             });
     }
     function serversReload() {
-        $('#serverlistAct').prop('disabled', true);
+        if (serversLoading) return;
+        serversLoading = true;
+        serversReady = false;
+        $('#server_setup_notice').prop('hidden', true);
+        showStatus('#server_status', "{{ lang._('Loading servers...') }}");
+        updateControls();
         request('serverlist', {}, function(data) {
             if (!Array.isArray(data)) {
-                showStatus('#test_status', data?.error || "{{ lang._('Unable to load configured servers') }}", true);
+                if (data?.code === 'servers_unconfigured') {
+                    showStatus('#server_status', '');
+                    $('#server_setup_notice').prop('hidden', false);
+                } else {
+                    const detail = readableError(data?.error);
+                    showStatus('#server_status', "{{ lang._('Unable to load servers') }}" + (detail ? ': ' + detail : '.'), true);
+                }
+                return;
+            }
+            if (!data.length) {
+                showStatus('#server_status', "{{ lang._('No servers were returned. Check the server configuration and refresh.') }}", true);
+                return;
+            }
+            if (data.some(server => !server || typeof server.id !== 'string' || !/^[1-9][0-9]*$/.test(server.id)
+                || typeof server.name !== 'string' || !server.name.trim())) {
+                showStatus('#server_status', "{{ lang._('The server list was invalid. Check the configuration and backend logs.') }}", true);
                 return;
             }
             const selected = $('#serverid').val();
             $('#serverid').empty()
-                .append($('<option/>').val('0').text("{{ lang._('Automatic server selection') }}"))
-                .append($('<option/>').val('-1').text("{{ lang._('Compare all configured servers') }}"))
+                .append($('<option/>').val('0').text("{{ lang._('Automatic selection') }}"))
+                .append($('<option/>').val('-1').text("{{ lang._('Compare all servers') }}"))
                 .append($('<option/>').val('custom').text("{{ lang._('Choose server IDs') }}"));
             data.forEach(server => $('#serverid').append($('<option/>').val(server.id).text('(' + server.id + ') ' + server.name)));
             $('#serverid').val(['0', '-1', 'custom'].includes(selected) || data.some(server => server.id === selected) ? selected : '0');
-        }, '#test_status').always(() => $('#serverlistAct').prop('disabled', running));
+            serversReady = true;
+            showStatus('#server_status', '');
+        }, '#server_status').always(function() {
+            serversLoading = false;
+            updateControls();
+        });
     }
     function number(value, suffix = '') {
         return value === undefined || value === null ? "{{ lang._('Not measured') }}"
@@ -371,11 +497,18 @@ librespeed-cli --help</pre>
     function renderResults(results) {
         latestResults = results;
         const result = results.find(item => !item.error);
+        Object.keys(metricNames).forEach(key => {
+            const value = result?.[key];
+            $('#' + key).text(metricValue(key, value)).toggleClass('is-empty', value === undefined || value === null);
+        });
+        $('#readout_hint').text(running ? "{{ lang._('Test in progress. Results appear when it finishes.') }}"
+            : result ? "{{ lang._('Most recent completed test.') }}"
+            : results.length ? "{{ lang._('No successful measurements in this test.') }}"
+            : "{{ lang._('Run a test to see measurements here.') }}");
         $('#test_results').prop('hidden', !results.length);
         $('#latest_success').prop('hidden', !result);
         if (result) {
             $('#test_server').text('(' + result.serverid + ') ' + result.servername);
-            Object.keys(metricNames).forEach(key => $('#' + key).text(metricValue(key, result[key])));
             $('#transfer').text("{{ lang._('Received') }}: " + number(result.bytes_received, ' B')
                 + ' / ' + "{{ lang._('Sent') }}: " + number(result.bytes_sent, ' B'));
             $('#tls').text(result.tls ? [result.tls.version, result.tls.cipher].filter(Boolean).join(' / ') : "{{ lang._('Not reported') }}");
@@ -387,7 +520,8 @@ librespeed-cli --help</pre>
         results.forEach(item => {
             const row = $('<tr/>');
             [item.servername, speed(item.download), speed(item.upload), number(item.latency, ' ms'),
-                item.error || "{{ lang._('Saved') }}"].forEach(value => row.append($('<td/>').text(value)));
+                item.error ? "{{ lang._('Failed') }}: " + readableError(item.error) : "{{ lang._('Saved') }}"]
+                .forEach(value => row.append($('<td/>').text(value)));
             rows.append(row);
         });
         if (results.length > 1) $('#test_results').prop('hidden', false);
@@ -395,9 +529,11 @@ librespeed-cli --help</pre>
     function renderCharts(data) {
         charts.forEach(chart => chart.destroy());
         charts = [];
+        $('#trend_charts').prop('hidden', !data.series.length);
         $('.speedtest-chart').prop('hidden', !data.series.length);
         if (!data.series.length) return;
         if (typeof Chart !== 'function') {
+            $('#trend_charts').prop('hidden', true);
             showStatus('#history_status', "{{ lang._('Charts could not load. The history table remains available; check that core chart assets are installed.') }}", true);
             return;
         }
@@ -410,7 +546,7 @@ librespeed-cli --help</pre>
                 data: {datasets: keys.map((key, index) => ({
                     label: metricNames[key],
                     data: data.series.map(point => ({x: point.epoch * 1000, y: point[key] === null ? null : point[key] / divisor})),
-                    borderColor: index ? '#b35c28' : '#287ca5', backgroundColor: index ? '#b35c28' : '#287ca5',
+                    borderColor: index ? '#00818b' : '#b52da5', backgroundColor: index ? '#00818b' : '#b52da5',
                     borderWidth: 2, pointRadius: data.series.length < 60 ? 3 : 0, spanGaps: false
                 }))},
                 options: {
@@ -449,9 +585,11 @@ librespeed-cli --help</pre>
             row.append(server.append(details)).append($('<td/>').text(modeNames[item.mode] || item.mode));
             Object.keys(metricNames).forEach(key => row.append($('<td/>').addClass('numeric').text(metricValue(key, item[key]))));
             row.append($('<td/>').text((originNames[item.origin] || item.origin) + ' / '
-                + (item.error || "{{ lang._('Successful') }}")));
+                + (item.error ? "{{ lang._('Failed') }}: " + readableError(item.error) : "{{ lang._('Successful') }}")));
             rows.append(row);
         });
+        if (!data.rows.length) rows.append($('<tr/>').append($('<td/>').attr('colspan', '8')
+            .text("{{ lang._('No measurements to display.') }}")));
         const metrics = $('#history_metrics').empty();
         Object.entries(data.metrics).forEach(([key, value]) => {
             const row = $('<tr/>').append($('<th/>').attr('scope', 'row').text(metricNames[key]));
@@ -462,8 +600,8 @@ librespeed-cli --help</pre>
             + "{{ lang._('Failed') }}: " + data.failed + ' · ' + "{{ lang._('Recorded transfer') }}: "
             + number((data.bytes_received + data.bytes_sent) / 1073741824, ' GiB'));
         $('#chart_note').text(data.series.length ? "{{ lang._('Chart bucket (UTC days)') }}: " + data.bucket_days + '. '
-            + "{{ lang._('Only measured values are averaged. The table shows exact runs in your browser timezone. Transfer totals exclude legacy records without byte counters.') }}"
-            : "{{ lang._('No successful measurements in this window. Run a test or adjust the filters to start a trend.') }}");
+            + "{{ lang._('Only measured values are averaged. Table times use your browser timezone. Transfer totals exclude legacy records without byte counters.') }}"
+            : "{{ lang._('No successful measurements for a trend. Run a test or adjust the filters.') }}");
         populateFilter('#history_server', data.servers, "{{ lang._('All servers') }}");
         populateFilter('#history_source', Object.fromEntries(data.sources.map(source => [source, source])), "{{ lang._('All sources') }}");
         $('#history_previous').prop('disabled', historyPage <= 1);
@@ -487,13 +625,13 @@ librespeed-cli --help</pre>
             .done(function(data) {
                 if (generation !== historyGeneration) return;
                 if (!Array.isArray(data?.rows) || !Array.isArray(data?.series) || !data.metrics) {
-                    showStatus('#history_status', data?.error || "{{ lang._('Unable to load history') }}", true);
+                    showStatus('#history_status', readableError(data?.error) || "{{ lang._('Unable to load history') }}", true);
                     return;
                 }
                 historyLoaded = true;
                 renderHistory(data);
             }).fail(function() {
-                if (generation === historyGeneration) showStatus('#history_status', "{{ lang._('Unable to load history. Check your session and try Refresh history.') }}", true);
+                if (generation === historyGeneration) showStatus('#history_status', "{{ lang._('Unable to load history. Check your session and refresh.') }}", true);
             });
     }
     function followStatus(expected = null, queued = Date.now(), generation = ++pollGeneration, failures = 0) {
@@ -501,7 +639,7 @@ librespeed-cli --help</pre>
         request('status', {}, function(state) {
             if (generation !== pollGeneration) return;
             if (!['idle', 'running', 'completed', 'failed'].includes(state?.status)) {
-                showStatus('#test_status', state?.error || "{{ lang._('Unable to read measurement status. Use Check running test to retry.') }}", true);
+                showStatus('#test_status', readableError(state?.error) || "{{ lang._('Unable to read test status. Use Refresh status to retry.') }}", true);
                 return;
             }
             if (expected && state.run_id !== expected && state.status !== 'running') {
@@ -509,37 +647,49 @@ librespeed-cli --help</pre>
                     pollTimer = setTimeout(() => followStatus(expected, queued, generation), 1500);
                 } else {
                     running = false;
+                    renderResults([]);
                     updateControls();
-                    showStatus('#test_status', "{{ lang._('The queued test did not start. Check backend logs and use Check running test before retrying.') }}", true);
+                    $('#run_progress').prop('hidden', true);
+                    showStatus('#test_status', "{{ lang._('The queued test did not start. Check backend logs and refresh status before retrying.') }}", true);
                 }
                 return;
             }
+            const wasRunning = running;
+            if (state.status === 'running' && !wasRunning) renderResults([]);
             running = state.status === 'running';
             updateControls();
             $('#run_progress').prop('hidden', !running);
             if (running) {
                 const phases = {selecting: "{{ lang._('Selecting server') }}", ping: "{{ lang._('Measuring latency') }}",
                     download: "{{ lang._('Measuring download') }}", upload: "{{ lang._('Measuring upload') }}"};
-                $('#phase_status').text((state.server || '') + ' · ' + (phases[state.phase] || state.phase)
-                    + ' · ' + state.completed + '/' + state.total + (state.mbps === null || state.mbps === undefined ? '' : ' · ' + speed(state.mbps)));
+                const parts = [state.server, phases[state.phase] || state.phase];
+                if (state.total > 1) parts.push("{{ lang._('Server') }} " + Math.min(state.completed + 1, state.total) + '/' + state.total);
+                if (state.mbps !== null && state.mbps !== undefined) parts.push(speed(state.mbps));
+                $('#phase_status').text(parts.filter(Boolean).join(' · '));
                 $('#measurement_progress').val(state.progress || 0);
-                showStatus('#test_status', "{{ lang._('Measurement running. Throughput phases may saturate the connection.') }}");
+                $('#readout_hint').text("{{ lang._('Test in progress. Results appear when it finishes.') }}");
+                showStatus('#test_status', "{{ lang._('Test in progress. Throughput measurements may saturate the connection.') }}");
                 if (Date.now() / 1000 > state.deadline + 30) {
-                    showStatus('#test_status', "{{ lang._('The measurement exceeded its expected deadline. Check backend logs; a lock may still be held. Use Check running test to refresh.') }}", true);
+                    showStatus('#test_status', "{{ lang._('The test exceeded its expected deadline. Check backend logs; a lock may still be held. Refresh status to check again.') }}", true);
                     return;
                 }
                 pollTimer = setTimeout(() => followStatus(state.run_id, queued, generation), 1500);
             } else if (state.status !== 'idle') {
                 renderResults(state.results || []);
-                showStatus('#test_status', state.error || "{{ lang._('Measurement completed. Results are saved in detailed history.') }}", state.status === 'failed');
+                showStatus('#test_status', state.status === 'failed'
+                    ? readableError(state.error) || "{{ lang._('The test failed. Check backend logs.') }}"
+                    : "{{ lang._('Test complete. Results saved to history.') }}", state.status === 'failed');
                 historyLoaded = false;
+            } else if (wasRunning) {
+                $('#readout_hint').text("{{ lang._('Run a test to see measurements here.') }}");
+                showStatus('#test_status', "{{ lang._('No test is currently running.') }}");
             }
         }, '#test_status').fail(function() {
             if (generation !== pollGeneration) return;
             if (failures < 2) {
                 pollTimer = setTimeout(() => followStatus(expected, queued, generation, failures + 1), 3000);
             } else {
-                showStatus('#test_status', "{{ lang._('Progress connection lost. The test may still be running. Use Check running test after restoring your session.') }}", true);
+                showStatus('#test_status', "{{ lang._('Progress connection lost. The test may still be running. Refresh status after restoring your session.') }}", true);
             }
         });
     }
@@ -554,12 +704,31 @@ librespeed-cli --help</pre>
             : "{{ lang._('Scheduled time (firewall local)') }}: " + hour + ':' + minute);
     }
     $(function() {
+        const tabs = $('.speedtest-tabs a[role="tab"]');
+        tabs.on('shown.bs.tab', function() {
+            tabs.attr('aria-selected', 'false').attr('tabindex', '-1');
+            $(this).attr('aria-selected', 'true').attr('tabindex', '0');
+        }).on('keydown', function(event) {
+            const index = tabs.index(this);
+            if (index < 0 || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+            event.preventDefault();
+            const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1
+                : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+            tabs.eq(next).tab('show').trigger('focus');
+        });
+        if (canConfigure) {
+            $('#open_server_setup').on('click', function(event) {
+                event.preventDefault();
+                $('#setup_tab').tab('show');
+                $('#servers_json').trigger('focus');
+            });
+        }
         $('#test_form')[0].addEventListener('invalid', function() {
             $('#test_form details').prop('open', true);
         }, true);
         request('defaults', {}, function(data) {
             if (!data || data.error) {
-                showStatus('#test_status', data?.error || "{{ lang._('Unable to load saved defaults') }}", true);
+                showStatus('#test_status', readableError(data?.error) || "{{ lang._('Unable to load saved defaults') }}", true);
                 return;
             }
             optionKeys.forEach(key => { if (data[key] !== undefined) $('#' + key).val(data[key]); });
@@ -568,20 +737,21 @@ librespeed-cli --help</pre>
                 $('#' + key).val(data[key] || '0');
                 savedRetention[key] = Number(data[key] || 0);
             });
+            $('#public_servers').prop('checked', data.public_servers === '1');
             defaultsReady = true;
             updateControls();
             followStatus();
             $('#check_status').on('click', () => followStatus());
             $('#serverid').on('change', updateControls);
             $('#units').on('change', function() {
-                renderResults(latestResults);
+                if (!running) renderResults(latestResults);
                 if (historyData) renderHistory(historyData);
             });
             $(window).on('pagehide', function() { ++pollGeneration; clearTimeout(pollTimer); });
             if (canSchedule) {
                 request('/api/speedtest/schedule/get', {}, function(data) {
                     if (!data?.schedule || data.error) {
-                        showStatus('#schedule_status', data?.error || "{{ lang._('Unable to load the schedule. Reload before saving.') }}", true);
+                        showStatus('#schedule_status', readableError(data?.error) || "{{ lang._('Unable to load the schedule. Reload before saving.') }}", true);
                         return;
                     }
                     const schedule = data.schedule;
@@ -606,7 +776,7 @@ librespeed-cli --help</pre>
                 request('/api/speedtest/schedule/set', {schedule: schedule}, function(data) {
                     showStatus('#schedule_status', data?.result === 'saved'
                         ? "{{ lang._('Schedule saved and applied. Saving does not run a test now.') }}"
-                        : data?.error || JSON.stringify(data?.validations || data), data?.result !== 'saved');
+                        : readableError(data?.error) || JSON.stringify(data?.validations || data), data?.result !== 'saved');
                 }, '#schedule_status').always(function() { saving = false; updateControls(); schedulePreview(); });
             });
             $('#apply_schedule').on('click', function() {
@@ -614,7 +784,7 @@ librespeed-cli --help</pre>
                 saving = true;
                 updateControls();
                 request('/api/speedtest/schedule/apply', {}, function(data) {
-                    showStatus('#schedule_status', data?.error || (data?.result === 'saved'
+                    showStatus('#schedule_status', readableError(data?.error) || (data?.result === 'saved'
                         ? "{{ lang._('Saved schedule applied.') }}" : "{{ lang._('Unable to apply cron. Check backend logs.') }}"), data?.result !== 'saved');
                 }, '#schedule_status').always(function() { saving = false; updateControls(); schedulePreview(); });
             });
@@ -636,6 +806,7 @@ librespeed-cli --help</pre>
             if (!$('#test_form')[0].reportValidity()) return;
             if (!$('#retention_form')[0].reportValidity()) return;
             const options = currentOptions();
+            options.public_servers = $('#public_servers').prop('checked') ? '1' : '0';
             options.servers = $('#servers_json').val();
             for (const key of ['retention_days', 'history_limit']) {
                 options[key] = $('#' + key).val();
@@ -648,7 +819,7 @@ librespeed-cli --help</pre>
             $.ajax({url: '/api/speedtest/settings/set', type: 'POST', data: {speedtest: {general: options}}, dataType: 'json', timeout: 30000})
                 .done(function(data) {
                     if (data?.result !== 'saved') {
-                        showStatus('#settings_status', data?.error || JSON.stringify(data?.validations || data) || "{{ lang._('Settings were not saved') }}", true);
+                        showStatus('#settings_status', readableError(data?.error) || JSON.stringify(data?.validations || data) || "{{ lang._('Settings were not saved') }}", true);
                         return;
                     }
                     showStatus('#settings_status', "{{ lang._('Settings saved. New tests and scheduled runs will use these defaults.') }}");
@@ -660,12 +831,13 @@ librespeed-cli --help</pre>
                 });
         });
         request('version', {}, function(data) {
-            if (!data?.message || data.error) {
-                showStatus('#version', data?.error || "{{ lang._('LibreSpeed setup is incomplete. See Setup and CLI.') }}", true);
+            if (typeof data?.message !== 'string' || !data.message || data.error) {
+                showStatus('#version', readableError(data?.error) || "{{ lang._('LibreSpeed setup is incomplete. See Setup and CLI.') }}", true);
                 updateControls();
                 return;
             }
-            showStatus('#version', data.message);
+            const version = data.message.match(/^librespeed-cli\s+(v[^\s]+)(?:\s+\(built on 1970-01-01 00:00:00 UTC\))?$/i);
+            showStatus('#version', version ? 'LibreSpeed CLI ' + version[1] : data.message);
             engineReady = true;
             updateControls();
             serversReload();
@@ -681,7 +853,7 @@ librespeed-cli --help</pre>
         $('#refresh_history').on('click', historyReload);
         $('#test_form').on('submit', function(event) {
             event.preventDefault();
-            if (!canRun || !engineReady || !defaultsReady || running || saving || !this.reportValidity()) return;
+            if (!canRun || !engineReady || !serversReady || !defaultsReady || running || saving || !this.reportValidity()) return;
             const options = currentOptions();
             const mode = $('#mode').val();
             const server = $('#serverid').val() === 'custom' ? $('#custom_servers').val() : $('#serverid').val();
@@ -690,18 +862,20 @@ librespeed-cli --help</pre>
             starting = true;
             running = true;
             updateControls();
-            $('#test_results').prop('hidden', true);
-            showStatus('#test_status', "{{ lang._('Queuing measurement...') }}");
+            renderResults([]);
+            showStatus('#test_status', "{{ lang._('Starting test...') }}");
             request('start/' + encodeURIComponent(server) + '/' + mode, options, function(data) {
                 if (data?.result !== 'started' || !data.run_id) {
                     running = false;
+                    renderResults([]);
                     updateControls();
-                    showStatus('#test_status', data?.error || "{{ lang._('Unable to start a measurement. Check backend logs.') }}", true);
+                    showStatus('#test_status', readableError(data?.error) || "{{ lang._('Unable to start a test. Check backend logs.') }}", true);
                     return;
                 }
                 followStatus(data.run_id);
             }, '#test_status').fail(function() {
-                showStatus('#test_status', "{{ lang._('Start response lost. The test may have started; use Check running test before retrying.') }}", true);
+                $('#readout_hint').text("{{ lang._('Test status is unknown. Refresh status to check.') }}");
+                showStatus('#test_status', "{{ lang._('Start response lost. The test may have started; refresh status before retrying.') }}", true);
             }).always(function() {
                 starting = false;
                 updateControls();
@@ -712,7 +886,7 @@ librespeed-cli --help</pre>
             $('#deletelogAct').prop('disabled', true);
             request('deletelog', {}, function(data) {
                 if (!data || data.error || data.result !== 'ok') {
-                    showStatus('#history_status', data?.error || "{{ lang._('Unable to clear history') }}", true);
+                    showStatus('#history_status', readableError(data?.error) || "{{ lang._('Unable to clear history') }}", true);
                     return;
                 }
                 historyReload();

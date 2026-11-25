@@ -1,5 +1,5 @@
 PLUGIN_NAME=		speedtest-community
-PLUGIN_VERSION=		0.11
+PLUGIN_VERSION=		0.14
 PLUGIN_COMMENT=		LibreSpeed network measurements
 PLUGIN_LICENSE=		LGPL3
 PLUGIN_MAINTAINER=	miha.kralj@outlook.com

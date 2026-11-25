@@ -33,11 +33,25 @@ function check($condition, $message)
 
 $model = new \OPNsense\Speedtest\Speedtest();
 check((string)$model->general->duration === '10', 'Default duration');
+check((string)$model->general->public_servers === '1', 'Official server discovery is enabled by default');
+$modelXml = simplexml_load_file($root . '/src/opnsense/mvc/app/models/OPNsense/Speedtest/Speedtest.xml');
+check((string)$modelXml->items->general->timeout->default === '15',
+      'Default request timeout accommodates slow OPNsense DNS');
+require $root . '/src/opnsense/mvc/app/models/OPNsense/Speedtest/Migrations/M1_2_2.php';
+$migration = new \OPNsense\Speedtest\Migrations\M1_2_2();
+$model->setNodes(['general' => ['timeout' => '8']]);
+$migration->run($model);
+check((string)$model->general->timeout === '15', 'Migration replaces the old default timeout');
+$model->setNodes(['general' => ['timeout' => '5']]);
+$migration->run($model);
+check((string)$model->general->timeout === '5', 'Migration preserves customized timeout values');
 $model->setNodes(['general' => ['duration' => '31']]);
 check(count($model->performValidation()) > 0, 'Invalid duration must be rejected by the native model');
-$model->setNodes(['general' => ['duration' => '15', 'family' => 'ipv6', 'private_ca' => '1']]);
+$model->setNodes(['general' => ['duration' => '15', 'family' => 'ipv6',
+                                  'private_ca' => '1', 'public_servers' => '0']]);
 check(count($model->performValidation()) === 0, 'Valid settings must pass native validation');
 check((string)$model->general->private_ca === '1', 'Boolean settings persist in native format');
+check((string)$model->general->public_servers === '0', 'Public registry opt-out persists in native settings');
 $model->setNodes(['schedule' => ['enabled' => '1', 'cadence' => 'daily', 'hour' => '24']]);
 check(count($model->performValidation()) > 0, 'Invalid schedule hour is rejected by the native model');
 $model->setNodes(['schedule' => ['hour' => '3', 'server' => '42,84'], 'general' => ['retention_days' => '365', 'history_limit' => '5000']]);
@@ -245,10 +259,19 @@ if (isset($argv[2])) {
     $canRun = $canConfigure = $canClear = $canSchedule = true;
     ob_start();
     include $argv[1];
-    file_put_contents($argv[2], ob_get_clean());
+    $adminPage = ob_get_clean();
+    check(str_contains($adminPage, 'id="open_server_setup"'), 'Configurator can navigate to server setup');
+    check(str_contains($adminPage, 'id="servers_json"'), 'Configurator can edit servers');
+    check(str_contains($adminPage, 'id="reportAct"'), 'Runner can start a test');
+    file_put_contents($argv[2], $adminPage);
     $canRun = $canConfigure = $canClear = $canSchedule = false;
     ob_start();
     include $argv[1];
-    file_put_contents($argv[2] . '.viewer', ob_get_clean());
+    $viewerPage = ob_get_clean();
+    check(!str_contains($viewerPage, 'id="open_server_setup"'), 'Viewer has no configuration shortcut');
+    check(!str_contains($viewerPage, 'id="servers_json"'), 'Viewer cannot edit servers');
+    check(!str_contains($viewerPage, 'id="reportAct"'), 'Viewer cannot start a test');
+    check(str_contains($viewerPage, 'Ask an administrator to add a server'), 'Viewer receives setup guidance');
+    file_put_contents($argv[2] . '.viewer', $viewerPage);
 }
 echo "Native model, API contracts, ACL separation, and Volt compilation passed\n";

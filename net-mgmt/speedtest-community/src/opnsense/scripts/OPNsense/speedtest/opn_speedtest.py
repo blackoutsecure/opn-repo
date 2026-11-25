@@ -44,12 +44,15 @@ import ipaddress
 import selectors
 import tempfile
 import time
+import urllib.error
+import urllib.request
 import uuid
 import syslog
 import xml.etree.ElementTree as ET
 
 librespeed = "/usr/local/bin/librespeed-cli"
 librespeed_servers = "/usr/local/etc/speedtest-community/librespeed-servers.json"
+public_servers_url = "https://librespeed.org/backend-servers/servers.php"
 csvfile = "/usr/local/opnsense/scripts/OPNsense/speedtest/speedtest.csv"
 ca_bundle = "/usr/local/etc/speedtest-community/ca.pem"
 config_xml = "/conf/config.xml"
@@ -102,7 +105,7 @@ exit_status = 0
 fields = ['Timestamp', 'ClientIp', 'ServerId', 'ServerName', 'Country', 'DlSpeed', 'UlSpeed', 'Latency', 'Link'] 
 
 RUN_TIMEOUT = 100
-DEFAULT_OPTIONS = {'duration': 10, 'timeout': 8, 'concurrent': 3, 'chunks': 100, 'upload_size': 1024,
+DEFAULT_OPTIONS = {'duration': 10, 'timeout': 15, 'concurrent': 3, 'chunks': 100, 'upload_size': 1024,
                    'family': 'auto', 'source': '', 'icmp': False, 'http2': False,
                    'no_pre_allocate': False, 'private_ca': False, 'exclude': ''}
 HISTORY_DEFAULTS = {'retention_days': 0, 'history_limit': 0}
@@ -118,6 +121,10 @@ def native_settings(section='general'):
 def normalize_settings(settings):
     options = {}
     for key, value in settings.items():
+        if key == 'public_servers':
+            if value not in ('0', '1'):
+                raise ValueError('Invalid boolean setting: public_servers')
+            continue
         if key not in DEFAULT_OPTIONS:
             if key in ('servers', *HISTORY_DEFAULTS):
                 continue
@@ -485,8 +492,8 @@ def streamed_command(command, timeout, content):
     return reports
 
 def load_librespeed_servers(content=None):
+    settings = native_settings()
     if content is None:
-        settings = native_settings()
         if not args.config and settings.get('servers', '').strip():
             content = settings['servers']
         else:
@@ -494,12 +501,21 @@ def load_librespeed_servers(content=None):
                 with open(librespeed_servers, 'rb') as config:
                     content = config.read(65537)
             except FileNotFoundError:
-                return None
+                if args.config or settings.get('public_servers', '1') != '1':
+                    return None
+                try:
+                    with urllib.request.urlopen(public_servers_url, timeout=20) as response:
+                        if response.geturl() != public_servers_url:
+                            raise ValueError('LibreSpeed public server list redirected to an unexpected URL')
+                        content = response.read(65537)
+                except (OSError, TimeoutError, urllib.error.URLError) as error:
+                    raise ValueError('Unable to retrieve the official LibreSpeed.org server list: '
+                                     + str(error)) from error
     if len(content.encode('utf-8') if isinstance(content, str) else content) > 65536:
         raise ValueError('LibreSpeed server list exceeds 64 KiB')
     servers = json.loads(content)
-    if not isinstance(servers, list) or not 1 <= len(servers) <= 10:
-        raise ValueError('Configure one to ten LibreSpeed servers')
+    if not isinstance(servers, list) or not 1 <= len(servers) <= 50:
+        raise ValueError('LibreSpeed server list must contain one to 50 servers')
     ids, urls = set(), set()
     for server in servers:
         if not isinstance(server, dict):
@@ -816,8 +832,12 @@ try:
         options = measurement_options()
         servers = load_librespeed_servers()
         if servers is None:
-            raise ValueError(f'Configure the LibreSpeed server list at {librespeed_servers}')
-        if arg in ('t', 'list'):
+            error = ValueError(f'Configure the LibreSpeed server list at {librespeed_servers}')
+            if arg in ('t', 'list'):
+                emit({'error': error_message(error), 'code': 'servers_unconfigured'})
+            else:
+                raise error
+        elif arg in ('t', 'list'):
             emit([{'id': str(s['id']), 'name': s['name'], 'location': '', 'country': ''}
                   for s in servers])
         elif server_argument:

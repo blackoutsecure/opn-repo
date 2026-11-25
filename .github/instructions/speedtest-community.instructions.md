@@ -4,8 +4,11 @@ applyTo: "net-mgmt/speedtest-community/**"
 
 # LibreSpeed plugin
 
-- Keep the plugin LibreSpeed-only. Do not add Ookla clients, public server
-  discovery, telemetry, runtime downloads, daemons, or extra runtime packages.
+- Keep the plugin LibreSpeed-only. Do not add Ookla clients, telemetry, runtime
+  downloads, daemons, or extra runtime packages. Public server discovery may
+  use only the official HTTPS LibreSpeed.org registry, must be user-disableable,
+  must validate every server entry, and must explain that tests expose the
+  firewall's public IP to selected servers.
 - Use the pinned, checksum-verified Rust engine and its locked dependencies.
   Update the source archive, checksum, bundled notices and tests together when
   changing the engine version.

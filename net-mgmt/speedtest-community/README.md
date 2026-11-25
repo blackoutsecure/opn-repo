@@ -1,7 +1,7 @@
 # LibreSpeedtest for OPNsense
 
 [LibreSpeed](https://librespeed.org/) is the only measurement provider.
-Version **0.11** bundles the pinned native Rust `librespeed-cli 1.2.1`.
+Version **0.14** bundles the pinned native Rust `librespeed-cli 1.2.1`.
 There are **no additional runtime package dependencies**: integration uses
 OPNsense's existing PHP/Volt, configd and Python standard library. No compiler,
 Go, Node.js, extra Python package, daemon or network listener is installed.
@@ -19,8 +19,18 @@ the Chart.js already shipped by OPNsense; no external assets are loaded.
 
 ## Setup and saved defaults
 
-Open **Reporting > Speedtest > Setup and CLI**. Save one to ten HTTPS servers
-you are authorized to test, with unique positive IDs and relative endpoint paths:
+When no custom or administrator-managed server list is available, the plugin
+uses the official LibreSpeed.org public list by default. It retrieves the list
+from [`servers.php`](https://librespeed.org/backend-servers/servers.php) over
+HTTPS, validates the entries, then selects the lowest-latency server. In
+**Reporting > Speedtest > Setup and CLI**, disable **Use the official
+LibreSpeed.org public server list** to opt out. The registry and selected test
+servers can see the firewall's public IP; the plugin does not share results or
+send telemetry. List retrieval or validation failures are reported
+explicitly; they never fall back to an unexpected server.
+
+Save up to 50 custom HTTPS servers with unique positive IDs and relative
+endpoint paths to prefer servers you operate or are authorized to use:
 
 ```json
 [
@@ -37,13 +47,13 @@ you are authorized to test, with unique positive IDs and relative endpoint paths
 ```
 
 The paths depend on your server backend. The example host is a placeholder,
-not a provisioned service. The picker uses only configured servers; `0` selects
-the lowest-latency server; `-1` compares all configured servers sequentially.
+not a provisioned service. Saved custom servers take priority over the
+administrator-managed file; if neither exists, the optional official public
+list is used. `0` selects the lowest-latency server; `-1` compares all listed
+servers sequentially.
 Choose specific IDs or exclude servers from automatic/all-server selection.
-Explicit IDs cannot be combined with exclusions. The plugin never requests
-public server discovery, sharing or telemetry. Servers see your public IP;
-new records do not collect it. A configured local source binding is retained
-for like-for-like history filtering. Existing CSV data is preserved.
+Explicit IDs cannot be combined with exclusions. A local source binding is
+retained for like-for-like history filtering. Existing CSV data is preserved.
 
 Saving also persists advanced measurement defaults under
 `OPNsense/speedtest/general` in `/conf/config.xml`, using native model validation,
@@ -51,9 +61,11 @@ configuration locking, revisions and backups. New GUI, cron, API and terminal
 runs inherit these defaults; explicit run options override them. No restart is
 needed. Leave server JSON empty to use the root-owned file
 `/usr/local/etc/speedtest-community/librespeed-servers.json`. Saved nonempty
-server JSON takes precedence; terminal `--config` explicitly overrides it.
+server JSON takes precedence. If the file is absent, public list discovery
+follows the **Use the official LibreSpeed.org public server list** setting;
+terminal `--config` explicitly overrides all other sources.
 The external server file and CA bundle are not embedded in configuration backups.
-The administrator-managed list may contain up to 64 KiB. GUI settings are
+Server lists may contain up to 50 entries and 64 KiB. GUI settings are
 compacted and must also fit the native configd message limit (3500 encoded
 bytes); oversized settings are rejected with an actionable error instead of
 being truncated. Use the external file for unusually long lists or URLs.
@@ -64,7 +76,7 @@ being truncated. Use the external file for unusually long lists or URLs.
 | --- | --- |
 | Mode | Full download and upload; download-only, upload-only, latency/jitter-only |
 | Duration per direction | 10 seconds; 1-30 |
-| HTTP request timeout | 8 seconds; 1-15 |
+| HTTP request timeout | 15 seconds; 1-15. Upgrades change the former default of 8 to 15 while preserving other saved values. |
 | Concurrent requests | 3; 1-8 |
 | Download chunks | 100; 1-1000; server determines chunk size |
 | Upload payload | 1024 KiB; 1-16384 |
@@ -281,7 +293,7 @@ that installation instead.
 The previous packaging framework could declare a package in conflict with
 itself, causing a misconfigured firmware status. `Mk/plugins.mk` now omits that
 self-conflict while preserving real stable/development conflicts. Source
-changes alone do not repair an installed package: build/install **0.11** for
+changes alone do not repair an installed package: build/install **0.14** for
 the matching OPNsense repository, FreeBSD ABI and architecture, then refresh
 firmware status. This work does not automatically install or publish it.
 
