@@ -42,7 +42,7 @@ class SettingsController extends ApiMutableModelControllerBase
         ]);
         $result = json_decode($response, true);
         if (!is_array($result) || ($result['result'] ?? '') !== 'ok') {
-            throw new UserException($result['error'] ?? gettext('Unable to validate LibreSpeed settings'));
+            throw new UserException($result['error'] ?? gettext('Unable to validate Speedtest settings'));
         }
     }
 }

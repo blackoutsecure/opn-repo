@@ -1,12 +1,13 @@
-# LibreSpeedtest for OPNsense
+# Speedtest
 
-<img src="src/opnsense/www/img/speedtest-community/speedtest-logo.png" alt="LibreSpeedtest plugin logo" width="96" height="96">
+<img src="src/opnsense/www/img/speedtest-community/speedtest-logo.png" alt="Speedtest logo" width="96" height="96">
 
 **Maintained and supported by [BlackOut Secure](https://blackoutsecure.app/)
 for the OPNsense community.**
 
-[LibreSpeed](https://librespeed.org/) is the only measurement provider.
-Version **0.20** bundles the pinned native Rust `librespeed-cli 1.2.1`.
+Speedtest measures throughput and latency from OPNsense. It uses only
+[LibreSpeed](https://librespeed.org/) for measurements, with the pinned Rust
+engine `librespeed-cli 1.2.1` bundled in version **0.21**.
 There are **no additional runtime package dependencies**: integration uses
 OPNsense's existing PHP/Volt, configd and Python standard library. No compiler,
 Go, Node.js, extra Python package, daemon or network listener is installed.
@@ -21,20 +22,16 @@ progress, sequential server comparisons, throughput and latency/jitter trends,
 filtered/paged history, detailed exports and an optional native cron schedule.
 Diagnostics and failures are retained, not silently discarded. Charts reuse
 the Chart.js already shipped by OPNsense; no external assets are loaded.
-During GUI and scheduled tests, per-phase bars show progress and the live
-graph plots the engine's running-average download and upload rates. Server
-selection and latency have indeterminate progress because the engine does not
-report a percentage for those phases. The live graph contains the current or
-most recently tested server in a comparison and resets for the next server.
-Download and upload also have LibreSpeed-style semicircular gauges with exact
-auto-scaled readouts. Gauge ranges adjust to measured speed, not link capacity;
-there is no animated or estimated speed when the engine has not reported one.
-The run screen shows the sponsor from the configured server list and the
-firewall IP and ISP/network reported by that server. These describe the
-firewall's connection, not the browser's; missing details are marked
-**Not reported**.
+The Run tab shows one progress indicator for the active phase and an optional
+live chart of the engine's running-average rates. Server selection and latency
+have indeterminate progress. Live samples reset for each server and disappear
+when the test ends. The latest single result shows its server, timestamp and
+only the metrics that were measured; a multi-server run shows a comparison
+table instead. Compact throughput gauges scale to the measured rate, not link
+capacity. Expand **Test details** for reported connection information,
+transferred bytes and probe TLS.
 
-## Why LibreSpeed replaced Ookla
+## Measurement engine and licensing
 
 All [Speedtest.net](https://www.speedtest.net/) / Ookla, LLC measurement
 integration has been removed from this plugin. It no longer installs,
@@ -88,20 +85,20 @@ When no custom or administrator-managed server list is available, the plugin
 uses the official LibreSpeed.org public list by default. It retrieves the list
 from [`servers.php`](https://librespeed.org/backend-servers/servers.php) over
 HTTPS, validates the entries, then selects the lowest-latency server. In
-**Reporting > Speedtest > Advanced settings**, disable **Enable the official
-LibreSpeed.org catalog** and save to opt out. The registry and selected test
-servers can see the firewall's public IP; the plugin does not share results or
-send telemetry. List retrieval or validation failures are reported
+**Reporting > Speedtest > Settings**, clear **Use the public server catalog**
+and save to opt out. The registry and selected test servers can see the
+firewall's public IP; the plugin does not share results or send telemetry.
+List retrieval or validation failures are reported
 explicitly; they never fall back to an unexpected server.
 
 Save up to 50 custom HTTPS servers with unique positive IDs and relative
 endpoint paths to prefer servers you operate or are authorized to use:
 
-**Advanced settings > Servers** separates the searchable official catalog
+**Settings > Servers** separates the searchable official catalog
 from your custom servers. No JSON editing is needed:
 
-- The catalog refreshes when the tab opens while public discovery is enabled,
-  or on demand with **Refresh catalog**. Initially, all official servers,
+- Expand **Manage allowed official servers** to load the enabled catalog.
+  Use **Refresh catalog** to check for changes. Initially, all official servers,
   including future additions, are allowed. **Remove** switches to a fixed
   allow-list of the remaining IDs; **Allow** adds an individual ID back.
   New catalog entries then require approval. **Allow all official servers**
@@ -147,19 +144,19 @@ administrator-managed file; if neither exists, the optional allowed official
 list is used. Combining adds allowed official entries to the selected local
 source. `0` selects the lowest-latency server; `-1` compares all listed
 servers sequentially.
-Choose specific IDs or exclude servers from automatic/all-server selection.
-Explicit IDs cannot be combined with exclusions. A local source binding is
+Exclude servers from automatic and all-server selection. The GUI ignores
+exclusions when you choose explicit IDs; in the CLI those options cannot be
+combined. A local source binding is
 retained for like-for-like history filtering. Existing CSV data is preserved.
 
-With automatic selection, opening the run screen detects a lowest-latency
-server for users with run permission. The refresh button reloads the configured
-list and re-scans; it can find a better server as conditions change. Detection
-uses the saved server source and current page's measurement options, including
-exclusions, source binding and verified HTTPS trust. It performs only latency
-probes, never download/upload measurements, and does not save success or failure
-records to history. Its separate transient status preserves the last test and live trace.
-The actual test rechecks automatic selection when it starts. View-only visits
-do not initiate probes, and detection waits for active tests/history operations.
+In **Settings > Measurement options**, **Server** starts at **Auto**, which
+chooses the lowest-latency server at the start of each test. Choose a server
+directly, or use **Find and select lowest-latency server** to scan once and
+select the winner for subsequent manual tests on that page. The scan respects
+the current options and exclusions, does not measure bandwidth or save a
+result, and cannot overlap a test. Opening the page or reloading the server
+list does not probe servers. Scan connection details describe the firewall,
+not the browser, and are separate from details for the latest saved test.
 The existing engine requests the selected server's `getIP` endpoint during
 detection and tests; no additional IP lookup service is contacted by the
 plugin. The server may query an ISP provider according to its own configuration.
@@ -168,27 +165,34 @@ measurement and detection status snapshots, not the CSV or JSONL history.
 They remain until the next corresponding operation, history clearing or
 uninstall; users with view access can see those snapshots.
 
-The run screen keeps server and mode selection. **Advanced settings** contains
-the measurement options: edits apply to manual tests in the current page
-without saving, including for users with run permission but not configure
-permission. Saving makes them defaults for future runs. Saving also persists
-measurement defaults under
+**Settings > Measurement options** also contains **Test mode**, which starts
+at **Full test** on each new visit.
+Selecting another mode changes only manual tests from that page; scheduled
+tests keep their own mode. Other measurement edits apply to manual tests on
+the page without saving, including for users with run permission but not
+configure permission. Saving persists those measurement defaults under
 `OPNsense/speedtest/general` in `/conf/config.xml`, using native model validation,
 configuration locking, revisions and backups. New GUI, cron, API and terminal
 runs inherit these defaults; explicit run options override them. No restart is
-needed. Leave the custom list empty to use the root-owned file
+needed. **Settings > Speed display** defaults to **Auto**. Choose a fixed unit
+to label gauges, results, and charts on the current page. It does not cap test
+speed or change the units used in stored history or exports.
+
+Leave the custom list empty to use the root-owned file
 `/usr/local/etc/speedtest-community/librespeed-servers.json`. Saved custom
 entries take precedence. If the file is absent, or combining sources is
-enabled, public discovery follows **Enable the official LibreSpeed.org catalog**
+enabled, public discovery follows **Use the public server catalog**
 and your official-server allow-list;
 terminal `--config` explicitly overrides all other sources.
 On first install, the native model and CLI use the measurement values in the
 table below; they do not overwrite existing saved settings on upgrade.
-**Restore recommended measurement settings** resets only the current page's
-measurement controls (including IP family, source and optional flags). It
-does not change servers, retention, history or the schedule, and does not
-persist until an administrator clicks **Save settings**. Run-only users can
-restore the controls for a temporary test without saving configuration.
+**Use recommended measurement options** changes only the page's measurement
+controls. **Restore saved measurement options** reverses those edits without
+touching servers or retention. Both reset the manual mode to **Full test**.
+**Discard changes** restores the whole settings draft to its saved values.
+These actions do not save configuration, clear
+history or change the schedule. Run-only users can use temporary options
+without saving.
 The external server file and CA bundle are not embedded in configuration backups.
 Server lists may contain up to 50 entries and 64 KiB. GUI settings are
 compacted and must also fit the native configd message limit (3500 encoded
@@ -211,7 +215,7 @@ being truncated. Use the external file for unusually long lists or URLs.
 | HTTP/2 | Optional; multiplexing changes connection/concurrency semantics |
 | Upload memory | Optional reduced preallocation; server must accept chunked uploads |
 | Private CA | Optional PEM bundle, with certificate verification retained |
-| Display units | Throughput automatically scales in bits per second; charts share one unit per axis. Stored measurements remain Mbps. |
+| Display units | Auto scales throughput in bits per second; an optional fixed unit controls the display without changing stored Mbps. |
 | History retention | 31 days and 10,000 records by default, whichever limit is reached first; configurable days (1-3650) and records (1-100000); 0 disables each limit |
 | Scheduled measurements | Disabled by default; hourly, daily, weekdays or weekly; selected mode and server IDs |
 
@@ -313,24 +317,25 @@ different concerns; verification cannot be disabled through the plugin.
 Run from an authorized firewall shell:
 
 ```sh
-opn-librespeed --help
-opn-librespeed list
-opn-librespeed run --server 42 --duration 15 --family ipv4
-opn-librespeed run --mode latency --format json
-opn-librespeed run --mode download --format csv
-opn-librespeed run --no-icmp --no-http2 --pre-allocate --system-ca
-opn-librespeed run --server 42 --server 84
-opn-librespeed run --all-servers
-opn-librespeed run --exclude 84
-opn-librespeed history --days 30 --format json
-opn-librespeed status --format json
-opn-librespeed stat
-opn-librespeed recent
-opn-librespeed log
+opn-speedtest --help
+opn-speedtest list
+opn-speedtest run --server 42 --duration 15 --family ipv4
+opn-speedtest run --mode latency --format json
+opn-speedtest run --mode download --format csv
+opn-speedtest run --no-icmp --no-http2 --pre-allocate --system-ca
+opn-speedtest run --server 42 --server 84
+opn-speedtest run --all-servers
+opn-speedtest run --exclude 84
+opn-speedtest history --days 30 --format json
+opn-speedtest status --format json
+opn-speedtest stat
+opn-speedtest recent
+opn-speedtest log
 ```
 
-`opn-librespeed` shares the GUI lock and history, defaults to readable text,
-supports JSON/CSV output and returns nonzero on errors. `--history` selects an
+`opn-speedtest` shares the GUI lock and history, defaults to readable text,
+supports JSON/CSV output and returns nonzero on errors. Existing scripts using
+`opn-librespeed` can continue using that alias. `--history` selects an
 alternate CSV file without changing the shared lock; `--config` selects an
 alternate server list. Runs require permission to use the plugin's shared lock,
 normally through a root shell. `--server` and `--all-servers` are mutually
@@ -339,9 +344,10 @@ supported, including automatic selection when the ID is omitted. Review old
 server IDs before reenabling jobs; IDs must belong to your configured
 LibreSpeed servers.
 
-For one daily run, open **Schedule**, enable the schedule, choose **Daily**,
-set the firewall-local hour/minute, and select server `0` (lowest latency),
-`-1` (all), or configured IDs such as `42,84`. Save and apply. This updates
+For one daily run, open **Schedule**, enable scheduled tests, and choose **Daily**.
+Set the firewall-local hour and minute, then choose **Automatic**, **Compare all**,
+or **Choose server IDs** for configured IDs such as `42,84`. Disabled scheduling
+hides these options without changing the saved values. **Save and apply schedule** updates
 exactly one native cron entry with origin `Speedtest` and command
 `speedtest scheduled`; saving is not a measurement.
 The scheduled action reads the saved mode/server selection and current
@@ -369,11 +375,11 @@ Assign native privileges under **System > Access > Users or Groups**:
 
 | Privilege | Access |
 | --- | --- |
-| LibreSpeed: View results | Page, charts/history/status, dashboard data and exports |
-| LibreSpeed: Run measurements | Start full tests, diagnostics and server detection |
-| LibreSpeed: Configure settings | Read/save server configuration and defaults |
-| LibreSpeed: Manage schedule | Manage the plugin's fixed native cron job, not arbitrary cron commands |
-| LibreSpeed: Clear history | Delete stored measurements |
+| Speedtest: View results | Page, charts/history/status, dashboard data and exports |
+| Speedtest: Run tests | Start full tests, diagnostics and server detection |
+| Speedtest: Configure settings | Read/save server configuration and defaults |
+| Speedtest: Manage schedule | Manage the plugin's fixed native cron job, not arbitrary cron commands |
+| Speedtest: Clear history | Delete stored measurements |
 
 Grant View results alongside additional privileges. The original
 `page-reporting-speedtest` privilege now grants viewing only: limited accounts
@@ -397,9 +403,12 @@ tracks the current/latest history-free server detection.
 
 The history API merges legacy CSV and detailed records without counting the
 CSV mirror of a modern full test twice. The GUI separates legacy and Rust
-measurements, filters by period/server/mode/outcome/trigger/IP-family setting/
-source binding, shows average/min/max for measured values only, and paginates
-50 rows at a time. Up to 200 pages may be browsed per filter; narrow a filter
+measurements. The History tab opens on the saved tests; use **More filters**
+for mode, outcome, trigger, IP family or source binding. **Reset filters**
+returns to the last 30 days of Speedtest results. **Trends and averages**
+opens charts and statistics when measurements are available, and **Export and
+manage history** keeps exports and deletion separate from browsing. Results
+paginate 50 rows at a time. Up to 200 pages may be browsed per filter; narrow a filter
 or export for larger sets. Throughput and latency/jitter plots use UTC-day
 averages, coarsened to at most 500 buckets for long histories. Tables display
 absolute timestamps in the **browser's local timezone**; schedule times use
@@ -544,7 +553,7 @@ The native engine's own tests remain responsible for its direct-client-only
 formatting, telemetry and platform-specific internals; they are not falsely
 advertised as plugin capabilities.
 
-The GitHub Actions **LibreSpeed Rust release gate** builds the pinned engine on
+The GitHub Actions **Speedtest release gate** builds the pinned engine on
 Ubuntu and in a FreeBSD 15.1 amd64 VM, and runs the adapter and local
 verified-HTTPS integration tests on each. The FreeBSD job also runs the
 isolated uninstall tests with PHP; the package lifecycle test requires root.

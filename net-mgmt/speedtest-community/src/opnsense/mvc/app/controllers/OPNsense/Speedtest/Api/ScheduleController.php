@@ -54,7 +54,7 @@ class ScheduleController extends ApiControllerBase
             'days' => '*', 'months' => '*',
             'weekdays' => $cadence === 'weekly' ? (string)$schedule->weekday : ($cadence === 'weekdays' ? '1-5' : '*'),
             'who' => 'root', 'command' => 'speedtest scheduled', 'parameters' => '',
-            'description' => 'LibreSpeed scheduled measurement'
+            'description' => 'Speedtest scheduled measurement'
         ]);
         if ($managed) {
             array_shift($managed);
@@ -100,7 +100,7 @@ class ScheduleController extends ApiControllerBase
                 $cron->serializeToConfig();
             }
             $model->serializeToConfig();
-            $config->save(['description' => 'Updated LibreSpeed measurement schedule']);
+            $config->save(['description' => 'Updated Speedtest schedule']);
         } finally {
             $config->unlock();
         }

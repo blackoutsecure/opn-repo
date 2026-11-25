@@ -1,4 +1,4 @@
-name: LibreSpeed Rust release gate
+name: Speedtest release gate
 
 on:
   workflow_dispatch:
@@ -66,7 +66,9 @@ jobs:
         run: python3 -B -m unittest discover -s tests -v
       - name: Check plugin scripts
         run: |
-          sh -n contrib/build.sh src/bin/opn-librespeed
+          sh -n contrib/build.sh
+          sh -n src/bin/opn-speedtest
+          sh -n src/bin/opn-librespeed
           find src -name '*.php' -print0 | xargs -0 -n 1 php -l
           node tests/test_ui.js src/opnsense/mvc/app/views/OPNsense/Speedtest/index.volt
       - name: Record platform qualification boundary

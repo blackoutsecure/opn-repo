@@ -1,6 +1,6 @@
 <acl>
     <page-reporting-speedtest>
-        <name>Reporting: LibreSpeed: View results</name>
+        <name>Reporting: Speedtest: View results</name>
         <patterns>
             <pattern>ui/speedtest/*</pattern>
             <pattern>api/speedtest/service/version</pattern>
@@ -18,19 +18,19 @@
         </patterns>
     </page-reporting-speedtest>
     <page-reporting-speedtest-run>
-        <name>Reporting: LibreSpeed: Run measurements</name>
+        <name>Reporting: Speedtest: Run tests</name>
         <patterns><pattern>api/speedtest/service/run/*</pattern><pattern>api/speedtest/service/run</pattern><pattern>api/speedtest/service/start</pattern><pattern>api/speedtest/service/start/*</pattern><pattern>api/speedtest/service/detect</pattern></patterns>
     </page-reporting-speedtest-run>
     <page-reporting-speedtest-settings>
-        <name>Reporting: LibreSpeed: Configure settings</name>
+        <name>Reporting: Speedtest: Configure settings</name>
         <patterns><pattern>api/speedtest/settings/get</pattern><pattern>api/speedtest/settings/set</pattern><pattern>api/speedtest/settings/catalog</pattern></patterns>
     </page-reporting-speedtest-settings>
     <page-reporting-speedtest-schedule>
-        <name>Reporting: LibreSpeed: Manage schedule</name>
+        <name>Reporting: Speedtest: Manage schedule</name>
         <patterns><pattern>api/speedtest/schedule/get</pattern><pattern>api/speedtest/schedule/set</pattern><pattern>api/speedtest/schedule/apply</pattern></patterns>
     </page-reporting-speedtest-schedule>
     <page-reporting-speedtest-clear>
-        <name>Reporting: LibreSpeed: Clear history</name>
+        <name>Reporting: Speedtest: Clear history</name>
         <patterns><pattern>api/speedtest/service/deletelog</pattern><pattern>api/speedtest/service/deletelog/*</pattern></patterns>
     </page-reporting-speedtest-clear>
 </acl>

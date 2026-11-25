@@ -61,8 +61,9 @@ ca_bundle = "/usr/local/etc/speedtest-community/ca.pem"
 config_xml = "/conf/config.xml"
 
 parser = argparse.ArgumentParser(
-    description='LibreSpeedtest: native Rust measurements with OPNsense history.',
-    epilog='For all upstream options and streaming output, use librespeed-cli --help. https://librespeed.org/',
+    prog='opn-speedtest',
+    description='Speedtest: measure throughput and latency from OPNsense.',
+    epilog='For upstream engine options and streaming output, see librespeed-cli --help.',
 )
 parser.add_argument('action', nargs='?', default='run',
                     help='run, detect, detection-status, status, history, list, version, stat, recent, log, clear, or a configured server ID')
@@ -140,7 +141,7 @@ def normalize_settings(settings):
         if key not in DEFAULT_OPTIONS:
             if key in ('servers', *HISTORY_DEFAULTS):
                 continue
-            raise ValueError('Unknown LibreSpeed setting: ' + key)
+            raise ValueError('Unknown Speedtest setting: ' + key)
         default = DEFAULT_OPTIONS[key]
         if type(default) is int:
             if not re.fullmatch(r'[0-9]+', str(value)):
@@ -195,7 +196,7 @@ def measurement_options(settings=None):
     if settings is None and args.encoded_options:
         supplied = json.loads(base64.b64decode(args.encoded_options, validate=True))
         if not isinstance(supplied, dict) or supplied.keys() - options.keys():
-            raise ValueError('Invalid LibreSpeed options')
+            raise ValueError('Invalid measurement options')
         options.update(supplied)
     for key, maximum in (('duration', 30), ('timeout', 15), ('concurrent', 8),
                          ('chunks', 1000), ('upload_size', 16384)):
@@ -256,7 +257,7 @@ def atomic_write(path, write, permissions=0o600):
 def update_state(**changes):
     if active_run is not None:
         if not os.path.isfile(__file__):
-            raise FileNotFoundError('LibreSpeed was uninstalled before progress could be updated')
+            raise FileNotFoundError('Speedtest was uninstalled before progress could be updated')
         active_run.update(changes, updated=time.time())
         atomic_write(state_file, lambda stream: json.dump(active_run, stream, allow_nan=False))
 
@@ -340,7 +341,7 @@ def history_records():
 
 def append_record(record):
     if not os.path.isfile(__file__):
-        raise FileNotFoundError('LibreSpeed was uninstalled before history could be updated')
+        raise FileNotFoundError('Speedtest was uninstalled before history could be updated')
     record = dict(record, epoch=parsed_timestamp(record['timestamp']).timestamp(),
                   id=active_run['run_id'] + '-' + str(record.get('serverid', '0')),
                   origin=active_run['origin'], engine='librespeed-cli 1.2.1')
@@ -488,35 +489,35 @@ def streamed_command(command, timeout, content):
                             buffers[name] = buffers[name][-8192:]
                             continue
                         if len(buffers[name]) > 65536:
-                            raise ValueError('LibreSpeed streaming output exceeds 64 KiB per event')
+                            raise ValueError('Measurement engine output exceeds 64 KiB per event')
                         while b'\n' in buffers[name]:
                             line, buffers[name] = buffers[name].split(b'\n', 1)
                             event = json.loads(line)
                             if not isinstance(event, dict):
-                                raise ValueError('Invalid LibreSpeed streaming event')
+                                raise ValueError('Invalid event from the measurement engine')
                             if event.get('event') == 'result':
                                 if reports is not None:
-                                    raise ValueError('Duplicate LibreSpeed result event')
+                                    raise ValueError('Duplicate measurement result event')
                                 reports = event.get('reports')
                             elif event.get('event') in ('phase', 'progress'):
                                 phase = event.get('phase')
                                 if phase not in ('ping', 'download', 'upload'):
-                                    raise ValueError('Invalid LibreSpeed measurement phase')
+                                    raise ValueError('Invalid measurement phase')
                                 progress, mbps = event.get('progress', 0), event.get('mbps')
                                 if type(progress) is not int or not 0 <= progress <= 100:
-                                    raise ValueError('Invalid LibreSpeed progress')
+                                    raise ValueError('Invalid measurement progress')
                                 if mbps is not None and (type(mbps) not in (int, float)
                                                          or not math.isfinite(mbps) or mbps < 0):
-                                    raise ValueError('Invalid LibreSpeed progress rate')
+                                    raise ValueError('Invalid measurement progress rate')
                                 if event['event'] == 'progress':
                                     seconds = event.get('seconds')
                                     if (phase not in ('download', 'upload') or mbps is None
                                             or type(seconds) not in (int, float)
                                             or not math.isfinite(seconds) or not 0 <= seconds <= timeout):
-                                        raise ValueError('Invalid LibreSpeed progress sample')
+                                        raise ValueError('Invalid measurement progress sample')
                                     samples = active_run['samples'][phase]
                                     if samples and seconds < samples[-1]['seconds']:
-                                        raise ValueError('LibreSpeed progress samples are out of order')
+                                        raise ValueError('Measurement progress samples are out of order')
                                     point = {'seconds': seconds, 'mbps': mbps}
                                     if samples and seconds == samples[-1]['seconds']:
                                         samples[-1] = point
@@ -528,7 +529,7 @@ def streamed_command(command, timeout, content):
             if returncode:
                 raise subprocess.CalledProcessError(returncode, command, stderr=buffers['err'])
             if buffers['out'].strip() or reports is None:
-                raise ValueError('LibreSpeed ended without a complete result event')
+                raise ValueError('The measurement engine exited without a complete result event')
         except BaseException:
             process.kill()
             process.wait()
@@ -537,7 +538,7 @@ def streamed_command(command, timeout, content):
 
 class NoRegistryRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
-        raise ValueError('LibreSpeed public server list must not redirect')
+        raise ValueError('The public server catalog must not redirect')
 
 
 def fetch_public_servers():
@@ -599,30 +600,30 @@ def load_librespeed_servers(content=None):
         # Reuse the same duplicate, size and endpoint validation for merged sources.
         return load_librespeed_servers(json.dumps(merged))
     if len(content.encode('utf-8') if isinstance(content, str) else content) > 65536:
-        raise ValueError('LibreSpeed server list exceeds 64 KiB')
+        raise ValueError('The server list exceeds 64 KiB')
     servers = json.loads(content)
     if not isinstance(servers, list) or not 1 <= len(servers) <= 50:
-        raise ValueError('LibreSpeed server list must contain one to 50 servers')
+        raise ValueError('The server list must contain one to 50 servers')
     ids, urls = set(), set()
     for server in servers:
         if not isinstance(server, dict):
-            raise ValueError('Invalid LibreSpeed server entry')
+            raise ValueError('Invalid server entry')
         server_id, name, url = (server.get(key) for key in ('id', 'name', 'server'))
         if type(server_id) is not int or not 0 < server_id < 2**63 or server_id in ids:
-            raise ValueError('LibreSpeed server IDs must be unique positive integers')
+            raise ValueError('Server IDs must be unique positive integers')
         if (not isinstance(name, str) or not name.strip() or len(name) > 200
                 or any(ord(c) < 32 or ord(c) == 127 for c in name) or not isinstance(url, str)):
-            raise ValueError('Each LibreSpeed server requires a name and HTTPS URL')
+            raise ValueError('Each test server requires a name and HTTPS URL')
         endpoint = urlsplit(url)
         if (not url.startswith('https://') or not endpoint.hostname or endpoint.username is not None
                 or endpoint.query or endpoint.fragment or url in urls
                 or any(c.isspace() or ord(c) < 32 or ord(c) == 127 for c in url) or '\\' in url):
-            raise ValueError('LibreSpeed servers require unique HTTPS URLs without credentials, queries or fragments')
+            raise ValueError('Test servers require unique HTTPS URLs without credentials, queries or fragments')
         for key in ('dlURL', 'ulURL', 'pingURL', 'getIpURL'):
             value = server.get(key)
             if (not isinstance(value, str) or not re.fullmatch(r'[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*', value)
                     or any(part in ('.', '..') for part in value.split('/'))):
-                raise ValueError(f'LibreSpeed {key} must be a relative endpoint path')
+                raise ValueError(f'{key} must be a relative endpoint path')
         ids.add(server_id)
         urls.add(url)
     return servers
@@ -637,7 +638,7 @@ def run_librespeed(servers, server_id, mode, options):
     if server_id not in ('', '0'):
         servers = [server for server in servers if server['id'] == int(server_id)]
         if not servers:
-            raise ValueError('Requested LibreSpeed server is not configured')
+            raise ValueError('The requested server is not configured')
     if not os.access(librespeed, os.X_OK):
         raise ValueError(f'Install the LibreSpeed Rust CLI at {librespeed}')
     streaming = args.run_id is not None or args.origin == 'scheduled'
@@ -668,14 +669,14 @@ def run_librespeed(servers, server_id, mode, options):
     reports = (streamed_command(command, deadline, content) if streaming else
                json.loads(run_command(command, deadline, input=content).stdout))
     if not isinstance(reports, list) or len(reports) != 1:
-        raise ValueError('LibreSpeed did not return exactly one result')
+        raise ValueError('The measurement engine did not return exactly one result')
     result = reports[0]
     if (not isinstance(result, dict) or not isinstance(result.get('server'), dict)
             or not isinstance(result.get('timestamp'), str)):
-        raise ValueError('Invalid LibreSpeed result')
+        raise ValueError('Invalid result from the measurement engine')
     selected = next((server for server in servers if server['server'] == result['server'].get('url')), None)
     if selected is None:
-        raise ValueError('LibreSpeed reported an unconfigured server')
+        raise ValueError('The measurement engine reported an unconfigured server')
     update_state(server=selected['name'])
     out = {'provider': 'librespeed', 'timestamp': result['timestamp'], 'clientip': '',
            'serverid': selected['id'], 'servername': selected['name'], 'country': '', 'link': ''}
@@ -692,11 +693,11 @@ def run_librespeed(servers, server_id, mode, options):
     for field, key in [('latency', 'ping'), ('jitter', 'jitter')] + [(d, d) for d, _ in directions]:
         value = result.get(key)
         if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
-            raise ValueError(f'Invalid LibreSpeed {field} measurement')
+            raise ValueError(f'Invalid {field} measurement')
         out[field] = round(value, 2)
     for direction, counter in directions:
         if out[direction] <= 0 or type(result.get(counter)) is not int or result[counter] <= 0:
-            raise ValueError(f'LibreSpeed did not complete the {direction} measurement on {selected["name"]}. '
+            raise ValueError(f'The {direction} measurement did not complete on {selected["name"]}. '
                              'Try another server or check connectivity')
         out[counter] = result[counter]
     out['mode'] = mode
@@ -757,7 +758,7 @@ def report_error(error):
         except (OSError, ValueError) as history_error:
             message += '; unable to update failure history: ' + str(history_error)
     if args.origin == 'scheduled':
-        syslog.syslog(syslog.LOG_ERR, 'LibreSpeed scheduled measurement: ' + message)
+        syslog.syslog(syslog.LOG_ERR, 'Speedtest scheduled measurement: ' + message)
     emit({'error': message})
 
 def recent_result(row):
@@ -778,12 +779,12 @@ try:
     if arg == 'check-settings':
         settings = json.loads(base64.b64decode(args.encoded_options or '', validate=True))
         if not isinstance(settings, dict):
-            raise ValueError('Invalid LibreSpeed settings')
+            raise ValueError('Invalid Speedtest settings')
         measurement_options(settings)
         history_policy(settings)
         servers = settings.get('servers', '')
         if not isinstance(servers, str):
-            raise ValueError('LibreSpeed server settings must be JSON text')
+            raise ValueError('Server settings must be JSON text')
         if servers.strip():
             load_librespeed_servers(servers)
         emit({'result': 'ok'})
@@ -836,7 +837,7 @@ try:
     if arg == 'scheduled':
         schedule = native_settings('schedule')
         if schedule.get('enabled', '0') != '1':
-            raise ValueError('The built-in LibreSpeed schedule is disabled')
+            raise ValueError('The Speedtest schedule is disabled')
         arg, mode = schedule.get('server', '0'), schedule.get('mode', 'both')
         args.origin = 'scheduled'
     server_argument = arg in ('', '0', '-1') or re.fullmatch(r'[1-9][0-9]{0,18}(?:,[1-9][0-9]{0,18}){0,9}', arg) is not None
@@ -857,7 +858,7 @@ try:
         lock.flush()
         # A process started before package removal must not recreate its history.
         if not os.path.isfile(__file__):
-            raise FileNotFoundError('LibreSpeed was uninstalled before history could be updated')
+            raise FileNotFoundError('Speedtest was uninstalled before history could be updated')
         if not detection:
             try:
                 with open(csvfile, 'x', encoding="utf-8", newline='') as f:
@@ -938,7 +939,7 @@ try:
         quit()
 
     if mode not in ('both', 'download', 'upload', 'latency'):
-        raise ValueError('Invalid LibreSpeed test mode')
+        raise ValueError('Invalid test mode')
     if server_argument:
         if args.run_id is not None and not re.fullmatch(r'[a-f0-9]{32}', args.run_id):
             raise ValueError('Invalid measurement run ID')
@@ -960,7 +961,7 @@ try:
         options = measurement_options()
         servers = load_librespeed_servers()
         if servers is None:
-            error = ValueError(f'Configure the LibreSpeed server list at {librespeed_servers}')
+            error = ValueError(f'Configure the server list in Settings or at {librespeed_servers}')
             if arg in ('t', 'list'):
                 emit({'error': error_message(error), 'code': 'servers_unconfigured'})
             else:
@@ -975,7 +976,7 @@ try:
             known = {server['id'] for server in servers}
             requested = server_ids(arg) if arg not in ('', '0', '-1') else []
             if set(requested + excluded) - known:
-                raise ValueError('Requested LibreSpeed server is not configured')
+                raise ValueError('The requested server is not configured')
             servers = [server for server in servers if server['id'] not in excluded]
             if not servers:
                 raise ValueError('At least one configured server must remain after exclusions')
@@ -996,7 +997,7 @@ try:
                     result = failure_record(message, selection, selected['name'] if selected else 'Automatic selection', options)
                     failed += 1
                     if args.origin == 'scheduled':
-                        syslog.syslog(syslog.LOG_ERR, 'LibreSpeed scheduled measurement: ' + message)
+                        syslog.syslog(syslog.LOG_ERR, 'Speedtest scheduled measurement: ' + message)
                 else:
                     if not detection:
                         save_result(result)

@@ -1,5 +1,5 @@
 if [ -n "${PKG_UPGRADE:-}" ]; then
-    echo "Preserving LibreSpeed settings and history during upgrade."
+    echo "Preserving Speedtest settings and history during upgrade."
     exit 0
 fi
 
@@ -9,7 +9,7 @@ history="$data_dir/speedtest.csv"
 lock="$history.lock"
 
 if [ -L "$data_dir" ] || [ -L "$lock" ] || { [ -e "$lock" ] && [ ! -f "$lock" ]; }; then
-    echo "LibreSpeed uninstall: unsafe history directory or lock; history was retained." >&2
+    echo "Speedtest uninstall: unsafe history directory or lock; history was retained." >&2
     cleanup_status=1
 elif [ -d "$data_dir" ]; then
     if [ -e "$history" ] || [ -L "$history" ] || [ -e "$lock" ] || [ -e "$history.jsonl" ] || [ -L "$history.jsonl" ] || [ -e "$history.state.json" ] || [ -L "$history.state.json" ] || [ -e "$history.detect.json" ] || [ -L "$history.detect.json" ]; then
@@ -17,12 +17,12 @@ elif [ -d "$data_dir" ]; then
             set -e
             /bin/rm -f -- "$1" "$2" "$1.jsonl" "$1.state.json" "$1.detect.json"
         ' speedtest-cleanup "$history" "$lock"; then
-            echo "LibreSpeed uninstall: unable to lock or remove history; check $data_dir." >&2
+            echo "Speedtest uninstall: unable to lock or remove history; check $data_dir." >&2
             cleanup_status=1
         fi
     fi
     if ! /bin/rmdir "$data_dir" 2>/dev/null; then
-        echo "LibreSpeed uninstall: retained $data_dir because it is not empty or could not be removed." >&2
+        echo "Speedtest uninstall: retained $data_dir because it is not empty or could not be removed." >&2
     fi
 fi
 
@@ -41,14 +41,14 @@ try {
         $settings = $root->xpath('./OPNsense/speedtest');
         $jobs = $root->xpath('./OPNsense/cron/jobs/job');
         if ($settings === false || $jobs === false) {
-            throw new RuntimeException('Unable to find LibreSpeed configuration');
+            throw new RuntimeException('Unable to find Speedtest configuration');
         }
         $changed = false;
         $cronChanged = false;
         foreach ($settings as $setting) {
             $node = dom_import_simplexml($setting);
             if ($node === false || $node->parentNode === null) {
-                throw new RuntimeException('Unable to remove LibreSpeed settings');
+                throw new RuntimeException('Unable to remove Speedtest settings');
             }
             $node->parentNode->removeChild($node);
             $changed = true;
@@ -59,20 +59,20 @@ try {
             }
             $node = dom_import_simplexml($job);
             if ($node === false || $node->parentNode === null) {
-                throw new RuntimeException('Unable to remove a LibreSpeed cron job');
+                throw new RuntimeException('Unable to remove a Speedtest cron job');
             }
             $node->parentNode->removeChild($node);
             $changed = $cronChanged = true;
         }
         if ($changed) {
-            $config->save(['description' => 'Removed LibreSpeed settings and scheduled jobs']);
+            $config->save(['description' => 'Removed Speedtest settings and scheduled jobs']);
         }
     } finally {
         $config->unlock();
     }
     exit($cronChanged ? 3 : 0);
 } catch (Throwable $error) {
-    fwrite(STDERR, "LibreSpeed uninstall: unable to remove saved settings: " . $error->getMessage() . PHP_EOL);
+    fwrite(STDERR, "Speedtest uninstall: unable to remove saved settings: " . $error->getMessage() . PHP_EOL);
     exit(1);
 }
 PHP
@@ -80,22 +80,22 @@ PHP
         0) ;;
         3)
             if cron_result=$(/usr/local/sbin/configctl cron restart) && [ "$cron_result" = "OK" ]; then
-                echo "LibreSpeed uninstall: updated cron configuration."
+                echo "Speedtest uninstall: updated cron configuration."
             else
-                echo "LibreSpeed uninstall: unable to apply the updated cron configuration: ${cron_result:-no response}." >&2
+                echo "Speedtest uninstall: unable to apply the updated cron configuration: ${cron_result:-no response}." >&2
                 cleanup_status=1
             fi
             ;;
         *)
-            echo "LibreSpeed uninstall: saved settings may require manual cleanup." >&2
+            echo "Speedtest uninstall: saved settings may require manual cleanup." >&2
             cleanup_status=1
             ;;
     esac
 else
-    echo "LibreSpeed uninstall: configuration is unavailable; saved settings may require manual cleanup." >&2
+    echo "Speedtest uninstall: configuration is unavailable; saved settings may require manual cleanup." >&2
     cleanup_status=1
 fi
 
-echo "LibreSpeed uninstall: configd may retain cached actions until it is restarted."
+echo "Speedtest uninstall: configd may retain cached actions until it is restarted."
 
 exit "$cleanup_status"

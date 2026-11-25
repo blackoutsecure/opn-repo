@@ -65,6 +65,11 @@ class WrapperTests(unittest.TestCase):
         self.librespeed.touch(mode=0o700)
         return servers
 
+    def test_cli_help_uses_the_speedtest_name(self):
+        output = subprocess.check_output([sys.executable, str(SCRIPT), '--cli', '--help'], text=True, timeout=10)
+        self.assertTrue(output.startswith('usage: opn-speedtest '))
+        self.assertIn('Speedtest: measure throughput and latency', output)
+
     def test_librespeed_runs_only_against_configured_server(self):
         servers = self.configure_librespeed()
         servers[0]['sponsorName'] = 'Lab network'
@@ -163,7 +168,7 @@ class WrapperTests(unittest.TestCase):
         output, _ = self.run_wrapper('detect', [
             subprocess.CompletedProcess([], 0, stdout=b'[null]')
         ])
-        self.assertIn('Invalid LibreSpeed result', output['error'])
+        self.assertIn('Invalid result from the measurement engine', output['error'])
         self.assertEqual(self.run_wrapper('detection-status', [])[0]['status'], 'failed')
         self.librespeed_servers.write_text('invalid server JSON')
         output, run = self.run_wrapper('detect', [])
@@ -207,7 +212,7 @@ class WrapperTests(unittest.TestCase):
         output, _ = self.run_wrapper("0", [
             subprocess.CompletedProcess([], 0, stdout=b'[null]'),
         ])
-        self.assertIn("Invalid LibreSpeed result", output["error"])
+        self.assertIn("Invalid result from the measurement engine", output["error"])
         self.assertEqual(self.run_wrapper("stat", [])[0]["samples"], 0)
 
     def test_single_direction_measurements_do_not_enter_history(self):
@@ -380,14 +385,14 @@ class WrapperTests(unittest.TestCase):
     def test_invalid_mode_never_executes_the_client(self):
         self.configure_librespeed()
         output, run = self.run_wrapper("42", [], "invalid")
-        self.assertIn("Invalid LibreSpeed test mode", output["error"])
+        self.assertIn("Invalid test mode", output["error"])
         run.assert_not_called()
 
     def test_unconfigured_actions_report_the_config_path(self):
         for action in ("list", "", "0", "42"):
             with self.subTest(action=action):
                 output, run = self.run_wrapper(action, [])
-                self.assertIn(f"Configure the LibreSpeed server list at {self.librespeed_servers}", output["error"])
+                self.assertIn(f"Configure the server list in Settings or at {self.librespeed_servers}", output["error"])
                 if action == "list":
                     self.assertEqual(output["code"], "servers_unconfigured")
                 run.assert_not_called()
@@ -924,7 +929,7 @@ class WrapperTests(unittest.TestCase):
         self.librespeed.write_text('#!' + sys.executable + '\nimport sys\nsys.stdin.read()\nprint('
                                   + repr(json.dumps(event)) + ',flush=True)\n')
         output, _ = self.run_wrapper('42', [], '--run-id', 'd' * 32)
-        self.assertIn('Invalid LibreSpeed progress sample', output['error'])
+        self.assertIn('Invalid measurement progress sample', output['error'])
         self.assertEqual(self.run_wrapper('status', [])[0]['status'], 'failed')
         self.assertEqual(self.query_history(status='failed')['total'], 1)
 

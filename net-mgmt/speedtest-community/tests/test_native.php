@@ -347,6 +347,20 @@ if (isset($argv[2])) {
     check(str_contains($adminPage, 'id="open_server_setup"'), 'Configurator can navigate to server setup');
     check(str_contains($adminPage, 'id="servers_json"'), 'Configurator can edit servers');
     check(str_contains($adminPage, 'id="reportAct"'), 'Runner can start a test');
+    $runPanel = substr($adminPage, 0, strpos($adminPage, 'id="history"'));
+    check(str_contains($runPanel, '<h2>Speedtest</h2>') && !str_contains($runPanel, 'LibreSpeed'),
+        'The run panel uses the Speedtest name without engine branding');
+    check(!str_contains($runPanel, 'id="mode"') && preg_match(
+        '/<select id="mode"[^>]*>\s*<option value="both" selected>Full test<\/option>/', $adminPage
+    ) === 1, 'Manual test mode defaults to Full test in Settings');
+    check(!str_contains($runPanel, 'id="serverid"') && preg_match(
+        '/<select id="serverid"[^>]*>\s*<option value="0" selected>Auto/', $adminPage
+    ) === 1, 'Manual server defaults to Auto in Settings');
+    check(!str_contains($runPanel, 'id="speed_units"') && preg_match(
+        '/<select id="speed_units"[^>]*>\s*<option value="auto" selected>Auto<\/option>/', $adminPage
+    ) === 1, 'Speed units default to Auto in Settings');
+    check(str_contains($adminPage, '<summary>About Speedtest</summary>')
+        && str_contains($adminPage, 'Measurements use the LibreSpeed Rust engine.'), 'About identifies the actual engine');
     file_put_contents($argv[2], $adminPage);
     $canRun = $canConfigure = $canClear = $canSchedule = false;
     ob_start();
@@ -355,7 +369,8 @@ if (isset($argv[2])) {
     check(!str_contains($viewerPage, 'id="open_server_setup"'), 'Viewer has no configuration shortcut');
     check(!str_contains($viewerPage, 'id="servers_json"'), 'Viewer cannot edit servers');
     check(!str_contains($viewerPage, 'id="reportAct"'), 'Viewer cannot start a test');
-    check(str_contains($viewerPage, 'Ask an administrator to add a server'), 'Viewer receives setup guidance');
+    check(!str_contains($viewerPage, 'id="detect_server"'), 'Viewer has no active preview control');
+    check(str_contains($viewerPage, 'View only.'), 'Viewer sees why test controls are absent');
     file_put_contents($argv[2] . '.viewer', $viewerPage);
 }
 echo "Native model, API contracts, ACL separation, and Volt compilation passed\n";

@@ -1,4 +1,3 @@
-Run interactive or scheduled measurements against administrator-configured
-LibreSpeed servers. The plugin bundles a pinned native Rust CLI, supports
-saved measurement defaults and separate user/group permissions, and
-displays latency and throughput history on the dashboard.
+Speedtest measures throughput and latency from the firewall. It uses the
+LibreSpeed Rust engine and supports interactive and scheduled tests, saved
+measurement defaults, separate user/group permissions, and result history.

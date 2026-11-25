@@ -6,8 +6,7 @@ const markup = fs.readFileSync(process.argv[2], 'utf8');
 const pluginLogo = '/ui/img/speedtest-community/speedtest-logo.png';
 assert.ok(fs.existsSync(require('node:path').join(__dirname, '../src/opnsense/www/img/speedtest-community/speedtest-logo.png')),
           'The plugin logo must be included in the package source');
-assert.equal(markup.split(pluginLogo).length - 1, 2,
-             'The run header and shared support footer use the plugin logo');
+assert.ok(markup.includes(pluginLogo), 'The run header uses the packaged logo');
 const rawScript = markup.match(/<script>([\s\S]*?)<\/script>/)[1];
 const measurement = markup.slice(markup.indexOf('id="measurement"'), markup.indexOf('id="history"'));
 const setup = markup.slice(markup.indexOf('id="setup"'), markup.indexOf('<script>'));
@@ -21,6 +20,12 @@ assert.ok(measurement.indexOf('id="check_status"') < measurement.indexOf('class=
           'The recovery action belongs with the status message, not the result readout');
 assert.ok(!measurement.includes('id="duration"') && setup.includes('id="duration"'),
           'Measurement options belong in settings, not the run screen');
+assert.ok(!measurement.includes('id="mode"') && setup.includes('id="mode"'),
+          'Manual test mode belongs in Settings, not the run screen');
+for (const control of ['serverid', 'speed_units', 'detect_server', 'serverlistAct']) {
+    assert.ok(!measurement.includes(`id="${control}"`) && setup.includes(`id="${control}"`),
+              control + ' belongs in Settings, not the run screen');
+}
 // CI substitutes only script tokens; native OPNsense separately compiles the full Volt template.
 function scriptTokens(source, privileged) {
     return source.replace(/\{\{\s*lang\._\('((?:\\.|[^'])*)'\)\s*\}\}/g,
@@ -38,11 +43,12 @@ function fixture(source = script) {
     function element(selector) {
         const result = {
             properties: {}, attributes: {}, handlers: {}, classes: new Set(), children: [],
-            value: ({'#serverid': '0',
+            value: ({'#serverid': '0', '#speed_units': 'auto',
                 '#history_days': '30', '#history_provider': 'librespeed',
                 '#history_mode': 'all', '#history_server': 'all', '#history_outcome': 'all',
                 '#history_origin': 'all', '#history_family': 'all', '#history_source': 'all'})[selector] || '', message: '',
-            0: {listeners: {}, addEventListener(event, handler) { this.listeners[event] = handler; }, reportValidity: () => true},
+            0: {id: typeof selector === 'string' && selector.startsWith('#') ? selector.slice(1) : '', listeners: {},
+                addEventListener(event, handler) { this.listeners[event] = handler; }, reportValidity: () => true},
             prop(key, value) {
                 if (value === undefined) return this.properties[key];
                 this.properties[key] = value;
@@ -54,7 +60,7 @@ function fixture(source = script) {
                 return this;
             },
             text(value) { if (value === undefined) return this.message; this.message = value; return this; },
-            on(event, handler) { this.handlers[event] = handler; return this; },
+            on(events, handler) { events.split(' ').forEach(event => this.handlers[event] = handler); return this; },
             toggleClass(name, enabled) { enabled ? this.classes.add(name) : this.classes.delete(name); return this; },
             addClass(name) { this.classes.add(name); return this; },
             hasClass(name) { return this.classes.has(name); },
@@ -69,7 +75,7 @@ function fixture(source = script) {
             tab(action) { this.properties.tab = action; return this; },
             trigger(event) {
                 this.properties.trigger = event;
-                if (this.handlers[event]) this.handlers[event]();
+                if (this.handlers[event]) this.handlers[event].call(this[0]);
                 return this;
             }
         };
@@ -83,6 +89,19 @@ function fixture(source = script) {
         }
         if (selector && typeof selector === 'object' && nodes.has(selector)) return nodes.get(selector);
         if (typeof selector === 'string' && selector.startsWith('<')) return element(selector);
+        if (typeof selector === 'string' && selector.includes(', ')) {
+            const matches = selector.split(', ').map($);
+            return {
+                prop(key, value) { matches.forEach(match => match.prop(key, value)); return this; },
+                text(value) {
+                    if (value === undefined) return matches.map(match => match.text()).join('');
+                    matches.forEach(match => match.text(value));
+                    return this;
+                },
+                toggleClass(name, enabled) { matches.forEach(match => match.toggleClass(name, enabled)); return this; },
+                on(events, handler) { matches.forEach(match => match.on(events, handler)); return this; }
+            };
+        }
         if (!elements.has(selector)) {
             elements.set(selector, element(selector));
         }
@@ -137,20 +156,27 @@ function runTimer(page, delay) {
 }
 const defaults = {public_servers: '1', duration: '10', timeout: '15', concurrent: '3', chunks: '100', upload_size: '1024',
                   family: 'auto', source: '', exclude: '', icmp: '0', http2: '0', no_pre_allocate: '0', private_ca: '0'};
-function completeDetection(page, name = 'Lab') {
+function completeDetection(page, name = 'Lab', alreadyStarted = false) {
+    if (!alreadyStarted) page.elements.get('#detect_server').trigger('click');
     const detection = page.request('/detect');
-    assert.ok(detection, 'Automatic selection must probe on load once defaults, servers and run status are ready');
+    assert.ok(detection, 'The preview button starts an explicit latency probe');
     assert.equal(page.elements.get('#reportAct').properties.disabled, true);
     detection.resolve({result: 'started', run_id: 'd'.repeat(32)});
     page.request('/detectionstatus').resolve({status: 'completed', run_id: 'd'.repeat(32),
         results: [{serverid: 42, servername: name, latency: 2.5, jitter: 0.3, sponsor: 'Lab sponsor',
             connection: {ip: '192.0.2.9', isp: 'Example ISP'}}]});
     assert.equal(page.elements.get('#detected_server').message, '(42) ' + name);
+    assert.equal(page.elements.get('#serverid').value, '42', 'The one-time scan selects its winning server');
     assert.equal(page.elements.get('#detection_status').message, 'Detected latency: 2.5 ms · Jitter: 0.3 ms');
-    assert.equal(page.elements.get('#connection_sponsor').message, 'Lab sponsor');
-    assert.equal(page.elements.get('#connection_ip').message, '192.0.2.9');
-    assert.equal(page.elements.get('#connection_isp').message, 'Example ISP');
-    assert.match(page.elements.get('#connection_source').message, /this firewall, not the browser/);
+    assert.equal(page.elements.get('#preview_details').properties.hidden, false);
+    assert.equal(page.elements.get('#preview_details').properties.open, false);
+    assert.equal(detailValue(page, '#preview_details', 'Firewall IP seen by server'), '192.0.2.9');
+}
+function detailValue(page, section, label) {
+    return page.elements.get(section + ' dl').children.find(entry => entry.children[0].message === label)?.children[1].message;
+}
+function openCatalog(page) {
+    page.elements.get('#catalog_panel').prop('open', true).trigger('toggle');
 }
 const page = fixture();
 page.request('/defaults').resolve(defaults);
@@ -159,7 +185,7 @@ page.elements.get('#save_settings').handlers.click();
 assert.equal(page.requests.some(r => r.options.url.endsWith('/settings/set')), false,
              'Saving before the server GET completes must not overwrite saved configuration');
 page.request('/settings/get').resolve({speedtest: {general: {servers: '[{"id":42}]'}}});
-assert.equal(page.elements.get('#save_settings').properties.disabled, false);
+assert.equal(page.elements.get('#save_settings').properties.disabled, true, 'An unchanged form needs no saving');
 assert.equal(page.elements.get('#public_servers').properties.checked, true);
 for (const key of ['duration', 'timeout', 'concurrent', 'chunks', 'upload_size', 'family', 'source', 'exclude']) {
     page.elements.get('#' + key).val('custom');
@@ -168,7 +194,7 @@ for (const key of ['icmp', 'http2', 'no_pre_allocate', 'private_ca']) {
     page.elements.get('#' + key).prop('checked', true);
 }
 page.elements.get('#retention_days').val('365');
-page.elements.get('#reset_measurement').handlers.click();
+page.elements.get('#reset_measurement').trigger('click');
 for (const [key, value] of Object.entries(defaults)) {
     if (['public_servers'].includes(key)) continue;
     if (['icmp', 'http2', 'no_pre_allocate', 'private_ca'].includes(key)) {
@@ -181,7 +207,6 @@ assert.equal(page.elements.get('#retention_days').value, '365', 'Reset must not 
 assert.equal(page.elements.get('#servers_json').value, '[{"id":42}]', 'Reset must not change server definitions');
 assert.equal(page.requests.some(r => r.options.url.endsWith('/settings/set')), false,
              'Restoring values on the page must not save configuration');
-assert.match(page.elements.get('#settings_status').message, /Save settings/);
 page.elements.get('#retention_days').val('0');
 page.elements.get('#open_test_settings').handlers.click({preventDefault() {}});
 assert.equal(page.elements.get('#setup_tab').properties.tab, 'show');
@@ -190,6 +215,7 @@ page.elements.get('#measurement_options_form')[0].reportValidity = () => false;
 page.elements.get('#measurement_options_form')[0].listeners.invalid();
 assert.equal(page.elements.get('#setup_tab').properties.tab, 'show',
              'Invalid measurement settings must be revealed before reporting the error');
+assert.equal(page.elements.get('#measurement_options').properties.open, true);
 page.elements.get('#save_settings').handlers.click();
 assert.equal(page.requests.some(r => r.options.url.endsWith('/settings/set')), false,
              'Invalid measurement settings must not be saved');
@@ -209,12 +235,13 @@ assert.ok(page.requests.every(r => r.options.url.startsWith('/api/speedtest/')),
           'All API requests must retain the HTTP or HTTPS GUI origin');
 
 const manager = fixture();
-manager.elements.get('#setup_tab').handlers['shown.bs.tab']();
 assert.equal(manager.request('/settings/catalog'), undefined);
 manager.request('/defaults').resolve(defaults);
 manager.request('/settings/get').resolve({speedtest: {general: {servers: ''}}});
+assert.equal(manager.request('/settings/catalog'), undefined, 'Loading settings alone must not fetch the catalog');
 const official = {id: '52', name: 'New York', server: 'https://nyc.example.net/', sponsorName: 'Clouvider',
     dlURL: 'garbage.php', ulURL: 'empty.php', pingURL: 'empty.php', getIpURL: 'getIP.php'};
+openCatalog(manager);
 manager.request('/settings/catalog').resolve({servers: [official]});
 assert.equal(manager.elements.get('#catalog_rows').children.length, 1);
 manager.elements.get('#catalog_search').val('missing').handlers.input();
@@ -259,7 +286,7 @@ editor.handlers.submit.call(editor[0], {preventDefault() {}});
 assert.deepEqual(JSON.parse(manager.elements.get('#servers_json').value), [custom]);
 manager.elements.get('#public_servers').prop('checked', false).handlers.change();
 assert.equal(manager.elements.get('#catalog_table').properties.hidden, true);
-manager.elements.get('#setup_tab').handlers['shown.bs.tab']();
+assert.equal(manager.elements.get('#catalog_panel').properties.hidden, true);
 assert.equal(manager.requests.filter(r => r.options.url.endsWith('/settings/catalog')).length, 3);
 assert.equal(manager.request('/settings/set'), undefined, 'Catalog and custom edits remain unsaved until Save settings');
 manager.elements.get('#save_settings').handlers.click();
@@ -275,7 +302,7 @@ approvedManager.request('/settings/get').resolve({speedtest: {general: {
     servers: JSON.stringify([custom]), public_selection: '52,84', combine_servers: '1'
 }}});
 assert.equal(approvedManager.elements.get('#combine_servers').properties.checked, true);
-approvedManager.elements.get('#setup_tab').handlers['shown.bs.tab']();
+openCatalog(approvedManager);
 approvedManager.request('/settings/catalog').resolve({servers: [official]});
 assert.equal(approvedManager.elements.get('#catalog_rows').children.length, 2,
              'Missing approved IDs stay visible for removal');
@@ -305,6 +332,15 @@ retentionPage.context.window.confirm = () => true;
 retentionPage.elements.get('#save_settings').handlers.click();
 assert.equal(retentionPage.request('/settings/set').options.data.speedtest.general.retention_days, '31');
 assert.equal(retentionPage.request('/settings/set').options.data.speedtest.general.history_limit, '10000');
+retentionPage.request('/settings/set').resolve({result: 'saved'});
+assert.equal(retentionPage.elements.get('#save_settings').properties.disabled, true);
+assert.equal(retentionPage.elements.get('#settings_status').message, 'Settings saved.');
+retentionPage.elements.get('#retention_days').val('7');
+retentionPage.elements.get('#retention_form').trigger('change');
+retentionPage.elements.get('#discard_settings').trigger('click');
+assert.equal(retentionPage.elements.get('#retention_days').value, '31',
+             'Discard restores the last confirmed saved values without a page reload');
+assert.equal(retentionPage.elements.get('#discard_settings').properties.hidden, true);
 
 vm.runInContext('historyReload()', page.context);
 const staleHistory = page.request('/history');
@@ -318,28 +354,52 @@ for (const [value, expected] of [[0, '0 Mbps'], [0.0005, '500 bps'], [0.001, '1 
     [0.75, '750 kbps'], [1, '1 Mbps'], [999, '999 Mbps'], [1000, '1 Gbps'], [1500, '1.5 Gbps']]) {
     assert.equal(vm.runInContext(`speed(${value})`, page.context), expected);
 }
+const display = fixture();
+vm.runInContext('renderResults([{servername:"Lab",download:800,upload:3,latency:12}])', display.context);
+assert.equal(display.elements.get('#download').message, '800 Mbps');
+display.elements.get('#speed_units').val('Gbps').trigger('change');
+assert.equal(display.elements.get('#download').message, '0.8 Gbps');
+assert.equal(display.elements.get('#upload').message, '<0.01 Gbps');
+assert.equal(display.elements.get('#latency').message, '12 ms');
+assert.equal(vm.runInContext('speed(0)', display.context), '0 Gbps');
+vm.runInContext('renderCharts({series:[{epoch:1700000000,download:800}]})', display.context);
+assert.equal(display.chartConfigs[0].options.scales.y.title.text, 'Gbps');
+assert.equal(display.chartConfigs[0].data.datasets[0].data[0].y, 0.8);
+display.elements.get('#speed_units').val('auto').trigger('change');
+assert.equal(display.elements.get('#download').message, '800 Mbps');
 page.request('/status').resolve({status: 'idle'});
 page.request('/version').resolve({message: 'librespeed-cli v1.2.1 (built on 1970-01-01 00:00:00 UTC)'});
-assert.equal(page.elements.get('#version').message, 'LibreSpeed CLI v1.2.1');
+assert.equal(page.elements.get('#version').message, 'v1.2.1');
+assert.equal(page.elements.get('#engine_status')?.message ?? '', '');
 page.request('/serverlist').resolve([{id: '42', name: 'Lab'}]);
+assert.equal(page.request('/detect'), undefined, 'Opening the page must not probe test servers');
+assert.equal(page.elements.get('#reportAct').properties.disabled, false, 'Running a test needs no preview');
 completeDetection(page);
+page.elements.get('#serverid').val('custom').trigger('change');
+page.elements.get('#custom_servers').val('42,84').trigger('input');
+assert.equal(page.elements.get('#custom_server_group').properties.hidden, false);
+assert.equal(page.elements.get('#comparison_warning').properties.hidden, false);
+assert.equal(page.elements.get('#server_preview').properties.hidden, true);
+page.elements.get('#serverid').val('42').trigger('change');
+assert.equal(page.elements.get('#custom_server_group').properties.hidden, true);
+assert.equal(page.elements.get('#custom_servers').value, '', 'Leaving custom selection resets the unused IDs');
 page.elements.get('#serverid').val('42');
 vm.runInContext('$("#mode").val("download")', page.context);
 vm.runInContext('renderResults([{serverid:42,servername:"Old",download:50}])', page.context);
 page.elements.get('#test_form').handlers.submit.call(page.elements.get('#test_form')[0], {preventDefault() {}});
 const start = page.request('/start/42/download');
 assert.ok(start, 'The UI must queue a native background measurement rather than hold a long HTTP request');
-assert.equal(page.elements.get('#download').message, 'Not measured', 'Starting a new run clears the old measurement');
-assert.equal(page.elements.get('#test_results').properties.hidden, true);
+assert.equal(page.elements.get('#download').message, '50 Mbps', 'Keep the old result until the new run is accepted');
+assert.equal(page.elements.get('#preview_details').properties.hidden, true, 'A new test clears the preview');
 start.resolve({result: 'started', run_id: 'a'.repeat(32)});
+assert.equal(page.elements.get('#test_metrics').properties.hidden, true, 'An accepted run drops the old measurements');
+assert.equal(page.elements.get('#result_meta').properties.hidden, true);
 page.request('/status').resolve({status: 'running', run_id: 'a'.repeat(32), phase: 'download',
     mode: 'download', server: 'Lab', total: 1, progress: 50, deadline: Date.now() / 1000 + 60,
     samples: {download: [{seconds: 1, mbps: 20}, {seconds: 2, mbps: 40}], upload: []}});
 assert.equal(page.elements.get('#run_progress').properties.hidden, false);
-assert.equal(page.elements.get('#selecting_progress').value, 100);
-assert.equal(page.elements.get('#ping_progress').value, 100);
-assert.equal(page.elements.get('#download_progress').value, 50);
-assert.equal(page.elements.get('#upload_stage').properties.hidden, true);
+assert.equal(page.elements.get('#phase_progress').value, 50);
+assert.equal(page.elements.get('#upload_metric').properties.hidden, true);
 assert.equal(page.elements.get('#download').message, '40 Mbps');
 assert.equal(page.elements.get('#download_scale').message, '50 Mbps');
 assert.equal(page.elements.get('#download_needle').attributes.transform, 'rotate(54 110 110)');
@@ -357,40 +417,45 @@ assert.equal(page.elements.get('#download_scale').message, '2 Gbps',
 assert.equal(page.chartConfigs[0].options.scales.y.title.text, 'Gbps');
 assert.equal(vm.runInContext('liveChart.data.datasets[0].data[0].y', page.context), 0.04,
              'A live unit change must rescale earlier samples onto the same axis');
-vm.runInContext('followStatus()', page.context);
+vm.runInContext(`followStatus('${'a'.repeat(32)}')`, page.context);
 page.request('/status').resolve({status: 'completed', run_id: 'a'.repeat(32),
     phase: 'finished', server: 'Lab', samples: {download: [{seconds: 2, mbps: 40}], upload: []},
     results: [{serverid: 42, servername: 'Lab', download: 80, latency: 1, jitter: 0, mode: 'download',
+        timestamp: '2026-01-02T03:04:05.000Z', bytes_received: 1048576,
         sponsor: 'New sponsor', connection: {ip: '2001:db8::1', isp: 'New ISP'}}]});
 assert.equal(page.elements.get('#reportAct').properties.disabled, false);
-assert.match(page.elements.get('#test_status').message, /Results saved to history/);
+assert.match(page.elements.get('#test_status').message, /Result saved to history/);
 assert.equal(page.elements.get('#download').message, '80 Mbps');
-assert.equal(page.elements.get('#connection_sponsor').message, 'New sponsor');
-assert.equal(page.elements.get('#connection_ip').message, '2001:db8::1');
-assert.equal(page.elements.get('#connection_isp').message, 'New ISP');
-assert.equal(page.elements.get('#upload').message, 'Not measured');
+assert.equal(page.elements.get('#result_time').attributes.datetime, '2026-01-02T03:04:05.000Z');
+assert.equal(detailValue(page, '#result_details', 'Firewall IP seen by server'), '2001:db8::1');
+assert.equal(detailValue(page, '#result_details', 'Received'), '1 MiB');
+assert.equal(detailValue(page, '#result_details', 'Sent'), undefined);
+assert.equal(page.elements.get('#upload_metric').properties.hidden, true);
 assert.equal(page.elements.get('#jitter').message, '0 ms', 'Zero is a measured value');
-assert.equal(page.elements.get('#jitter').classes.has('is-empty'), false);
-assert.equal(page.elements.get('#live_chart_region').properties.hidden, false,
-             'The last live trace remains visible after completion');
+assert.equal(page.elements.get('#jitter_metric').properties.hidden, false);
+assert.equal(page.elements.get('#live_chart_region').properties.hidden, true, 'The live chart closes after completion');
 const previousResult = page.elements.get('#download').message;
 page.elements.get('#serverid').val('0');
 page.elements.get('#serverlistAct').handlers.click();
 page.request('/serverlist').resolve([{id: '42', name: 'Lab'}]);
+assert.equal(page.requests.filter(r => r.options.url.endsWith('/detect')).length, 1,
+             'Reloading the list must not start another probe');
+page.elements.get('#detect_server').trigger('click');
 assert.equal(page.requests.filter(r => r.options.url.endsWith('/detect')).length, 2,
-             'Refresh explicitly re-scans even after a successful detection');
+             'An explicit preview always runs a fresh latency check');
 page.request('/detect').resolve({result: 'started', run_id: 'e'.repeat(32)});
 page.request('/detectionstatus').resolve({status: 'failed', run_id: 'e'.repeat(32),
     error: 'Speedtest failed: No reachable servers'});
-assert.equal(page.elements.get('#detected_server').message, 'Server not detected');
-assert.equal(page.elements.get('#connection_ip').message, 'Not reported');
+assert.equal(page.elements.get('#detected_server').message, '');
+assert.equal(page.elements.get('#preview_details').properties.hidden, true);
 assert.equal(page.elements.get('#detection_status').message, 'No reachable servers');
 assert.equal(page.elements.get('#download').message, previousResult, 'Detection must not replace the last test readout');
 assert.equal(page.elements.get('#reportAct').properties.disabled, false);
 page.elements.get('#measurement_options_form').handlers.change();
 page.elements.get('a[href="#measurement"]').handlers['shown.bs.tab']();
-assert.equal(page.requests.filter(r => r.options.url.endsWith('/detect')).length, 3,
-             'Returning from edited advanced settings detects using the new per-page options');
+assert.equal(page.requests.filter(r => r.options.url.endsWith('/detect')).length, 2,
+             'Returning from edited advanced settings does not automatically probe');
+page.elements.get('#detect_server').trigger('click');
 page.request('/detect').reject();
 assert.match(page.elements.get('#detection_status').message, /response lost/);
 assert.equal(page.elements.get('#reportAct').properties.disabled, false);
@@ -403,17 +468,15 @@ assert.equal(page.elements.get('#download_needle').attributes.opacity, '0', 'A m
 const live = fixture();
 vm.runInContext(`renderLive({status:'running', mode:'both', phase:'selecting', server:'Lab',
     samples:{download:[],upload:[]}})`, live.context);
-assert.equal(live.elements.get('#selecting_progress').attributes.value, null,
+assert.equal(live.elements.get('#phase_progress').attributes.value, null,
              'Server selection has indeterminate progress');
-assert.equal(live.elements.get('#ping_status').message, 'Waiting');
 vm.runInContext(`renderLive({status:'running', mode:'both', phase:'ping', server:'Lab',
     samples:{download:[],upload:[]}})`, live.context);
-assert.equal(live.elements.get('#ping_progress').attributes.value, null,
+assert.equal(live.elements.get('#phase_progress').attributes.value, null,
              'Latency has indeterminate progress');
 vm.runInContext(`renderLive({status:'running', mode:'both', phase:'upload', progress:25, server:'Lab',
     samples:{download:[{seconds:1,mbps:80}],upload:[{seconds:1,mbps:24}]}})`, live.context);
-assert.equal(live.elements.get('#download_progress').value, 100);
-assert.equal(live.elements.get('#upload_progress').value, 25);
+assert.equal(live.elements.get('#phase_progress').value, 25);
 assert.equal(live.elements.get('#live_speed').message, 'Upload: 24 Mbps');
 assert.equal(live.chartConfigs[0].data.datasets[0].data[0].y, 80);
 assert.equal(live.chartConfigs[0].data.datasets[1].data[0].y, 24);
@@ -463,8 +526,8 @@ busy.request('/status').resolve({status: 'busy'});
 vm.runInContext('followStatus()', busy.context);
 busy.request('/status').resolve({status: 'completed', results: [
     {serverid: 42, servername: 'Earlier', download: 80, latency: 1, jitter: 0}]});
-assert.equal(busy.elements.get('#test_status').message,
-             'Another operation finished. Showing the most recent saved test.');
+assert.equal(busy.elements.get('#test_status').message, '',
+             'An unrelated operation must not announce an old test as newly completed');
 assert.equal(busy.elements.get('#download').message, '80 Mbps');
 assert.equal(busy.elements.get('#deletelogAct').properties.disabled, false);
 
@@ -472,14 +535,13 @@ vm.runInContext('followStatus()', busy.context);
 busy.request('/status').resolve({status: 'busy'});
 vm.runInContext('followStatus()', busy.context);
 busy.request('/status').resolve({status: 'failed', error: 'Speedtest failed: Older failure', results: []});
-assert.equal(busy.elements.get('#test_status').message,
-             'Another operation finished. The most recent saved test failed. Older failure');
+assert.equal(busy.elements.get('#test_status').message, 'Older failure');
 
 vm.runInContext('followStatus()', busy.context);
 busy.request('/status').resolve({status: 'busy'});
 vm.runInContext(`followStatus('${'b'.repeat(32)}')`, busy.context);
 busy.request('/status').resolve({status: 'completed', run_id: 'b'.repeat(32), results: []});
-assert.match(busy.elements.get('#test_status').message, /Test complete\. Results saved to history/,
+assert.match(busy.elements.get('#test_status').message, /Test complete\. Result saved to history/,
              'A queued test that owns the completed run must retain its completion message');
 
 const automaticStatus = fixture();
@@ -508,19 +570,38 @@ assert.equal(automaticStatus.elements.get('#reportAct').properties.disabled, fal
 runTimer(automaticStatus, 30000);
 automaticStatus.elements.get('#serverlistAct').handlers.click();
 automaticStatus.request('/serverlist').resolve([{id: '42', name: 'Lab'}]);
+automaticStatus.elements.get('#detect_server').trigger('click');
 automaticStatus.request('/status').resolve({status: 'busy'});
 assert.doesNotMatch(automaticStatus.elements.get('#test_status').message, /another test/i,
                     'An in-flight idle check must not mistake our server scan for another test');
-completeDetection(automaticStatus);
+completeDetection(automaticStatus, 'Lab', true);
 vm.runInContext('historyLoaded = true', automaticStatus.context);
 runTimer(automaticStatus, 30000);
 automaticStatus.request('/status').resolve(externalResult);
-assert.equal(automaticStatus.elements.get('#connection_ip').message, '192.0.2.9',
+assert.equal(detailValue(automaticStatus, '#preview_details', 'Firewall IP seen by server'), '192.0.2.9',
              'Unchanged status polls must not overwrite newly detected connection details');
 assert.equal(vm.runInContext('historyLoaded', automaticStatus.context), true,
              'Unchanged status polls must not invalidate loaded history');
+automaticStatus.elements.get('#mode').val('latency');
+automaticStatus.elements.get('#measurement_options_form').handlers.change({target: {id: 'mode'}});
+assert.equal(automaticStatus.elements.get('#run_overrides').properties.hidden, false);
+assert.match(automaticStatus.elements.get('#open_test_settings').message, /Test mode: Latency/);
+assert.equal(automaticStatus.elements.get('#throughput_warning').properties.hidden, true);
+assert.equal(automaticStatus.elements.get('#preview_details').properties.hidden, false,
+             'Changing the manual test mode does not invalidate a latency preview');
 automaticStatus.elements.get('#measurement').classes.delete('active');
-automaticStatus.elements.get('#measurement_options_form').handlers.change();
+automaticStatus.elements.get('#duration').val('8');
+automaticStatus.elements.get('#measurement_options_form').trigger('input');
+assert.equal(automaticStatus.elements.get('#server_preview').properties.hidden, true,
+             'Editing a measurement option removes the old preview');
+assert.equal(automaticStatus.elements.get('#run_overrides').properties.hidden, false);
+automaticStatus.elements.get('#restore_measurement').trigger('click');
+assert.equal(automaticStatus.elements.get('#duration').value, '10');
+assert.equal(automaticStatus.elements.get('#mode').value, 'both', 'Reset restores the full manual test mode');
+assert.equal(automaticStatus.elements.get('#open_test_settings').message, 'Server: Lab',
+             'Resetting measurement options must not release the selected server');
+automaticStatus.elements.get('#serverid').val('0').trigger('change');
+assert.equal(automaticStatus.elements.get('#run_overrides').properties.hidden, true);
 const detections = automaticStatus.requests.filter(r => r.options.url.endsWith('/detect')).length;
 runTimer(automaticStatus, 30000);
 automaticStatus.request('/status').resolve(externalResult);
@@ -528,7 +609,8 @@ assert.equal(automaticStatus.requests.filter(r => r.options.url.endsWith('/detec
              'Idle status checks must not initiate scans while the user is editing settings');
 automaticStatus.elements.get('#measurement').classes.add('active');
 automaticStatus.elements.get('a[href="#measurement"]').handlers['shown.bs.tab']();
-completeDetection(automaticStatus);
+assert.equal(automaticStatus.requests.filter(r => r.options.url.endsWith('/detect')).length, detections,
+             'Returning to the run tab must not automatically re-probe');
 const statusRequests = automaticStatus.requests.filter(r => r.options.url.endsWith('/status')).length;
 vm.runInContext('document.hidden = true', automaticStatus.context);
 runTimer(automaticStatus, 30000);
@@ -599,6 +681,7 @@ restored.request('/defaults').resolve(defaults);
 restored.request('/version').resolve({message: 'librespeed-cli v1.2.1'});
 restored.request('/serverlist').resolve([{id: '42', name: 'Lab'}]);
 restored.request('/status').resolve({status: 'idle'});
+restored.elements.get('#detect_server').trigger('click');
 const abandonedDetection = restored.request('/detect');
 vm.runInContext('$(window).handlers.pagehide()', restored.context);
 vm.runInContext('$(window).handlers.pageshow({originalEvent: {persisted: true}})', restored.context);
@@ -611,6 +694,9 @@ assert.equal(restored.request('/detectionstatus'), undefined, 'A stale detection
 restored.request('/status').resolve({status: 'busy'});
 runTimer(restored, 1500);
 restored.request('/status').resolve({status: 'idle'});
+assert.equal(restored.elements.get('#server_preview').properties.hidden, true);
+assert.equal(restored.requests.filter(r => r.options.url.endsWith('/detect')).length, 1,
+             'Restoring the page may resume status polling, not start new probes');
 completeDetection(restored);
 assert.equal(restored.elements.get('#reportAct').properties.disabled, false,
              'Returning from the browser back/forward cache resumes status and server detection');
@@ -620,11 +706,10 @@ restoredStarting.request('/defaults').resolve(defaults);
 restoredStarting.request('/version').resolve({message: 'librespeed-cli v1.2.1'});
 restoredStarting.request('/serverlist').resolve([{id: '42', name: 'Lab'}]);
 restoredStarting.request('/status').resolve({status: 'idle'});
-completeDetection(restoredStarting);
-vm.runInContext('$("#mode").val("both")', restoredStarting.context);
 restoredStarting.elements.get('#test_form').handlers.submit.call(
     restoredStarting.elements.get('#test_form')[0], {preventDefault() {}});
 const pendingStart = restoredStarting.request('/start/0/both');
+assert.ok(pendingStart, 'A new page submits a full test without opening Settings');
 vm.runInContext('$(window).handlers.pagehide()', restoredStarting.context);
 vm.runInContext('$(window).handlers.pageshow({originalEvent: {persisted: true}})', restoredStarting.context);
 restoredStarting.request('/status').resolve({status: 'idle'});
@@ -647,15 +732,19 @@ optionsPage.request('/defaults').resolve(defaults);
 optionsPage.request('/version').resolve({message: 'librespeed-cli v1.2.1'});
 optionsPage.request('/serverlist').resolve([{id: '42', name: 'Lab'}, {id: '84', name: 'Other'}]);
 optionsPage.request('/status').resolve({status: 'idle'});
-completeDetection(optionsPage);
 optionsPage.elements.get('#measurement_options_form')[0].reportValidity = () => false;
 optionsPage.elements.get('#test_form').handlers.submit.call(optionsPage.elements.get('#test_form')[0], {preventDefault() {}});
 assert.equal(optionsPage.requests.some(r => r.options.url.includes('/start/')), false,
              'A manual test must not start with invalid measurement settings');
 optionsPage.elements.get('#measurement_options_form')[0].reportValidity = () => true;
-vm.runInContext('$("#mode")', optionsPage.context);
+optionsPage.elements.get('#serverid').val('custom').trigger('change');
+optionsPage.elements.get('#custom_servers')[0].reportValidity = () => false;
+optionsPage.elements.get('#test_form').handlers.submit.call(optionsPage.elements.get('#test_form')[0], {preventDefault() {}});
+assert.equal(optionsPage.requests.some(r => r.options.url.includes('/start/')), false,
+             'Invalid custom IDs in Settings must block a test');
+optionsPage.elements.get('#custom_servers')[0].reportValidity = () => true;
 const submittedOptions = {duration: '3', timeout: '4', concurrent: '2', chunks: '5', upload_size: '32',
-    family: 'ipv4', source: '127.0.0.1', exclude: '', icmp: '1', http2: '1',
+    family: 'ipv4', source: '127.0.0.1', exclude: '84', icmp: '1', http2: '1',
     no_pre_allocate: '1', private_ca: '1'};
 for (const [key, value] of Object.entries(submittedOptions)) {
     if (['icmp', 'http2', 'no_pre_allocate', 'private_ca'].includes(key)) {
@@ -675,7 +764,8 @@ for (const [mode, selector, custom, expectedServer] of [
         optionsPage.elements.get('#test_form')[0], {preventDefault() {}});
     const request = optionsPage.request('/start/' + expectedServer + '/' + mode);
     assert.ok(request, 'Every measurement mode and server selection must be submitted');
-    assert.equal(JSON.stringify(request.options.data), JSON.stringify(submittedOptions));
+    assert.equal(JSON.stringify(request.options.data), JSON.stringify({...submittedOptions,
+        exclude: ['0', '-1'].includes(selector) ? submittedOptions.exclude : ''}));
     request.resolve({error: 'Fixture reset'});
 }
 
@@ -684,6 +774,7 @@ detectionRace.request('/defaults').resolve(defaults);
 detectionRace.request('/version').resolve({message: 'librespeed-cli v1.2.1'});
 detectionRace.request('/serverlist').resolve([{id: '42', name: 'Lab'}]);
 detectionRace.request('/status').resolve({status: 'idle'});
+detectionRace.elements.get('#detect_server').trigger('click');
 detectionRace.request('/detect').resolve({result: 'started', run_id: 'd'.repeat(32)});
 detectionRace.request('/detectionstatus').resolve({status: 'completed', run_id: 'c'.repeat(32),
     results: [{serverid: 42, servername: 'Stale server', latency: 1}]});
@@ -693,12 +784,19 @@ vm.runInContext('followDetection("d".repeat(32), Date.now() - 16000, detectionGe
 detectionRace.request('/detectionstatus').resolve({status: 'idle'});
 assert.match(detectionRace.elements.get('#detection_status').message, /did not start/);
 assert.equal(detectionRace.elements.get('#reportAct').properties.disabled, false);
+detectionRace.elements.get('#serverid').val('42').trigger('change');
+detectionRace.elements.get('#detect_server').trigger('click');
+detectionRace.request('/detect').resolve({result: 'started', run_id: 'e'.repeat(32)});
+detectionRace.request('/detectionstatus').resolve({status: 'completed', run_id: 'e'.repeat(32),
+    results: [{serverid: 84, servername: 'Unlisted server', latency: 1}]});
+assert.match(detectionRace.elements.get('#detection_status').message, /not in the current list/);
+assert.equal(detectionRace.elements.get('#serverid').value, '42', 'A scan must not replace the choice with an unlisted server');
 
 vm.runInContext(`renderResults([{serverid:42,servername:'Lab',download:20,
     connection:{ip:'192.0.2.9',isp:'Example ISP'}}])`, detectionRace.context);
 detectionRace.elements.get('#deletelogAct').handlers.click();
 detectionRace.request('/deletelog').resolve({result: 'ok'});
-assert.equal(detectionRace.elements.get('#connection_ip').message, 'Not reported',
+assert.equal(detectionRace.elements.get('#result_details').properties.hidden, true,
              'Clearing history removes the displayed snapshot too');
 assert.equal(detectionRace.elements.get('#download').message, 'Not measured');
 
@@ -706,24 +804,38 @@ const schedulePage = fixture();
 schedulePage.request('/defaults').resolve(defaults);
 schedulePage.request('/schedule/get').resolve({schedule: {enabled: '0', cadence: 'daily', hour: '3',
     minute: '15', weekday: '1', server: '0', mode: 'both', timezone: 'UTC', other_jobs: 0}});
+assert.equal(schedulePage.elements.get('#schedule_options').properties.hidden, true, 'Disabled scheduling hides unused settings');
+assert.equal(schedulePage.elements.get('#save_schedule').properties.disabled, true);
 for (const cadence of ['hourly', 'daily', 'weekdays', 'weekly']) {
     schedulePage.elements.get('#schedule_enabled').prop('checked', true);
     schedulePage.elements.get('#schedule_cadence').val(cadence);
     schedulePage.elements.get('#schedule_hour').val('5');
     schedulePage.elements.get('#schedule_minute').val('20');
     schedulePage.elements.get('#schedule_weekday').val('2');
+    schedulePage.elements.get('#schedule_selection').val('custom');
     schedulePage.elements.get('#schedule_server').val('42,84');
     schedulePage.elements.get('#schedule_mode').val('latency');
-    schedulePage.elements.get('#schedule_cadence, #schedule_hour, #schedule_minute, #schedule_weekday').handlers.change();
+    schedulePage.elements.get('#schedule_form').trigger('change');
+    assert.equal(schedulePage.elements.get('#schedule_options').properties.hidden, false);
     assert.equal(schedulePage.elements.get('#schedule_hour').properties.disabled, cadence === 'hourly');
     assert.equal(schedulePage.elements.get('#schedule_weekday').properties.disabled, cadence !== 'weekly');
     schedulePage.elements.get('#schedule_form').handlers.submit.call(
         schedulePage.elements.get('#schedule_form')[0], {preventDefault() {}});
     const request = schedulePage.request('/schedule/set');
-    assert.equal(JSON.stringify(request.options.data.schedule), JSON.stringify({enabled: '1', cadence,
-        hour: '5', minute: '20', weekday: '2', server: '42,84', mode: 'latency'}));
+    assert.deepEqual(JSON.parse(JSON.stringify(request.options.data.schedule)), {enabled: '1', cadence,
+        hour: cadence === 'hourly' ? '3' : '5', minute: '20', weekday: cadence === 'weekly' ? '2' : '1',
+        server: '42,84', mode: 'latency'});
     request.resolve({result: 'saved'});
 }
+schedulePage.elements.get('#schedule_server').val('');
+schedulePage.elements.get('#schedule_enabled').prop('checked', false);
+schedulePage.elements.get('#schedule_form').trigger('change');
+schedulePage.elements.get('#schedule_form').handlers.submit.call(schedulePage.elements.get('#schedule_form')[0], {preventDefault() {}});
+assert.equal(schedulePage.request('/schedule/set').options.data.schedule.server, '42,84',
+             'Turning off a schedule keeps its saved setup, not incomplete hidden values');
+schedulePage.request('/schedule/set').resolve({result: 'failed', saved: true, error: 'Cron could not be applied'});
+assert.equal(schedulePage.elements.get('#schedule_recovery').properties.open, true);
+assert.equal(schedulePage.elements.get('#apply_schedule').properties.disabled, false);
 
 const filtersPage = fixture();
 vm.runInContext('historyReload()', filtersPage.context);
@@ -733,16 +845,20 @@ for (const [selector, value] of Object.entries({'#history_days': '90', '#history
     filtersPage.elements.get(selector).val(value);
 }
 vm.runInContext('historyReload()', filtersPage.context);
-assert.equal(JSON.stringify(filtersPage.request('/history').options.data), JSON.stringify({page: 1, days: '90',
+assert.deepEqual(JSON.parse(JSON.stringify(filtersPage.request('/history').options.data)), {page: 1, days: '90',
     server: '42', mode: 'latency', provider: 'librespeed', status: 'failed',
-    origin: 'scheduled', family: 'ipv6', source: '::1'}));
+    origin: 'scheduled', family: 'ipv6', source: '::1'});
+filtersPage.elements.get('#reset_history_filters').trigger('click');
+assert.deepEqual(JSON.parse(JSON.stringify(filtersPage.request('/history').options.data)), {page: 1, days: '30',
+    server: 'all', mode: 'all', provider: 'librespeed', status: 'all',
+    origin: 'all', family: 'all', source: ''});
 
 const unconfigured = fixture();
 unconfigured.request('/defaults').resolve(defaults);
 unconfigured.request('/settings/get').resolve({speedtest: {general: {servers: ''}}});
 unconfigured.request('/version').resolve({message: 'librespeed-cli v1.2.1'});
 unconfigured.request('/serverlist').resolve({code: 'servers_unconfigured',
-    error: 'Speedtest failed: ValueError: Configure the LibreSpeed server list'});
+    error: 'Speedtest failed: ValueError: Configure the server list'});
 assert.equal(unconfigured.elements.get('#server_setup_notice').properties.hidden, false);
 assert.equal(unconfigured.elements.get('#reportAct').properties.disabled, true);
 unconfigured.elements.get('#test_form').handlers.submit.call(unconfigured.elements.get('#test_form')[0], {preventDefault() {}});
@@ -769,7 +885,6 @@ assert.match(unconfigured.elements.get('#server_status').message, /server list w
 assert.equal(unconfigured.elements.get('#reportAct').properties.disabled, true);
 unconfigured.elements.get('#serverlistAct').handlers.click();
 unconfigured.request('/serverlist').resolve([{id: '42', name: 'Lab'}]);
-completeDetection(unconfigured);
 assert.equal(unconfigured.elements.get('#server_setup_notice').properties.hidden, true);
 assert.equal(unconfigured.elements.get('#server_status').message, '');
 assert.equal(unconfigured.elements.get('#reportAct').properties.disabled, false);
@@ -777,7 +892,7 @@ vm.runInContext('$("#mode").val("both")', unconfigured.context);
 unconfigured.elements.get('#test_form').handlers.submit.call(unconfigured.elements.get('#test_form')[0], {preventDefault() {}});
 unconfigured.request('/start/0/both').resolve({error: 'Speedtest failed: ValueError: Test could not start'});
 assert.equal(unconfigured.elements.get('#test_status').message, 'Test could not start');
-assert.match(unconfigured.elements.get('#readout_hint').message, /Run a test/);
+assert.match(unconfigured.elements.get('#readout_hint').message, /No results yet/);
 assert.equal(unconfigured.elements.get('#reportAct').properties.disabled, false);
 runTimer(unconfigured, 30000);
 unconfigured.request('/status').resolve({status: 'completed', results: []});
@@ -785,13 +900,13 @@ assert.equal(unconfigured.elements.get('#test_status').message, 'Test could not 
              'A rejected start resumes automatic checks without hiding its error');
 unconfigured.elements.get('#test_form').handlers.submit.call(unconfigured.elements.get('#test_form')[0], {preventDefault() {}});
 unconfigured.request('/start/0/both').reject();
-assert.match(unconfigured.elements.get('#readout_hint').message, /unknown/);
+assert.match(unconfigured.elements.get('#test_status').message, /Start response lost/);
 assert.equal(unconfigured.elements.get('#check_status').properties.hidden, false,
              'A lost start response exposes a contextual status check');
 vm.runInContext('followStatus("a".repeat(32), Date.now() - 16000)', unconfigured.context);
 unconfigured.request('/status').resolve({status: 'idle'});
 assert.match(unconfigured.elements.get('#test_status').message, /did not start/);
-assert.match(unconfigured.elements.get('#readout_hint').message, /Run a test/);
+assert.match(unconfigured.elements.get('#readout_hint').message, /No results yet/);
 assert.equal(unconfigured.elements.get('#run_progress').properties.hidden, true);
 assert.equal(unconfigured.elements.get('#check_status').properties.hidden, false);
 unconfigured.elements.get('#check_status').handlers.click();
@@ -819,7 +934,8 @@ vm.runInContext('historyReload()', page.context);
 page.request('/history').resolve({rows: [], series: [], metrics: {}, successful: 0, failed: 0,
     bytes_received: 0, bytes_sent: 0, servers: {}, sources: [], total: 0, limit: 50});
 assert.equal(page.elements.get('#trend_charts').properties.hidden, true);
-assert.match(page.elements.get('#log_block').children[0].children[0].message, /No measurements/);
+assert.equal(page.elements.get('#history_results').properties.hidden, true);
+assert.match(page.elements.get('#history_status').message, /No matching records/);
 vm.runInContext('historyReload()', page.context);
 const priorCharts = page.chartConfigs.length;
 page.request('/history').resolve({rows: [], series: [{epoch: 1700000000, download: 1500, upload: 20, latency: 2, jitter: 0}],
@@ -835,7 +951,10 @@ assert.equal(page.chartConfigs[priorCharts + 1].options.scales.y.title.text, 'ms
 assert.equal(page.elements.get('#history_metrics').children[0].children[1].message, '1.5 Gbps');
 
 const failed = fixture();
-failed.request('/defaults').resolve(defaults);
+failed.request('/defaults').resolve({error: 'Defaults unavailable'});
+assert.equal(failed.elements.get('#run_defaults_status').message, 'Defaults unavailable');
+failed.request('/status').resolve({status: 'completed', results: [{servername: 'Lab', latency: 5}]});
+assert.equal(failed.elements.get('#latency').message, '5 ms', 'A defaults failure must not hide the last result');
 failed.request('/settings/get').resolve({});
 assert.equal(failed.elements.get('#save_settings').properties.disabled, true);
 assert.equal(failed.elements.get('#settings_status').message, 'Unable to load server settings');
@@ -844,36 +963,30 @@ assert.equal(failed.elements.get('#version').message, 'librespeed-cli v1.2.1 (cu
              'Unexpected engine metadata must remain visible');
 const badVersion = fixture();
 badVersion.request('/version').resolve({message: {}});
-assert.match(badVersion.elements.get('#version').message, /setup is incomplete/i);
+assert.equal(badVersion.elements.get('#version').message, 'Unavailable');
+assert.match(badVersion.elements.get('#engine_status').message, /measurement engine unavailable/i);
 assert.equal(badVersion.requests.some(r => r.options.url.endsWith('/serverlist')), false);
 const viewerSource = fs.existsSync(process.argv[2] + '.viewer')
     ? fs.readFileSync(process.argv[2] + '.viewer', 'utf8').match(/<script>([\s\S]*?)<\/script>/)[1]
     : scriptTokens(rawScript, false);
 const viewer = fixture(viewerSource);
-viewer.request('/defaults').resolve(defaults);
 viewer.request('/version').resolve({message: 'librespeed-cli v1.2.1'});
-viewer.request('/serverlist').resolve({code: 'servers_unconfigured'});
-assert.equal(viewer.elements.get('#server_setup_notice').properties.hidden, false);
 assert.equal(viewer.elements.has('#open_server_setup'), false);
 assert.equal(viewer.elements.get('#reportAct').properties.disabled, true);
 assert.equal(viewer.elements.get('#measurement_options_controls').properties.disabled, true);
-viewer.elements.get('#duration').val('5');
-viewer.elements.get('#reset_measurement').handlers.click();
-assert.equal(viewer.elements.get('#duration').value, '5', 'Viewer cannot reset disabled measurement controls');
+assert.equal(viewer.elements.has('#reset_measurement'), false, 'Viewer has no unused measurement editor');
 assert.equal(viewer.requests.some(r => r.options.url.includes('/schedule/')), false);
 viewer.request('/status').resolve({status: 'idle'});
 viewer.elements.get('#serverlistAct').handlers.click();
-viewer.request('/serverlist').resolve([{id: '42', name: 'Lab'}]);
-assert.equal(viewer.request('/detect'), undefined, 'Viewer page loads cannot start active network probes');
-assert.match(viewer.elements.get('#detection_status').message, /run privilege/);
+assert.equal(viewer.request('/serverlist'), undefined, 'Viewer does not need to load a list to read saved results');
+assert.equal(viewer.request('/detect'), undefined, 'Viewer page loads cannot start probes');
 const viewerLatest = fixture(viewerSource);
-viewerLatest.request('/defaults').resolve(defaults);
 viewerLatest.request('/status').resolve({status: 'completed', results: [
     {serverid: 42, servername: 'Lab', sponsor: 'Lab sponsor', connection: {ip: '192.0.2.9', isp: 'Example ISP'}}]});
 viewerLatest.request('/version').resolve({message: 'librespeed-cli v1.2.1'});
-viewerLatest.request('/serverlist').resolve([{id: '42', name: 'Lab'}]);
-assert.equal(viewerLatest.elements.get('#connection_ip').message, '192.0.2.9',
+assert.equal(detailValue(viewerLatest, '#result_details', 'Firewall IP seen by server'), '192.0.2.9',
              'A viewer can see the latest saved status without triggering a new probe');
+assert.equal(viewerLatest.elements.get('#test_status').message, '', 'Loading a saved result is not a new completion');
 assert.equal(viewerLatest.request('/detect'), undefined);
 const runner = fixture(script.replace('const canConfigure = true;', 'const canConfigure = false;'));
 runner.request('/defaults').resolve(defaults);
@@ -883,18 +996,17 @@ runner.request('/status').resolve({status: 'idle'});
 completeDetection(runner);
 assert.equal(runner.elements.get('#measurement_options_controls').properties.disabled, false);
 runner.elements.get('#duration').val('5');
-runner.elements.get('#reset_measurement').handlers.click();
+runner.elements.get('#reset_measurement').trigger('click');
 assert.equal(runner.elements.get('#duration').value, '10', 'Run-only users can restore temporary measurement settings');
 runner.elements.get('#duration').val('5');
 vm.runInContext('$("#mode").val("latency")', runner.context);
 runner.elements.get('#test_form').handlers.submit.call(runner.elements.get('#test_form')[0], {preventDefault() {}});
-assert.equal(runner.request('/start/0/latency').options.data.duration, '5',
-             'Run-only users can still use temporary measurement overrides');
+assert.equal(runner.request('/start/42/latency').options.data.duration, '5',
+             'Run-only users can use both the selected server and temporary measurement overrides');
 assert.equal(runner.requests.some(r => r.options.url.endsWith('/settings/set')), false);
 vm.runInContext('renderResults([{error:"failed",servername:"One"},{error:"failed",servername:"Two"}])', page.context);
-assert.equal(page.elements.get('#latest_success').properties.hidden, true, 'An all-failed comparison must not show stale successful values');
+assert.equal(page.elements.get('#result_meta').properties.hidden, true, 'An all-failed comparison must not show stale successful values');
 assert.equal(page.elements.get('#download').message, 'Not measured');
-assert.equal(page.elements.get('#test_results').properties.hidden, false, 'Failed comparisons remain visible');
-assert.equal(page.elements.get('#comparison').properties.hidden, false);
-assert.equal(page.elements.get('#connection_isp').message, 'Not reported');
+assert.equal(page.elements.get('#comparison').properties.hidden, false, 'Failed comparisons remain visible');
+assert.equal(page.elements.get('#result_details').properties.hidden, true);
 console.log('Server detection, gauges, navigation, status, results, history, settings and viewer controls passed');
