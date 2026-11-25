@@ -31,24 +31,43 @@
     .speedtest-surface .help-block, .speedtest-secondary { color: inherit; opacity: .82; line-height: 1.4; }
     .speedtest-header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px 24px; margin-bottom: 20px; }
     .speedtest-header p { margin: 0; }
+    .speedtest-heading { display: flex; align-items: flex-start; gap: 12px; }
+    .speedtest-heading img { flex: none; border-radius: 50%; }
     .speedtest-engine { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
     .speedtest-notice { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; margin: 0 0 20px; border: 1px solid rgba(127, 127, 127, .45); border-radius: 3px; }
     .speedtest-notice i { margin-top: 2px; }
     .speedtest-notice p { margin: 4px 0; }
     .speedtest-status:not(:empty) { margin: 0 0 16px; line-height: 1.4; }
-    .speedtest-workspace { display: grid; grid-template-columns: minmax(250px, 360px) minmax(0, 1fr); gap: 28px; align-items: start; max-width: 1300px; }
-    .speedtest-run-form fieldset { min-width: 0; }
+    #check_status { margin-bottom: 16px; }
+    .speedtest-workspace { display: grid; gap: 28px; max-width: 1100px; margin: 0 auto; }
+    .speedtest-run-form fieldset { min-width: 0; max-width: 720px; margin: 0 auto; }
+    .speedtest-run-form .speedtest-actions { justify-content: center; }
+    .speedtest-run-form #reportAct { min-width: 220px; padding: 14px 28px; font-size: 1.15em; }
+    .speedtest-run-form #open_test_settings { display: block; text-align: center; }
+    .speedtest-detected-server { display: block; font-size: 1.25em; font-weight: 600; margin: 12px 0 4px; overflow-wrap: anywhere; }
+    .speedtest-connection { margin: 18px 0; text-align: center; overflow-wrap: anywhere; }
+    .speedtest-connection p { margin: 4px 0; }
     .speedtest-field { margin: 0 0 16px; }
     .speedtest-field > label, .speedtest-toolbar label { display: block; }
     .speedtest-server-control { display: flex; gap: 8px; }
     .speedtest-server-control select { min-width: 0; flex: 1; }
     .speedtest-option-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; }
     .speedtest-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 16px 0; }
-    .speedtest-readout { min-width: 0; padding: 20px; border: 1px solid rgba(127, 127, 127, .4); border-radius: 3px; }
+    .speedtest-readout { min-width: 0; }
     .speedtest-readout-header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px 20px; }
     .speedtest-readout-header p { margin: 0; }
-    .speedtest-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 24px 0; }
+    .speedtest-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 32px; margin: 24px 0; text-align: center; }
     .speedtest-metrics > div { min-width: 0; }
+    .speedtest-metrics .speedtest-throughput { display: flex; flex-direction: column; }
+    .speedtest-throughput dt { order: 2; }
+    .speedtest-metrics dd.speedtest-gauge { position: relative; font-size: 1em; width: 100%; max-width: 400px; margin: 0 auto; }
+    .speedtest-gauge svg { display: block; width: 100%; height: auto; overflow: visible; }
+    .speedtest-gauge-readout { position: absolute; top: 48%; left: 4%; right: 4%; font-size: clamp(1.15em, 3vw, 2.4em); white-space: nowrap; }
+    .speedtest-gauge-readout.is-empty { font-size: 1em; }
+    .speedtest-gauge-scale { position: absolute; bottom: 8%; left: 0; right: 0; font-size: .85em; font-weight: 400; }
+    .speedtest-gauge-track { stroke: currentColor; opacity: .2; }
+    .speedtest-gauge-download { color: #b52da5; }
+    .speedtest-gauge-upload { color: #00818b; }
     .speedtest-metrics dt { margin-bottom: 6px; font-weight: 600; overflow-wrap: anywhere; }
     .speedtest-metrics dd { margin: 0; font-size: 1.7em; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
     .speedtest-metrics dd.is-empty { font-size: 1em; font-weight: 400; }
@@ -67,6 +86,8 @@
     .speedtest-result-details > div { min-width: 0; }
     .speedtest-result-details dd { margin: 4px 0 0; overflow-wrap: anywhere; }
     .speedtest-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin: 16px 0; }
+    #catalog_table, #custom_server_table { max-height: 24rem; overflow: auto; }
+    #catalog_rows td:first-child, #custom_server_rows td:first-child { overflow-wrap: anywhere; }
     .speedtest-chart { position: relative; height: 260px; margin: 12px 0 24px; }
     .speedtest-disclosure { margin: 16px 0; }
     .speedtest-disclosure > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; }
@@ -83,6 +104,11 @@
     .speedtest-surface .section-note { max-width: 75ch; }
     .speedtest-settings { max-width: 900px; }
     .speedtest-settings h3 { margin-top: 24px; }
+    .speedtest-support { display: flex; align-items: center; gap: 16px; border-top: 1px solid rgba(127, 127, 127, .45); }
+    .speedtest-support img { flex: none; border-radius: 50%; }
+    .speedtest-support div { min-width: 0; }
+    .speedtest-support p { margin: 0; overflow-wrap: anywhere; }
+    .speedtest-support p + p { margin-top: 4px; }
     @media (prefers-reduced-motion: reduce) {
         .speedtest-disclosure > summary .fa { transition: none; }
     }
@@ -95,22 +121,25 @@
     @media (max-width: 560px) {
         .speedtest-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .speedtest-live-stages { grid-template-columns: minmax(0, 1fr); }
-        .speedtest-readout { padding: 16px; }
+        .speedtest-metrics { gap: 20px 12px; }
     }
 </style>
 <ul class="nav nav-tabs speedtest-tabs" role="tablist" aria-label="{{ lang._('Speedtest sections') }}">
     <li class="active" role="presentation"><a id="measurement_tab" href="#measurement" data-toggle="tab" role="tab" aria-controls="measurement" aria-selected="true">{{ lang._('Run test') }}</a></li>
     <li role="presentation"><a id="history_tab" href="#history" data-toggle="tab" role="tab" aria-controls="history" aria-selected="false" tabindex="-1">{{ lang._('Trends and history') }}</a></li>
     {% if canSchedule %}<li role="presentation"><a id="schedule_tab" href="#schedule" data-toggle="tab" role="tab" aria-controls="schedule" aria-selected="false" tabindex="-1">{{ lang._('Schedule') }}</a></li>{% endif %}
-    <li role="presentation"><a id="setup_tab" href="#setup" data-toggle="tab" role="tab" aria-controls="setup" aria-selected="false" tabindex="-1">{{ lang._('Settings and CLI') }}</a></li>
+    <li role="presentation"><a id="setup_tab" href="#setup" data-toggle="tab" role="tab" aria-controls="setup" aria-selected="false" tabindex="-1">{{ lang._('Advanced settings') }}</a></li>
 </ul>
 <div class="tab-content content-box speedtest-surface">
     <div id="measurement" class="tab-pane active" role="tabpanel" aria-labelledby="measurement_tab">
         <div class="content-box-main">
             <div class="speedtest-header">
-                <div>
-                    <h2>{{ lang._('Connection test') }}</h2>
-                    <p class="section-note">{{ lang._('Measure from this firewall to an authorized LibreSpeed server. A test may saturate your connection.') }}</p>
+                <div class="speedtest-heading">
+                    <img src="/ui/img/speedtest-community/speedtest-logo.png" width="40" height="40" alt="" decoding="async">
+                    <div>
+                        <h2>{{ lang._('Connection test') }}</h2>
+                        <p class="section-note">{{ lang._('Measure from this firewall to an authorized LibreSpeed server. A test may saturate your connection.') }}</p>
+                    </div>
                 </div>
                 <div class="speedtest-engine">
                     <span id="version" role="status">{{ lang._('Checking engine...') }}</span>
@@ -125,18 +154,18 @@
                     {% if canConfigure %}
                     <a id="open_server_setup" href="#setup">{{ lang._('Set up servers') }} <i class="fa fa-angle-right" aria-hidden="true"></i></a>
                     {% else %}
-                    <span>{{ lang._('Ask an administrator to add a server in Settings and CLI.') }}</span>
+                    <span>{{ lang._('Ask an administrator to add a server in Advanced settings.') }}</span>
                     {% endif %}
                 </div>
             </div>
             <div id="test_status" class="speedtest-status" role="status" aria-live="polite"></div>
+            <button id="check_status" type="button" class="btn btn-default" aria-describedby="test_status" hidden>{{ lang._('Check test status') }}</button>
             {% if not canRun %}
             <p class="section-note">{{ lang._('You can view results, but need the LibreSpeed run privilege to start a test.') }}</p>
             {% endif %}
             <div class="speedtest-workspace">
             <form id="test_form" class="speedtest-run-form">
                 <fieldset id="test_controls" disabled>
-                    <h3>{{ lang._('Test options') }}</h3>
                     <div class="speedtest-field">
                         <label for="serverid">{{ lang._('Server') }}</label>
                         <div class="speedtest-server-control">
@@ -145,9 +174,13 @@
                                 <option value="-1">{{ lang._('Compare all servers') }}</option>
                                 <option value="custom">{{ lang._('Choose server IDs') }}</option>
                             </select>
-                            <button class="btn btn-default" id="serverlistAct" type="button" title="{{ lang._('Refresh servers') }}" aria-label="{{ lang._('Refresh servers') }}"><i class="fa fa-refresh" aria-hidden="true"></i></button>
+                            <button class="btn btn-default" id="serverlistAct" type="button" title="{{ lang._('Refresh servers and re-detect') }}" aria-label="{{ lang._('Refresh servers and re-detect') }}"><i class="fa fa-refresh" aria-hidden="true"></i></button>
                         </div>
-                        <span class="help-block">{{ lang._('Automatic selection uses the configured server with the lowest latency.') }}</span>
+                        <div id="automatic_server_group">
+                            <strong id="detected_server" class="speedtest-detected-server" role="status" aria-live="polite">{{ lang._('Waiting to detect a server...') }}</strong>
+                            <div id="detection_status" class="speedtest-status" role="status" aria-live="polite"></div>
+                            <span class="help-block">{{ lang._('Latency probes only; no bandwidth test or saved result. Servers can see your public IP. Selection is rechecked when testing.') }}</span>
+                        </div>
                         <div id="server_status" class="speedtest-status" role="status" aria-live="polite"></div>
                     </div>
                     <div class="speedtest-field" id="custom_server_group" hidden>
@@ -165,23 +198,51 @@
                         </select>
                         <span class="help-block">{{ lang._('All modes measure latency and jitter. The full test also measures download and upload.') }}</span>
                     </div>
+                    <div class="speedtest-connection" role="status" aria-live="polite">
+                        <p><strong>{{ lang._('Server sponsor') }}:</strong> <span id="connection_sponsor">{{ lang._('Not reported') }}</span></p>
+                        <p><strong>{{ lang._('Firewall IP seen by server') }}:</strong> <span id="connection_ip">{{ lang._('Not reported') }}</span></p>
+                        <p><strong>{{ lang._('ISP / network') }}:</strong> <span id="connection_isp">{{ lang._('Not reported') }}</span></p>
+                        <p id="connection_source" class="speedtest-secondary"></p>
+                    </div>
                     {% if canRun %}
                     <div class="speedtest-actions"><button class="btn btn-primary" id="reportAct" type="submit"><i class="fa fa-play" aria-hidden="true"></i> {{ lang._('Run test') }} <i id="reportAct_progress" aria-hidden="true"></i></button></div>
                     {% endif %}
-                    <a href="#setup" id="open_test_settings">{{ lang._('Measurement settings') }} <i class="fa fa-angle-right" aria-hidden="true"></i></a>
+                    <a href="#setup" id="open_test_settings">{{ lang._('Advanced settings') }} <i class="fa fa-angle-right" aria-hidden="true"></i></a>
                 </fieldset>
             </form>
             <section class="speedtest-readout" aria-labelledby="readout_heading">
                 <div class="speedtest-readout-header">
                     <div><h3 id="readout_heading">{{ lang._('Latest result') }}</h3><p id="readout_hint" class="speedtest-secondary">{{ lang._('Run a test to see measurements here.') }}</p></div>
-                    <button id="check_status" type="button" class="btn btn-default">{{ lang._('Refresh status') }}</button>
                 </div>
                 <dl class="speedtest-metrics">
-                    <div><dt><i class="fa fa-arrow-down download-icon" aria-hidden="true"></i> {{ lang._('Download') }}</dt><dd id="download" class="is-empty">{{ lang._('Not measured') }}</dd></div>
-                    <div><dt><i class="fa fa-arrow-up upload-icon" aria-hidden="true"></i> {{ lang._('Upload') }}</dt><dd id="upload" class="is-empty">{{ lang._('Not measured') }}</dd></div>
+                    <div class="speedtest-throughput">
+                        <dt><i class="fa fa-arrow-down download-icon" aria-hidden="true"></i> {{ lang._('Download') }}</dt>
+                        <dd class="speedtest-gauge">
+                            <svg viewBox="0 0 220 145" aria-hidden="true" focusable="false" class="speedtest-gauge-download">
+                                <path class="speedtest-gauge-track" d="M20 110 A90 90 0 0 1 200 110" fill="none" stroke-width="4"/>
+                                <path id="download_arc" d="M20 110 A90 90 0 0 1 200 110" fill="none" stroke="currentColor" stroke-width="4" pathLength="100" stroke-dasharray="0 100"/>
+                                <g id="download_needle" transform="rotate(-90 110 110)" opacity="0"><path d="M110 15 L105 31 L115 31 Z" fill="currentColor"/></g>
+                            </svg>
+                            <span id="download" class="speedtest-gauge-readout is-empty">{{ lang._('Not measured') }}</span>
+                            <span class="speedtest-gauge-scale">0 / <span id="download_scale">100 Mbps</span></span>
+                        </dd>
+                    </div>
+                    <div class="speedtest-throughput">
+                        <dt><i class="fa fa-arrow-up upload-icon" aria-hidden="true"></i> {{ lang._('Upload') }}</dt>
+                        <dd class="speedtest-gauge">
+                            <svg viewBox="0 0 220 145" aria-hidden="true" focusable="false" class="speedtest-gauge-upload">
+                                <path class="speedtest-gauge-track" d="M20 110 A90 90 0 0 1 200 110" fill="none" stroke-width="4"/>
+                                <path id="upload_arc" d="M20 110 A90 90 0 0 1 200 110" fill="none" stroke="currentColor" stroke-width="4" pathLength="100" stroke-dasharray="0 100"/>
+                                <g id="upload_needle" transform="rotate(-90 110 110)" opacity="0"><path d="M110 15 L105 31 L115 31 Z" fill="currentColor"/></g>
+                            </svg>
+                            <span id="upload" class="speedtest-gauge-readout is-empty">{{ lang._('Not measured') }}</span>
+                            <span class="speedtest-gauge-scale">0 / <span id="upload_scale">100 Mbps</span></span>
+                        </dd>
+                    </div>
                     <div><dt>{{ lang._('Latency') }}</dt><dd id="latency" class="is-empty">{{ lang._('Not measured') }}</dd></div>
                     <div><dt>{{ lang._('Jitter') }}</dt><dd id="jitter" class="is-empty">{{ lang._('Not measured') }}</dd></div>
                 </dl>
+                <p class="help-block">{{ lang._('Gauge ranges scale automatically with the measured speed; they do not represent link capacity.') }}</p>
                 <div id="run_progress" hidden>
                     <p id="phase_status" role="status" aria-live="polite"></p>
                     <div class="speedtest-live-stages">
@@ -288,9 +349,9 @@
     {% endif %}
     <div id="setup" class="tab-pane" role="tabpanel" aria-labelledby="setup_tab">
         <div class="content-box-main speedtest-settings">
-            <h2>{{ lang._('Settings and CLI') }}</h2>
+            <h2>{{ lang._('Advanced settings') }}</h2>
             <h3 id="measurement_settings_heading" tabindex="-1">{{ lang._('Measurement settings') }}</h3>
-            <p class="section-note">{{ lang._('Changes here apply to manual tests in this page. Save settings to use them as defaults for future GUI, scheduled and CLI tests.') }}</p>
+            <p class="section-note">{{ lang._('First installs use the recommended OPNsense/FreeBSD measurement settings below. Changes here apply to manual tests in this page. Save settings to use them as defaults for future GUI, scheduled and CLI tests.') }}</p>
             <form id="measurement_options_form">
                 <fieldset id="measurement_options_controls" disabled>
                     <div class="speedtest-field">
@@ -316,36 +377,80 @@
                     <div class="checkbox"><label><input id="no_pre_allocate" type="checkbox">{{ lang._('Reduce upload buffer preallocation') }}</label></div>
                     <div class="checkbox"><label><input id="private_ca" type="checkbox">{{ lang._('Use the private CA bundle') }}</label></div>
                     <p class="help-block">{{ lang._('Longer tests, larger payloads and more concurrent requests use more data or memory. Private CA setup is described below.') }}</p>
+                    <button id="reset_measurement" type="button" class="btn btn-default">{{ lang._('Restore recommended measurement settings') }}</button>
+                    <p class="help-block">{{ lang._('Restores only the measurement controls on this page. Server lists, history, and schedules are unchanged. Save settings separately to make the restored values your defaults.') }}</p>
                 </fieldset>
             </form>
             {% if canConfigure %}
-            <div class="checkbox"><label><input id="public_servers" type="checkbox">{{ lang._('Use the official LibreSpeed.org public server list when no custom servers are saved') }}</label></div>
-            <p class="help-block">{{ lang._('The firewall retrieves the public list over HTTPS.') }} <a href="https://librespeed.org/backend-servers/servers.php" target="_blank" rel="noopener noreferrer">{{ lang._('View official server list') }}</a>. {{ lang._('The registry and selected test servers can see the firewall public IP. No results or telemetry are shared; opt out or use servers you operate or are authorized to use.') }}</p>
-            <h3>{{ lang._('Servers') }}</h3>
-            <label for="servers_json">{{ lang._('Authorized servers (JSON)') }}</label>
-            <textarea id="servers_json" class="form-control" rows="7" spellcheck="false" aria-describedby="servers_help"></textarea>
-            <p id="servers_help" class="help-block">{{ lang._('Add up to 50 servers with unique IDs and relative endpoint paths. Saved servers take priority. If this list is empty, the firewall-managed file is checked before the optional public list:') }} <code>/usr/local/etc/speedtest-community/librespeed-servers.json</code></p>
-            <details class="speedtest-disclosure">
-                <summary><i class="fa fa-angle-right" aria-hidden="true"></i>{{ lang._('Show server example') }}</summary>
-                <div><p>{{ lang._('Replace the example address and paths with those for your authorized server.') }}</p>
-                <pre>[
-  {
-    "id": 42,
-    "name": "Lab",
-    "server": "https://bench.example.net/",
-    "dlURL": "garbage.php",
-    "ulURL": "empty.php",
-    "pingURL": "empty.php",
-    "getIpURL": "getIP.php"
-  }
-]</pre></div>
-            </details>
+            <h3 id="server_settings_heading" tabindex="-1">{{ lang._('Servers') }}</h3>
+            <div class="checkbox"><label><input id="public_servers" type="checkbox">{{ lang._('Enable the official LibreSpeed.org catalog') }}</label></div>
+            <p class="help-block">{{ lang._('The firewall fetches the catalog over HTTPS. The registry and selected servers can see its public IP. No results or telemetry are shared.') }}</p>
+            <h4>{{ lang._('Official catalog') }}</h4>
+            <p class="help-block">{{ lang._('All official servers are allowed initially. Remove a server to switch to a fixed allow-list; newly published servers will then require your approval. Allowed means permitted for testing, not independently security-reviewed.') }}</p>
+            <div class="speedtest-toolbar">
+                <div><label for="catalog_search">{{ lang._('Search by server, sponsor, host, or ID') }}</label><input id="catalog_search" class="form-control" type="search"></div>
+                <button id="catalog_refresh" type="button" class="btn btn-default" disabled>{{ lang._('Refresh catalog') }}</button>
+                <button id="catalog_allow_all" type="button" class="btn btn-default" disabled>{{ lang._('Allow all official servers') }}</button>
+                <button id="catalog_allow_none" type="button" class="btn btn-default" disabled>{{ lang._('Remove all official servers') }}</button>
+            </div>
+            <p id="catalog_status" role="status" aria-live="polite"></p>
+            <p id="catalog_selection_status" role="status" aria-live="polite"></p>
+            <p id="catalog_no_matches" hidden>{{ lang._('No servers match your search.') }}</p>
+            <div class="table-responsive" id="catalog_table" tabindex="0" role="region" aria-label="{{ lang._('Official LibreSpeed servers') }}" hidden>
+                <table class="table table-striped">
+                    <caption class="sr-only">{{ lang._('Official LibreSpeed servers') }}</caption>
+                    <thead><tr><th scope="col">{{ lang._('Server') }}</th><th scope="col">{{ lang._('Sponsor') }}</th><th scope="col">{{ lang._('Allowed') }}</th><th scope="col">{{ lang._('Actions') }}</th></tr></thead>
+                    <tbody id="catalog_rows"></tbody>
+                </table>
+            </div>
+            <h4>{{ lang._('Custom servers') }}</h4>
+            <p id="servers_help" class="help-block">{{ lang._('Add your own LibreSpeed server using the fields below; no JSON is required. Custom servers replace the public list unless you enable combining them. Catalog refresh never changes your custom entries.') }}</p>
+            <div class="checkbox"><label><input id="combine_servers" type="checkbox" disabled>{{ lang._('Include allowed official servers alongside custom servers') }}</label></div>
+            <p class="help-block">{{ lang._('If no custom entries are saved, the firewall-managed server file is used before the public list. Combining also applies to that file. Keep IDs and URLs unique across both sources.') }} <code>/usr/local/etc/speedtest-community/librespeed-servers.json</code></p>
+            <fieldset id="custom_server_controls" disabled>
+                <div class="table-responsive" id="custom_server_table" tabindex="0" role="region" aria-label="{{ lang._('Custom LibreSpeed servers') }}" hidden>
+                    <table class="table table-striped">
+                        <caption class="sr-only">{{ lang._('Custom LibreSpeed servers') }}</caption>
+                        <thead><tr><th scope="col">{{ lang._('Server') }}</th><th scope="col">{{ lang._('Actions') }}</th></tr></thead>
+                        <tbody id="custom_server_rows"></tbody>
+                    </table>
+                </div>
+                <p id="custom_server_status" role="status" aria-live="polite"></p>
+                <button id="add_custom_server" type="button" class="btn btn-default">{{ lang._('Add custom server') }}</button>
+                <form id="custom_server_editor" class="form-horizontal" hidden>
+                    <h5 id="custom_server_editor_title"></h5>
+                    <div class="form-group"><label for="server_edit_name" class="col-sm-3 control-label">{{ lang._('Name') }}</label><div class="col-sm-9"><input id="server_edit_name" class="form-control" maxlength="200" required></div></div>
+                    <div class="form-group"><label for="server_edit_server" class="col-sm-3 control-label">{{ lang._('HTTPS base URL') }}</label><div class="col-sm-9"><input id="server_edit_server" type="url" class="form-control" placeholder="https://speed.example.net/backend/" required><span class="help-block">{{ lang._('Use the LibreSpeed backend URL, not a results page. Standard PHP endpoint paths are filled in for you.') }}</span></div></div>
+                    <details id="server_endpoint_options" class="speedtest-disclosure">
+                        <summary><i class="fa fa-angle-right" aria-hidden="true"></i>{{ lang._('Advanced endpoint options') }}</summary>
+                        <div>
+                            <div class="form-group"><label for="server_edit_id" class="col-sm-3 control-label">{{ lang._('Server ID') }}</label><div class="col-sm-9"><input id="server_edit_id" class="form-control" inputmode="numeric" pattern="[1-9][0-9]{0,15}" required><span class="help-block">{{ lang._('Assigned automatically for new entries. Keep existing IDs stable for schedules and history.') }}</span></div></div>
+                            <div class="form-group"><label for="server_edit_sponsorName" class="col-sm-3 control-label">{{ lang._('Sponsor (optional)') }}</label><div class="col-sm-9"><input id="server_edit_sponsorName" class="form-control" maxlength="200"></div></div>
+                            <div class="form-group"><label for="server_edit_dlURL" class="col-sm-3 control-label">{{ lang._('Download path') }}</label><div class="col-sm-9"><input id="server_edit_dlURL" class="form-control" required></div></div>
+                            <div class="form-group"><label for="server_edit_ulURL" class="col-sm-3 control-label">{{ lang._('Upload path') }}</label><div class="col-sm-9"><input id="server_edit_ulURL" class="form-control" required></div></div>
+                            <div class="form-group"><label for="server_edit_pingURL" class="col-sm-3 control-label">{{ lang._('Latency path') }}</label><div class="col-sm-9"><input id="server_edit_pingURL" class="form-control" required></div></div>
+                            <div class="form-group"><label for="server_edit_getIpURL" class="col-sm-3 control-label">{{ lang._('Client IP path') }}</label><div class="col-sm-9"><input id="server_edit_getIpURL" class="form-control" required></div></div>
+                        </div>
+                    </details>
+                    <div class="speedtest-toolbar">
+                        <button type="submit" class="btn btn-default">{{ lang._('Apply to custom list') }}</button>
+                        <button id="cancel_server_edit" type="button" class="btn btn-default">{{ lang._('Cancel edit') }}</button>
+                    </div>
+                    <p id="server_edit_status" role="status" aria-live="polite"></p>
+                </form>
+                <details class="speedtest-disclosure">
+                    <summary><i class="fa fa-angle-right" aria-hidden="true"></i>{{ lang._('Edit raw server JSON') }}</summary>
+                    <div><label for="servers_json">{{ lang._('Custom servers (JSON)') }}</label>
+                    <textarea id="servers_json" class="form-control" rows="7" spellcheck="false" aria-describedby="servers_help"></textarea></div>
+                </details>
+            </fieldset>
             <h3>{{ lang._('History retention') }}</h3>
             <form id="retention_form" class="speedtest-toolbar">
-                <div><label for="retention_days">{{ lang._('Keep history for days') }}</label><input id="retention_days" class="form-control" type="number" min="0" max="3650" value="0" required></div>
-                <div><label for="history_limit">{{ lang._('Maximum history records') }}</label><input id="history_limit" class="form-control" type="number" min="0" max="100000" value="0" required></div>
+                <div><label for="retention_days">{{ lang._('Keep history for days') }}</label><input id="retention_days" class="form-control" type="number" min="0" max="3650" value="31" required></div>
+                <div><label for="history_limit">{{ lang._('Maximum history records') }}</label><input id="history_limit" class="form-control" type="number" min="0" max="100000" value="10000" required></div>
+                <button id="reset_retention" type="button" class="btn btn-default" disabled>{{ lang._('Use recommended retention') }}</button>
             </form>
-            <p class="help-block">{{ lang._('0 keeps all history. Limits prune detailed records and legacy CSV after the next test. Export your data before reducing retention.') }}</p>
+            <p class="help-block">{{ lang._('Recommended: 31 days and at most 10,000 records, whichever limit is reached first. Pruning runs after successful and failed tests and applies to detailed history and legacy CSV. 0 disables that limit; setting both to 0 keeps all history. Export before reducing retention.') }}</p>
             <p>{{ lang._('Saving applies these settings to future GUI, cron and terminal tests. No restart is needed.') }}</p>
             <button id="save_settings" type="button" class="btn btn-primary" disabled>{{ lang._('Save settings') }}</button>
             <div id="settings_status" class="speedtest-status" role="status" aria-live="polite"></div>
@@ -357,7 +462,7 @@
                 <div>
                     <p>{{ lang._('Test endpoints must use HTTPS with verified certificates. This is independent of whether the OPNsense GUI uses HTTP or HTTPS.') }}</p>
                     <p>{{ lang._('For private endpoints, install a PEM CA bundle at /usr/local/etc/speedtest-community/ca.pem and enable the private CA option. It replaces the engine trust store for that run. Use separate issuing CA and server certificates.') }}</p>
-                    <p>{{ lang._('When enabled, the public server list is retrieved from LibreSpeed.org over HTTPS only if no saved or firewall-managed list is available. The registry and selected test server can see the firewall public IP. The plugin does not request result sharing or telemetry. A configured source binding is retained for comparison; older CSV data is preserved.') }}</p>
+                    <p>{{ lang._('When enabled, the official catalog is retrieved over HTTPS for the server manager, for tests without a local list, or when combining sources. Only allowed official IDs are used for tests. The registry and selected servers can see the firewall public IP. No result sharing or telemetry is requested.') }}</p>
                 </div>
             </details>
             <details class="speedtest-disclosure">
@@ -379,7 +484,7 @@ librespeed-cli --help</pre>
                     <p>{{ lang._('Assign privileges under System > Access > Users or Groups. View results includes charts, dashboard data and exports. Running tests, configuring settings, managing the schedule and clearing history require separate privileges. Grant View results alongside additional privileges. Read-only accounts cannot run tests or change settings.') }}</p>
                     <ul>
                         <li><a href="https://github.com/blackoutsecure/opn-repo/tree/main/net-mgmt/speedtest-community" target="_blank" rel="noopener noreferrer">{{ lang._('Plugin setup and capability notes') }}</a></li>
-                        <li><a href="https://github.com/blackoutsecure/opn-repo/issues" target="_blank" rel="noopener noreferrer">{{ lang._('Report plugin issues') }}</a></li>
+                        <li><a href="https://github.com/blackoutsecure/opn-repo/issues" target="_blank" rel="noopener noreferrer">{{ lang._('Issues, feedback and provider requests') }}</a></li>
                         <li><a href="https://github.com/librespeed/speedtest-cli-rust" target="_blank" rel="noopener noreferrer">{{ lang._('LibreSpeed Rust client') }}</a></li>
                         <li><a href="https://github.com/librespeed/speedtest" target="_blank" rel="noopener noreferrer">{{ lang._('LibreSpeed server setup') }}</a></li>
                         <li><a href="https://github.com/librespeed/speedtest-rust" target="_blank" rel="noopener noreferrer">{{ lang._('Optional Rust server backend') }}</a></li>
@@ -388,6 +493,14 @@ librespeed-cli --help</pre>
             </details>
         </div>
     </div>
+    <footer class="content-box-main speedtest-support">
+        <img src="/ui/img/speedtest-community/speedtest-logo.png" width="48" height="48" alt="" loading="lazy" decoding="async">
+        <div>
+            <p><a href="https://blackoutsecure.app/" target="_blank" rel="noopener noreferrer">{{ lang._('Maintained and supported by BlackOut Secure') }}</a></p>
+            <p><a href="https://github.com/blackoutsecure/opn-repo/issues" target="_blank" rel="noopener noreferrer">{{ lang._('Issues, feedback and provider requests') }}</a>
+                &middot; <a href="https://librespeed.org/" target="_blank" rel="noopener noreferrer">{{ lang._('Powered by LibreSpeed') }}</a></p>
+        </div>
+    </footer>
 </div>
 <script>
     const api = "/api/speedtest/service/";
@@ -399,6 +512,21 @@ librespeed-cli --help</pre>
     let serversReady = false;
     let serversLoading = false;
     let defaultsReady = false;
+    let catalogLoading = false;
+    let setupVisible = false;
+    let catalog = [];
+    let catalogReceived = false;
+    let publicSelection = 'all';
+    let serverEditIndex = null;
+    let savedPublicServers = false;
+    let statusReady = false;
+    let statusNeedsAttention = false;
+    let statusRetrying = false;
+    let lastStatusKey = null;
+    let detecting = false;
+    let detectionChecked = false;
+    let detectionGeneration = 0;
+    let detectionTimer = null;
     let settingsReady = false;
     let scheduleReady = false;
     let saving = false;
@@ -409,11 +537,19 @@ librespeed-cli --help</pre>
     let pollTimer = null;
     let charts = [];
     let liveChart = null;
+    const gaugeRanges = {download: 0, upload: 0};
     const canRun = {% if canRun %}true{% else %}false{% endif %};
     const canConfigure = {% if canConfigure %}true{% else %}false{% endif %};
     const canSchedule = {% if canSchedule %}true{% else %}false{% endif %};
     const optionKeys = ['duration', 'timeout', 'concurrent', 'chunks', 'upload_size', 'family', 'source', 'exclude'];
     const booleanKeys = ['icmp', 'http2', 'no_pre_allocate', 'private_ca'];
+    const recommendedRetention = {retention_days: '31', history_limit: '10000'};
+    const serverFields = ['id', 'name', 'server', 'dlURL', 'ulURL', 'pingURL', 'getIpURL', 'sponsorName'];
+    const recommendedOptions = {
+        duration: '10', timeout: '15', concurrent: '3', chunks: '100', upload_size: '1024',
+        family: 'auto', source: '', exclude: '', icmp: '0', http2: '0',
+        no_pre_allocate: '0', private_ca: '0'
+    };
     const metricNames = {download: "{{ lang._('Download') }}", upload: "{{ lang._('Upload') }}",
         latency: "{{ lang._('Latency') }}", jitter: "{{ lang._('Jitter') }}"};
     const modeNames = {both: "{{ lang._('Full test') }}", download: "{{ lang._('Download') }}",
@@ -421,18 +557,28 @@ librespeed-cli --help</pre>
     const originNames = {manual: "{{ lang._('GUI') }}", scheduled: "{{ lang._('Scheduled') }}",
         cli: "{{ lang._('CLI / legacy cron') }}", legacy: "{{ lang._('Legacy') }}"};
     function updateControls() {
-        $('#test_controls').prop('disabled', running || saving || !defaultsReady || (!canRun && !canConfigure));
-        $('#measurement_options_controls').prop('disabled', running || saving || !defaultsReady || (!canRun && !canConfigure));
-        $('#reportAct').prop('disabled', running || saving || !engineReady || !serversReady || !defaultsReady || !canRun);
-        $('#serverlistAct').prop('disabled', running || saving || serversLoading);
-        $('#save_settings').prop('disabled', running || saving || !defaultsReady || !settingsReady);
-        $('#public_servers').prop('disabled', running || saving || !settingsReady);
-        $('#servers_json').prop('disabled', running || saving || !settingsReady);
-        $('#schedule_controls').prop('disabled', running || saving || !scheduleReady);
-        $('#deletelogAct').prop('disabled', running || saving);
-        $('#check_status').prop('disabled', starting);
+        const busy = running || starting || saving || detecting;
+        $('#test_controls').prop('disabled', busy || !defaultsReady || (!canRun && !canConfigure));
+        $('#measurement_options_controls').prop('disabled', busy || !defaultsReady || (!canRun && !canConfigure));
+        $('#reportAct').prop('disabled', busy || !engineReady || !serversReady || !defaultsReady || !statusReady || !canRun);
+        $('#serverlistAct').prop('disabled', busy || serversLoading);
+        $('#save_settings').prop('disabled', busy || !defaultsReady || !settingsReady || serverEditIndex !== null);
+        $('#public_servers').prop('disabled', busy || !settingsReady);
+        $('#reset_retention').prop('disabled', busy || !defaultsReady || !settingsReady || !canConfigure);
+        $('#combine_servers').prop('disabled', busy || !settingsReady);
+        $('#custom_server_controls').prop('disabled', busy || !settingsReady);
+        $('#servers_json').prop('disabled', serverEditIndex !== null);
+        $('#catalog_refresh').prop('disabled', busy || !settingsReady || !defaultsReady || catalogLoading
+            || !savedPublicServers || !$('#public_servers').prop('checked'));
+        $('#catalog_rows button').prop('disabled', busy || !settingsReady || serverEditIndex !== null);
+        $('#catalog_allow_all, #catalog_allow_none').prop('disabled', busy || !settingsReady || !defaultsReady
+            || catalogLoading || !savedPublicServers || !$('#public_servers').prop('checked'));
+        $('#schedule_controls').prop('disabled', busy || !scheduleReady);
+        $('#deletelogAct').prop('disabled', busy);
+        $('#check_status').prop('disabled', starting || detecting || statusRetrying);
         $('#custom_servers').prop('disabled', $('#serverid').val() !== 'custom');
         $('#custom_server_group').prop('hidden', $('#serverid').val() !== 'custom');
+        $('#automatic_server_group').prop('hidden', $('#serverid').val() !== '0');
     }
     function currentOptions() {
         const options = {};
@@ -454,15 +600,165 @@ librespeed-cli --help</pre>
         return $.ajax({url: action.startsWith('/') ? action : api + action, type: 'POST', data: data, dataType: 'json', timeout: timeout})
             .done(callback)
             .fail(function(xhr, reason) {
-                showStatus(status, reason === 'timeout'
+                if (status) showStatus(status, reason === 'timeout'
                     ? "{{ lang._('The request timed out. Check your session and backend logs.') }}"
                     : "{{ lang._('The service could not be reached. Check your session and backend logs.') }}", true);
             });
+    }
+    function customServers() {
+        try {
+            const text = $('#servers_json').val().trim();
+            const list = text ? JSON.parse(text) : [];
+            return Array.isArray(list) && list.every(server => server && Number.isSafeInteger(server.id)) ? list : null;
+        } catch (error) {
+            if (!(error instanceof SyntaxError)) throw error;
+            return null;
+        }
+    }
+    function serverNameCell(server) {
+        return $('<td/>').append($('<strong/>').text('(' + server.id + ') ' + server.name))
+            .append($('<div/>').text(String(server.server ?? '')));
+    }
+    function rowButton(label, name, handler) {
+        return $('<button/>').attr('type', 'button').attr('aria-label', label + ': ' + name)
+            .addClass('btn btn-default btn-xs').text(label).on('click', handler);
+    }
+    function approvedPublicIds() {
+        return publicSelection === 'all' ? catalog.map(server => server.id)
+            : publicSelection === 'none' ? [] : publicSelection.split(',');
+    }
+    function setPublicSelection(selection) {
+        if (!canConfigure || !settingsReady || running || saving || detecting || serverEditIndex !== null) return;
+        publicSelection = selection;
+        renderCatalog();
+        showStatus('#settings_status', "{{ lang._('Server permissions changed on this page. Save settings to apply them to tests.') }}");
+    }
+    function togglePublicServer(server) {
+        const ids = new Set(approvedPublicIds());
+        if (ids.has(server.id)) ids.delete(server.id);
+        else ids.add(server.id);
+        if (ids.size > 50) {
+            showStatus('#catalog_selection_status', "{{ lang._('Select up to 50 official servers.') }}", true);
+            return;
+        }
+        setPublicSelection(ids.size ? [...ids].join(',') : 'none');
+    }
+    function nextCustomServerId() {
+        const ids = new Set([...(customServers() || []).map(server => String(server.id)), ...catalog.map(server => server.id)]);
+        let id = 10000;
+        while (ids.has(String(id))) id++;
+        return id;
+    }
+    function renderCustomServers() {
+        const list = customServers();
+        const rows = $('#custom_server_rows').empty();
+        $('#custom_server_table').prop('hidden', !list?.length);
+        $('#add_custom_server, #custom_server_rows button').prop('disabled', !list || serverEditIndex !== null);
+        if (!list) {
+            showStatus('#custom_server_status', "{{ lang._('Use raw JSON to correct this list or edit IDs larger than the form supports.') }}", true);
+            return;
+        }
+        showStatus('#custom_server_status', list.length ? '' : "{{ lang._('No custom servers. Tests use the configured fallback source.') }}");
+        list.forEach((server, index) => {
+            const buttons = $('<td/>')
+                .append(rowButton("{{ lang._('Edit') }}", server.name, () => editServer(server, index)))
+                .append(' ')
+                .append(rowButton("{{ lang._('Remove') }}", server.name, () => {
+                    if (running || saving || detecting || serverEditIndex !== null) return;
+                    if (list.length === 1 && !window.confirm("{{ lang._('Removing the last custom server restores the configured fallback source after saving. Remove it?') }}")) return;
+                    list.splice(index, 1);
+                    writeCustomServers(list);
+                    $('#add_custom_server').trigger('focus');
+                }));
+            rows.append($('<tr/>').append(serverNameCell(server)).append(buttons));
+        });
+        $('#custom_server_rows button').prop('disabled', serverEditIndex !== null);
+    }
+    function writeCustomServers(list) {
+        $('#servers_json').val(list.length ? JSON.stringify(list, null, 2) : '');
+        renderCustomServers();
+        showStatus('#custom_server_status', "{{ lang._('Custom list updated on this page. Save settings to use it for tests.') }}");
+    }
+    function editServer(server, index) {
+        if (running || saving || detecting || !settingsReady || serverEditIndex !== null || !customServers()) return;
+        serverEditIndex = index;
+        $('#custom_server_editor_title').text(index === -1
+            ? "{{ lang._('Add to custom servers') }}" : "{{ lang._('Edit custom server') }}");
+        serverFields.forEach(key => $('#server_edit_' + key).val(String(server[key] ?? '')));
+        $('#server_endpoint_options').prop('open', false);
+        showStatus('#server_edit_status', '');
+        $('#custom_server_editor').prop('hidden', false);
+        renderCustomServers();
+        updateControls();
+        $('#server_edit_name').trigger('focus');
+    }
+    function closeServerEditor() {
+        serverEditIndex = null;
+        $('#custom_server_editor').prop('hidden', true);
+        renderCustomServers();
+        updateControls();
+        $('#add_custom_server').trigger('focus');
+    }
+    function renderCatalog() {
+        const enabled = savedPublicServers && $('#public_servers').prop('checked');
+        const query = $('#catalog_search').val().trim().toLowerCase();
+        const ids = approvedPublicIds();
+        const unavailable = publicSelection === 'all' || !catalogReceived ? [] : ids.filter(id => !catalog.some(server => server.id === id))
+            .map(id => ({id, name: "{{ lang._('Not in the current catalog') }}", server: '', sponsorName: ''}));
+        const matches = enabled ? [...catalog, ...unavailable].filter(server =>
+            [server.id, server.name, server.server, server.sponsorName].some(value => value.toLowerCase().includes(query))) : [];
+        const rows = $('#catalog_rows').empty();
+        matches.forEach(server => {
+            const allowed = publicSelection === 'all' || ids.includes(server.id);
+            rows.append($('<tr/>').append(serverNameCell(server)).append($('<td/>').text(server.sponsorName))
+                .append($('<td/>').text(allowed ? "{{ lang._('Yes') }}" : "{{ lang._('No') }}"))
+                .append($('<td/>').append(rowButton(allowed ? "{{ lang._('Remove') }}" : "{{ lang._('Allow') }}",
+                    server.name, () => {
+                        togglePublicServer(server);
+                        $('#catalog_allow_' + server.id).trigger('focus');
+                    }).attr('id', 'catalog_allow_' + server.id))));
+        });
+        $('#catalog_table').prop('hidden', !matches.length);
+        $('#catalog_no_matches').prop('hidden', !enabled || !catalog.length || !!matches.length);
+        $('#catalog_search').prop('disabled', !enabled);
+        showStatus('#catalog_selection_status', publicSelection === 'all'
+            ? "{{ lang._('All official servers, including future additions, are allowed.') }}"
+            : publicSelection === 'none' ? "{{ lang._('No official servers are allowed. Add a custom server or allow an official server before testing.') }}"
+            : "{{ lang._('Only your selected official IDs are allowed; new catalog entries are not automatically allowed.') }}");
+        updateControls();
+    }
+    function refreshCatalog() {
+        if (!canConfigure || !settingsReady || !defaultsReady || catalogLoading) return;
+        if (!savedPublicServers || !$('#public_servers').prop('checked')) {
+            showStatus('#catalog_status', "{{ lang._('Enable the official catalog and save settings to retrieve it.') }}");
+            renderCatalog();
+            return;
+        }
+        catalogLoading = true;
+        showStatus('#catalog_status', "{{ lang._('Loading the official catalog...') }}");
+        updateControls();
+        request('/api/speedtest/settings/catalog', {}, function(data) {
+            if (!$('#public_servers').prop('checked')) return;
+            if (!Array.isArray(data?.servers) || data.servers.some(server => !server
+                || serverFields.some(key => typeof server[key] !== 'string'))) {
+                showStatus('#catalog_status', readableError(data?.error) || "{{ lang._('Unable to refresh the official catalog.') }}", true);
+                return;
+            }
+            catalog = data.servers;
+            catalogReceived = true;
+            renderCatalog();
+            showStatus('#catalog_status', "{{ lang._('Official catalog refreshed.') }}");
+        }, '#catalog_status').always(function() {
+            catalogLoading = false;
+            updateControls();
+        });
     }
     function serversReload() {
         if (serversLoading) return;
         serversLoading = true;
         serversReady = false;
+        $('#detected_server').text("{{ lang._('Server not detected') }}");
+        showStatus('#detection_status', '');
         $('#server_setup_notice').prop('hidden', true);
         showStatus('#server_status', "{{ lang._('Loading servers...') }}");
         updateControls();
@@ -498,6 +794,88 @@ librespeed-cli --help</pre>
         }, '#server_status').always(function() {
             serversLoading = false;
             updateControls();
+            detectServer();
+        });
+    }
+    function finishDetection(message, error = false) {
+        detecting = false;
+        if (error) {
+            $('#detected_server').text("{{ lang._('Server not detected') }}");
+            renderConnection(null);
+        }
+        showStatus('#detection_status', message, error);
+        updateControls();
+    }
+    function followDetection(expected, queued, generation) {
+        request('detectionstatus', {}, function(state) {
+            if (generation !== detectionGeneration) return;
+            if (!['idle', 'running', 'busy', 'completed', 'failed'].includes(state?.status)) {
+                finishDetection(readableError(state?.error) || "{{ lang._('Unable to read server detection status. Refresh servers to retry.') }}", true);
+                return;
+            }
+            if (state.run_id !== expected || state.status === 'idle' || state.status === 'busy') {
+                if (Date.now() - queued < 15000) {
+                    detectionTimer = setTimeout(() => followDetection(expected, queued, generation), 1500);
+                } else {
+                    finishDetection("{{ lang._('Server detection did not start or another operation is active. Refresh servers to retry.') }}", true);
+                }
+                return;
+            }
+            if (state.status === 'running') {
+                if (!Number.isFinite(state.deadline) || Date.now() / 1000 > state.deadline + 30) {
+                    finishDetection("{{ lang._('Server detection exceeded its expected deadline. Check backend logs and refresh servers.') }}", true);
+                    return;
+                }
+                detectionTimer = setTimeout(() => followDetection(expected, queued, generation), 1500);
+                return;
+            }
+            const result = state.results?.[0];
+            if (state.status !== 'completed' || !result || result.error
+                || !/^[1-9][0-9]*$/.test(String(result.serverid))
+                || typeof result.servername !== 'string' || !result.servername.trim()
+                || !Number.isFinite(result.latency) || result.latency < 0) {
+                finishDetection(readableError(state.error || result?.error)
+                    || "{{ lang._('No reachable server was detected. Check Advanced settings and refresh servers.') }}", true);
+                return;
+            }
+            $('#detected_server').text('(' + result.serverid + ') ' + result.servername);
+            renderConnection(result);
+            const jitter = Number.isFinite(result.jitter) && result.jitter >= 0
+                ? ' · ' + "{{ lang._('Jitter') }}: " + number(result.jitter, ' ms') : '';
+            finishDetection("{{ lang._('Detected latency') }}: " + number(result.latency, ' ms') + jitter);
+        }, '#detection_status').fail(function() {
+            if (generation !== detectionGeneration) return;
+            finishDetection("{{ lang._('Detection connection lost. The scan may still be running. Refresh servers to retry.') }}", true);
+        });
+    }
+    function detectServer() {
+        if (!$('#measurement').hasClass('active') || detectionChecked || detecting || running || starting || saving || !statusReady || !defaultsReady
+            || !engineReady || !serversReady || $('#serverid').val() !== '0') return;
+        if (!canRun) {
+            detectionChecked = true;
+            $('#detected_server').text("{{ lang._('Automatic server selection') }}");
+            showStatus('#detection_status', "{{ lang._('The LibreSpeed run privilege is required to detect a server.') }}");
+            return;
+        }
+        if (!$('#measurement_options_form')[0].reportValidity()) return;
+        detectionChecked = true;
+        detecting = true;
+        const generation = ++detectionGeneration;
+        $('#detected_server').text("{{ lang._('Detecting the lowest-latency server...') }}");
+        renderConnection(null);
+        showStatus('#detection_status', "{{ lang._('Probing configured servers. Download and upload are not running.') }}");
+        updateControls();
+        request('detect', currentOptions(), function(data) {
+            if (generation !== detectionGeneration) return;
+            if (data?.result !== 'started' || !/^[a-f0-9]{32}$/.test(data.run_id || '')) {
+                finishDetection(readableError(data?.error) || "{{ lang._('Unable to start server detection. Refresh servers to retry.') }}", true);
+                return;
+            }
+            followDetection(data.run_id, Date.now(), generation);
+        }, '#detection_status').fail(function() {
+            if (generation === detectionGeneration) {
+                finishDetection("{{ lang._('Detection response lost. The scan may still be running. Refresh servers to retry.') }}", true);
+            }
         });
     }
     function number(value, suffix = '') {
@@ -519,11 +897,35 @@ librespeed-cli --help</pre>
     function metricValue(key, value) {
         return ['download', 'upload'].includes(key) ? speed(value) : number(value, ' ms');
     }
+    function renderConnection(result) {
+        const notReported = "{{ lang._('Not reported') }}";
+        const value = text => typeof text === 'string' && text.trim() ? text : notReported;
+        $('#connection_sponsor').text(value(result?.sponsor));
+        $('#connection_ip').text(value(result?.connection?.ip));
+        $('#connection_isp').text(value(result?.connection?.isp));
+        $('#connection_source').text(result?.servername
+            ? "{{ lang._('Details for') }} " + result.servername + "{{ lang._('; IP and ISP describe this firewall, not the browser.') }}"
+            : "{{ lang._('Details appear after server detection or a test.') }}");
+    }
+    function renderGauge(key, value, live = false) {
+        const measured = Number.isFinite(value) && value >= 0;
+        const base = measured && value > 0 ? Math.pow(10, Math.floor(Math.log10(value))) : 100;
+        const range = measured && value > 0 ? [1, 2, 5, 10].find(step => step * base >= value) * base : base;
+        const maximum = live && measured ? Math.max(gaugeRanges[key], range) : range;
+        gaugeRanges[key] = measured ? maximum : 0;
+        const percent = measured ? Math.min(100, value / maximum * 100) : 0;
+        $('#' + key + '_arc').attr('stroke-dasharray', percent + ' 100');
+        $('#' + key + '_needle').attr('transform', 'rotate(' + (percent * 1.8 - 90) + ' 110 110)')
+            .attr('opacity', measured ? '1' : '0');
+        $('#' + key + '_scale').text(speed(maximum));
+    }
     function renderResults(results) {
         const result = results.find(item => !item.error);
+        renderConnection(result);
         Object.keys(metricNames).forEach(key => {
             const value = result?.[key];
             $('#' + key).text(metricValue(key, value)).toggleClass('is-empty', value === undefined || value === null);
+            if (['download', 'upload'].includes(key)) renderGauge(key, value);
         });
         $('#readout_hint').text(running ? "{{ lang._('Test in progress. Results appear when it finishes.') }}"
             : result ? "{{ lang._('Most recent completed test.') }}"
@@ -582,6 +984,7 @@ librespeed-cli --help</pre>
             ['download', 'upload'].forEach(key => {
                 const point = samples[key].at(-1);
                 $('#' + key).text(speed(point?.mbps)).toggleClass('is-empty', !point);
+                renderGauge(key, point?.mbps, true);
             });
         }
         const hasSamples = samples.download.length || samples.upload.length;
@@ -739,14 +1142,41 @@ librespeed-cli --help</pre>
                 if (generation === historyGeneration) showStatus('#history_status', "{{ lang._('Unable to load history. Check your session and refresh.') }}", true);
             });
     }
+    function statusProblem(message) {
+        statusReady = false;
+        statusNeedsAttention = true;
+        statusRetrying = false;
+        $('#check_status').prop('hidden', false);
+        showStatus('#test_status', message, true);
+        updateControls();
+    }
+    function scheduleStatusCheck(generation) {
+        pollTimer = setTimeout(function() {
+            if (generation !== pollGeneration) return;
+            if (detecting || saving || starting || document.hidden) {
+                scheduleStatusCheck(generation);
+            } else {
+                followStatus(null, Date.now(), generation);
+            }
+        }, 30000);
+    }
     function followStatus(expected = null, queued = Date.now(), generation = ++pollGeneration, failures = 0) {
         clearTimeout(pollTimer);
         request('status', {}, function(state) {
             if (generation !== pollGeneration) return;
-            if (!['idle', 'running', 'busy', 'completed', 'failed'].includes(state?.status)) {
-                showStatus('#test_status', readableError(state?.error) || "{{ lang._('Unable to read test status. Use Refresh status to retry.') }}", true);
+            if (detecting && !expected) {
+                scheduleStatusCheck(generation);
                 return;
             }
+            if (!['idle', 'running', 'busy', 'completed', 'failed'].includes(state?.status)) {
+                statusProblem(readableError(state?.error) || "{{ lang._('Unable to check test status.') }}");
+                return;
+            }
+            if (statusNeedsAttention || failures) showStatus('#test_status', '');
+            statusNeedsAttention = false;
+            statusRetrying = false;
+            $('#check_status').prop('hidden', true);
+            statusReady = true;
             if (state.status === 'busy') {
                 otherOperation = true;
                 if (!running) renderResults([]);
@@ -755,7 +1185,7 @@ librespeed-cli --help</pre>
                 $('#run_progress').prop('hidden', true);
                 renderLive(null);
                 $('#readout_hint').text("{{ lang._('Live progress is unavailable for this operation.') }}");
-                showStatus('#test_status', "{{ lang._('Another test or history operation is in progress. Wait for it to finish.') }}");
+                showStatus('#test_status', "{{ lang._('Another test, server scan or history operation is in progress. Wait for it to finish.') }}");
                 pollTimer = setTimeout(() => followStatus(expected, queued, generation), 1500);
                 return;
             }
@@ -768,16 +1198,23 @@ librespeed-cli --help</pre>
                     renderResults([]);
                     updateControls();
                     $('#run_progress').prop('hidden', true);
-                    showStatus('#test_status', "{{ lang._('The queued test did not start. Check backend logs and refresh status before retrying.') }}", true);
+                    statusProblem("{{ lang._('The queued test did not start. Check backend logs and test status before retrying.') }}");
                 }
                 return;
             }
             const finishedOtherOperation = otherOperation && !expected;
             otherOperation = false;
             const wasRunning = running;
+            const statusKey = JSON.stringify([state.status, state.run_id ?? null, state.updated ?? null]);
+            const changed = statusKey !== lastStatusKey;
+            lastStatusKey = statusKey;
             if (state.status === 'running' && !wasRunning) renderResults([]);
             running = state.status === 'running';
             updateControls();
+            if (!running && !wasRunning && !finishedOtherOperation && !changed) {
+                scheduleStatusCheck(generation);
+                return;
+            }
             $('#run_progress').prop('hidden', !running);
             renderLive(state.status === 'idle' ? null : state);
             if (running) {
@@ -789,7 +1226,7 @@ librespeed-cli --help</pre>
                 $('#readout_hint').text("{{ lang._('Live speeds are running averages. Final results appear when the test finishes.') }}");
                 showStatus('#test_status', "{{ lang._('Test in progress. Throughput measurements may saturate the connection.') }}");
                 if (Date.now() / 1000 > state.deadline + 30) {
-                    showStatus('#test_status', "{{ lang._('The test exceeded its expected deadline. Check backend logs; a lock may still be held. Refresh status to check again.') }}", true);
+                    statusProblem("{{ lang._('The test exceeded its expected deadline. Check backend logs; a lock may still be held.') }}");
                     return;
                 }
                 pollTimer = setTimeout(() => followStatus(state.run_id, queued, generation), 1500);
@@ -806,16 +1243,25 @@ librespeed-cli --help</pre>
                 }
                 showStatus('#test_status', message, state.status === 'failed');
                 historyLoaded = false;
-            } else if (wasRunning) {
-                $('#readout_hint').text("{{ lang._('Run a test to see measurements here.') }}");
-                showStatus('#test_status', "{{ lang._('No test is currently running.') }}");
+            } else {
+                renderResults([]);
+                showStatus('#test_status', wasRunning ? "{{ lang._('No test is currently running.') }}" : '');
             }
-        }, '#test_status').fail(function() {
+            detectServer();
+            if (!running) scheduleStatusCheck(generation);
+        }, null).fail(function() {
             if (generation !== pollGeneration) return;
+            if (detecting && !expected) {
+                scheduleStatusCheck(generation);
+                return;
+            }
+            statusReady = false;
+            updateControls();
             if (failures < 2) {
+                showStatus('#test_status', "{{ lang._('Unable to check test status. Retrying...') }}", true);
                 pollTimer = setTimeout(() => followStatus(expected, queued, generation, failures + 1), 3000);
             } else {
-                showStatus('#test_status', "{{ lang._('Progress connection lost. The test may still be running. Refresh status after restoring your session.') }}", true);
+                statusProblem("{{ lang._('Unable to check test status. The test may still be running; check your session and backend logs.') }}");
             }
         });
     }
@@ -846,7 +1292,7 @@ librespeed-cli --help</pre>
             $('#open_server_setup').on('click', function(event) {
                 event.preventDefault();
                 $('#setup_tab').tab('show');
-                $('#servers_json').trigger('focus');
+                $('#server_settings_heading').trigger('focus');
             });
         }
         $('#open_test_settings').on('click', function(event) {
@@ -858,6 +1304,18 @@ librespeed-cli --help</pre>
             $('#setup_tab').tab('show');
         }, true);
         $('#measurement_options_form').on('submit', event => event.preventDefault());
+        $('#measurement_options_form').on('change', function() {
+            detectionChecked = false;
+            $('#detected_server').text("{{ lang._('Settings changed. Return to Run test to re-detect.') }}");
+            showStatus('#detection_status', '');
+        });
+        $('#reset_measurement').on('click', function() {
+            if (running || saving || detecting || !defaultsReady || (!canRun && !canConfigure)) return;
+            optionKeys.forEach(key => $('#' + key).val(recommendedOptions[key]));
+            booleanKeys.forEach(key => $('#' + key).prop('checked', recommendedOptions[key] === '1'));
+            $('#measurement_options_form').trigger('change');
+            showStatus('#settings_status', "{{ lang._('Recommended measurement settings restored on this page. Save settings to use them for future tests.') }}");
+        });
         request('defaults', {}, function(data) {
             if (!data || data.error) {
                 showStatus('#test_status', readableError(data?.error) || "{{ lang._('Unable to load saved defaults') }}", true);
@@ -866,16 +1324,46 @@ librespeed-cli --help</pre>
             optionKeys.forEach(key => { if (data[key] !== undefined) $('#' + key).val(data[key]); });
             booleanKeys.forEach(key => $('#' + key).prop('checked', data[key] === '1'));
             ['retention_days', 'history_limit'].forEach(key => {
-                $('#' + key).val(data[key] || '0');
-                savedRetention[key] = Number(data[key] || 0);
+                const value = data[key] ?? recommendedRetention[key];
+                $('#' + key).val(value);
+                savedRetention[key] = Number(value);
             });
-            $('#public_servers').prop('checked', data.public_servers === '1');
+            savedPublicServers = data.public_servers === '1';
+            $('#public_servers').prop('checked', savedPublicServers);
             defaultsReady = true;
             updateControls();
+            if (setupVisible) refreshCatalog();
             followStatus();
-            $('#check_status').on('click', () => followStatus());
-            $('#serverid').on('change', updateControls);
-            $(window).on('pagehide', function() { ++pollGeneration; clearTimeout(pollTimer); });
+            $('#check_status').on('click', function() {
+                if (starting || detecting || statusRetrying) return;
+                statusRetrying = true;
+                showStatus('#test_status', "{{ lang._('Checking test status...') }}");
+                updateControls();
+                followStatus();
+            });
+            $('#serverid').on('change', function() { updateControls(); detectServer(); });
+            $(window).on('pagehide', function() {
+                ++pollGeneration;
+                ++detectionGeneration;
+                clearTimeout(pollTimer);
+                clearTimeout(detectionTimer);
+            });
+            $(window).on('pageshow', function(event) {
+                if (!event.originalEvent?.persisted) return;
+                if (detecting) {
+                    detecting = false;
+                    detectionChecked = false;
+                    $('#detected_server').text("{{ lang._('Waiting to detect a server...') }}");
+                    showStatus('#detection_status', '');
+                }
+                statusReady = false;
+                statusRetrying = statusNeedsAttention;
+                updateControls();
+                followStatus();
+            });
+            $(document).on('visibilitychange', function() {
+                if (!document.hidden && statusReady && !running && !starting && !detecting && !saving && !statusNeedsAttention) followStatus();
+            });
             if (canSchedule) {
                 request('/api/speedtest/schedule/get', {}, function(data) {
                     if (!data?.schedule || data.error) {
@@ -919,23 +1407,105 @@ librespeed-cli --help</pre>
         }, '#test_status');
         updateControls();
         if (canConfigure) {
+            $('#retention_form').on('submit', event => event.preventDefault());
+            $('#reset_retention').on('click', function() {
+                if (running || saving || detecting || !settingsReady || !defaultsReady) return;
+                Object.entries(recommendedRetention).forEach(([key, value]) => $('#' + key).val(value));
+                showStatus('#settings_status', "{{ lang._('Recommended retention restored on this page. Save settings to apply it; export history before shortening limits.') }}");
+            });
+            $('#setup_tab').on('shown.bs.tab', function() {
+                setupVisible = true;
+                refreshCatalog();
+            }).on('hidden.bs.tab', function() { setupVisible = false; });
+            $('#catalog_refresh').on('click', refreshCatalog);
+            $('#catalog_allow_all').on('click', () => setPublicSelection('all'));
+            $('#catalog_allow_none').on('click', () => setPublicSelection('none'));
+            $('#public_servers').on('change', function() {
+                renderCatalog();
+                refreshCatalog();
+            });
+            $('#catalog_search').on('input', renderCatalog);
+            $('#servers_json').on('input', renderCustomServers);
+            $('#add_custom_server').on('click', () => editServer({
+                id: nextCustomServerId(),
+                dlURL: 'garbage.php', ulURL: 'empty.php', pingURL: 'empty.php', getIpURL: 'getIP.php'
+            }, -1));
+            $('#cancel_server_edit').on('click', closeServerEditor);
+            $('#custom_server_editor')[0].addEventListener('invalid', function() {
+                $('#server_endpoint_options').prop('open', true);
+            }, true);
+            $('#custom_server_editor').on('submit', function(event) {
+                event.preventDefault();
+                if (serverEditIndex === null || running || saving || detecting || !this.reportValidity()) return;
+                const list = customServers();
+                if (!list) return;
+                const server = serverEditIndex === -1 ? {} : {...list[serverEditIndex]};
+                serverFields.forEach(key => server[key] = $('#server_edit_' + key).val().trim());
+                server.id = Number(server.id);
+                let url;
+                try { url = new URL(server.server); }
+                catch (error) {
+                    if (!(error instanceof TypeError)) throw error;
+                    showStatus('#server_edit_status', "{{ lang._('Enter a valid HTTPS backend URL.') }}", true);
+                    return;
+                }
+                if (!Number.isSafeInteger(server.id) || server.id < 1 || !server.name || /[\u0000-\u001f\u007f]/.test(server.name)
+                    || url.protocol !== 'https:' || !/^https:\/\/[^/]/.test(server.server) || url.username || url.password
+                    || url.search || url.hash || /[\s\\]/.test(server.server)
+                    || list.some((entry, index) => index !== serverEditIndex && (entry.id === server.id
+                        || String(entry.server).replace(/\/+$/, '') === server.server.replace(/\/+$/, '')))) {
+                    $('#server_endpoint_options').prop('open', true);
+                    showStatus('#server_edit_status', "{{ lang._('Use a unique positive ID, a name, and a unique HTTPS URL without credentials, queries or fragments.') }}", true);
+                    return;
+                }
+                if (['dlURL', 'ulURL', 'pingURL', 'getIpURL'].some(key =>
+                    !/^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*$/.test(server[key])
+                    || server[key].split('/').some(part => part === '.' || part === '..'))) {
+                    showStatus('#server_edit_status', "{{ lang._('Endpoint paths must be relative and cannot contain dot or parent segments.') }}", true);
+                    return;
+                }
+                if (serverEditIndex === -1 && list.length >= 50) {
+                    showStatus('#server_edit_status', "{{ lang._('Remove a custom server before adding another. The list supports up to 50.') }}", true);
+                    return;
+                }
+                if (!server.sponsorName) delete server.sponsorName;
+                list[serverEditIndex === -1 ? list.length : serverEditIndex] = server;
+                closeServerEditor();
+                writeCustomServers(list);
+            });
             $.ajax({url: '/api/speedtest/settings/get', dataType: 'json', timeout: 30000}).done(function(data) {
                 if (typeof data?.speedtest?.general?.servers !== 'string') {
                     showStatus('#settings_status', "{{ lang._('Unable to load server settings') }}", true);
                     return;
                 }
                 $('#servers_json').val(data.speedtest.general.servers);
+                publicSelection = data.speedtest.general.public_selection || 'all';
+                $('#combine_servers').prop('checked', data.speedtest.general.combine_servers === '1');
                 settingsReady = true;
+                renderCustomServers();
+                renderCatalog();
                 updateControls();
+                if (setupVisible) refreshCatalog();
             }).fail(() => showStatus('#settings_status', "{{ lang._('Unable to load server settings') }}", true));
         }
         $('#save_settings').on('click', function() {
-            if (running || saving || !settingsReady || !defaultsReady || !canConfigure) return;
+            if (running || saving || detecting || !settingsReady || !defaultsReady || !canConfigure || serverEditIndex !== null) return;
             if (!$('#measurement_options_form')[0].reportValidity()) return;
             if (!$('#retention_form')[0].reportValidity()) return;
             const options = currentOptions();
             options.public_servers = $('#public_servers').prop('checked') ? '1' : '0';
+            options.public_selection = publicSelection;
+            options.combine_servers = $('#combine_servers').prop('checked') ? '1' : '0';
             options.servers = $('#servers_json').val();
+            if (options.combine_servers === '1' && options.public_servers === '1') {
+                const allowed = approvedPublicIds();
+                if ((customServers() || []).some(server => catalog.some(official =>
+                    allowed.includes(official.id) && (String(server.id) === official.id
+                        || String(server.server ?? '').replace(/\/+$/, '') === official.server.replace(/\/+$/, ''))))) {
+                    showStatus('#settings_status', "{{ lang._('Custom and allowed official servers share an ID or URL. Edit the custom entry or remove the official server from the allowed list before combining.') }}", true);
+                    return;
+                }
+            }
             for (const key of ['retention_days', 'history_limit']) {
                 options[key] = $('#' + key).val();
             }
@@ -960,7 +1530,7 @@ librespeed-cli --help</pre>
         });
         request('version', {}, function(data) {
             if (typeof data?.message !== 'string' || !data.message || data.error) {
-                showStatus('#version', readableError(data?.error) || "{{ lang._('LibreSpeed setup is incomplete. See Settings and CLI.') }}", true);
+                showStatus('#version', readableError(data?.error) || "{{ lang._('LibreSpeed setup is incomplete. See Advanced settings.') }}", true);
                 updateControls();
                 return;
             }
@@ -970,13 +1540,19 @@ librespeed-cli --help</pre>
             updateControls();
             serversReload();
         }, '#version');
-        $('#serverlistAct').on('click', serversReload);
+        $('#serverlistAct').on('click', function() {
+            if (running || starting || saving || detecting) return;
+            detectionChecked = false;
+            if (canRun) renderConnection(null);
+            serversReload();
+        });
         $('a[href="#history"]').on('shown.bs.tab', function() {
             if (!historyLoaded) historyReload();
             charts.forEach(chart => chart.resize());
         });
         $('a[href="#measurement"]').on('shown.bs.tab', function() {
             if (liveChart) liveChart.resize();
+            detectServer();
         });
         $('#history_filters').on('change', function() { historyPage = 1; historyReload(); });
         $('#history_previous').on('click', function() { if (historyPage > 1) { historyPage--; historyReload(); } });
@@ -984,7 +1560,7 @@ librespeed-cli --help</pre>
         $('#refresh_history').on('click', historyReload);
         $('#test_form').on('submit', function(event) {
             event.preventDefault();
-            if (!canRun || !engineReady || !serversReady || !defaultsReady || running || saving || !this.reportValidity()
+            if (!canRun || !engineReady || !serversReady || !defaultsReady || !statusReady || running || starting || saving || detecting || !this.reportValidity()
                 || !$('#measurement_options_form')[0].reportValidity()) return;
             const options = currentOptions();
             const mode = $('#mode').val();
@@ -1003,12 +1579,13 @@ librespeed-cli --help</pre>
                     renderResults([]);
                     updateControls();
                     showStatus('#test_status', readableError(data?.error) || "{{ lang._('Unable to start a test. Check backend logs.') }}", true);
+                    scheduleStatusCheck(pollGeneration);
                     return;
                 }
                 followStatus(data.run_id);
             }, '#test_status').fail(function() {
-                $('#readout_hint').text("{{ lang._('Test status is unknown. Refresh status to check.') }}");
-                showStatus('#test_status', "{{ lang._('Start response lost. The test may have started; refresh status before retrying.') }}", true);
+                $('#readout_hint').text("{{ lang._('Test status is unknown.') }}");
+                statusProblem("{{ lang._('Start response lost. The test may have started; check its status before retrying.') }}");
             }).always(function() {
                 starting = false;
                 updateControls();
@@ -1022,6 +1599,11 @@ librespeed-cli --help</pre>
                     showStatus('#history_status', readableError(data?.error) || "{{ lang._('Unable to clear history') }}", true);
                     return;
                 }
+                renderResults([]);
+                renderLive(null);
+                $('#detected_server').text("{{ lang._('Server not detected') }}");
+                showStatus('#detection_status', '');
+                showStatus('#test_status', "{{ lang._('History cleared.') }}");
                 historyReload();
             }, '#history_status').always(() => $('#deletelogAct').prop('disabled', false));
         });

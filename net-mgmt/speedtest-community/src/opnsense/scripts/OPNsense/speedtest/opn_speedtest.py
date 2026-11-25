@@ -45,6 +45,7 @@ import ipaddress
 import selectors
 import tempfile
 import time
+import unicodedata
 import urllib.error
 import urllib.request
 import uuid
@@ -64,7 +65,7 @@ parser = argparse.ArgumentParser(
     epilog='For all upstream options and streaming output, use librespeed-cli --help. https://librespeed.org/',
 )
 parser.add_argument('action', nargs='?', default='run',
-                    help='run, list, version, stat, recent, log, clear, or a configured server ID')
+                    help='run, detect, detection-status, status, history, list, version, stat, recent, log, clear, or a configured server ID')
 parser.add_argument('legacy_mode', nargs='?', help=argparse.SUPPRESS)
 parser.add_argument('encoded_options', nargs='?', help=argparse.SUPPRESS)
 parser.add_argument('--cli', action='store_true', help=argparse.SUPPRESS)
@@ -102,6 +103,11 @@ arg = ('-1' if args.all_servers else ','.join(args.server or ['0'])) if args.act
 mode = args.mode or args.legacy_mode or 'both'
 librespeed_servers, csvfile = args.config or librespeed_servers, args.history
 history_file, state_file = csvfile + '.jsonl', csvfile + '.state.json'
+detection = args.action in ('detect', 'detection-status')
+if detection:
+    state_file = csvfile + '.detect.json'
+if args.action == 'detect':
+    arg, mode = '0', 'latency'
 output_format = args.format or ('text' if args.cli else 'json')
 terminal = args.cli or args.format is not None
 exit_status = 0
@@ -111,7 +117,7 @@ RUN_TIMEOUT = 100
 DEFAULT_OPTIONS = {'duration': 10, 'timeout': 15, 'concurrent': 3, 'chunks': 100, 'upload_size': 1024,
                    'family': 'auto', 'source': '', 'icmp': False, 'http2': False,
                    'no_pre_allocate': False, 'private_ca': False, 'exclude': ''}
-HISTORY_DEFAULTS = {'retention_days': 0, 'history_limit': 0}
+HISTORY_DEFAULTS = {'retention_days': 31, 'history_limit': 10000}
 active_run = None
 
 def native_settings(section='general'):
@@ -124,9 +130,12 @@ def native_settings(section='general'):
 def normalize_settings(settings):
     options = {}
     for key, value in settings.items():
-        if key == 'public_servers':
+        if key in ('public_servers', 'combine_servers'):
             if value not in ('0', '1'):
-                raise ValueError('Invalid boolean setting: public_servers')
+                raise ValueError('Invalid boolean setting: ' + key)
+            continue
+        if key == 'public_selection':
+            public_server_selection(settings)
             continue
         if key not in DEFAULT_OPTIONS:
             if key in ('servers', *HISTORY_DEFAULTS):
@@ -212,10 +221,12 @@ def measurement_options(settings=None):
     return options
 
 def history_policy(settings=None):
+    from_config = settings is None
     settings = native_settings() if settings is None else settings
     result = {}
     for key, maximum in (('retention_days', 3650), ('history_limit', 100000)):
-        value = settings.get(key, HISTORY_DEFAULTS[key])
+        # Native migrations persist new-install defaults; absent legacy limits remain unlimited.
+        value = settings.get(key, 0 if from_config else HISTORY_DEFAULTS[key])
         if not re.fullmatch(r'[0-9]+', str(value)) or not 0 <= int(value) <= maximum:
             raise ValueError(f'{key} must be between 0 and {maximum}; 0 keeps all history')
         result[key] = int(value)
@@ -524,26 +535,69 @@ def streamed_command(command, timeout, content):
             raise
     return reports
 
+class NoRegistryRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise ValueError('LibreSpeed public server list must not redirect')
+
+
+def fetch_public_servers():
+    try:
+        opener = urllib.request.build_opener(NoRegistryRedirect())
+        with opener.open(public_servers_url, timeout=20) as response:
+            return response.read(65537)
+    except OSError as error:
+        raise ValueError('Unable to retrieve the official LibreSpeed.org server list: '
+                         + str(error)) from error
+
+
+def public_server_selection(settings):
+    selection = settings.get('public_selection', 'all')
+    if selection in ('all', 'none'):
+        return selection
+    if not isinstance(selection, str) or not re.fullmatch(r'[1-9][0-9]{0,18}(?:,[1-9][0-9]{0,18}){0,49}', selection):
+        raise ValueError('Select all, none, or up to 50 official server IDs')
+    ids = [int(value) for value in selection.split(',')]
+    if len(set(ids)) != len(ids) or any(value >= 2**63 for value in ids):
+        raise ValueError('Approved official server IDs must be unique positive integers below 2^63')
+    return set(ids)
+
+
 def load_librespeed_servers(content=None):
-    settings = native_settings()
     if content is None:
+        settings = native_settings()
+        selection = public_server_selection(settings)
+        local_content = None
         if not args.config and settings.get('servers', '').strip():
-            content = settings['servers']
+            local_content = settings['servers']
         else:
             try:
                 with open(librespeed_servers, 'rb') as config:
-                    content = config.read(65537)
+                    local_content = config.read(65537)
             except FileNotFoundError:
-                if args.config or settings.get('public_servers', '1') != '1':
+                if args.config:
                     return None
-                try:
-                    with urllib.request.urlopen(public_servers_url, timeout=20) as response:
-                        if response.geturl() != public_servers_url:
-                            raise ValueError('LibreSpeed public server list redirected to an unexpected URL')
-                        content = response.read(65537)
-                except (OSError, TimeoutError, urllib.error.URLError) as error:
-                    raise ValueError('Unable to retrieve the official LibreSpeed.org server list: '
-                                     + str(error)) from error
+        local = load_librespeed_servers(local_content) if local_content is not None else []
+        if args.config or (local and settings.get('combine_servers', '0') != '1'):
+            return local
+        if settings.get('public_servers', '1') != '1':
+            return local or None
+        if selection == 'none':
+            if local:
+                return local
+            raise ValueError('No servers are allowed. Allow an official server or add a custom server')
+        public = load_librespeed_servers(fetch_public_servers())
+        approved = public if selection == 'all' else [server for server in public if server['id'] in selection]
+        if not approved and not local:
+            raise ValueError('None of the allowed official servers are in the current catalog. Review the allowed list')
+        if any(custom['id'] == official['id'] or custom['server'].rstrip('/') == official['server'].rstrip('/')
+               for custom in local for official in approved):
+            raise ValueError('Custom and allowed official servers share an ID or URL. '
+                             'Edit the custom entry or remove the official server from the allowed list')
+        merged = local + approved
+        if not merged:
+            return None
+        # Reuse the same duplicate, size and endpoint validation for merged sources.
+        return load_librespeed_servers(json.dumps(merged))
     if len(content.encode('utf-8') if isinstance(content, str) else content) > 65536:
         raise ValueError('LibreSpeed server list exceeds 64 KiB')
     servers = json.loads(content)
@@ -572,6 +626,12 @@ def load_librespeed_servers(content=None):
         ids.add(server_id)
         urls.add(url)
     return servers
+
+def optional_display_text(value):
+    if (not isinstance(value, str) or len(value) > 200
+            or any(unicodedata.category(c).startswith('C') for c in value)):
+        return ''
+    return value.strip()
 
 def run_librespeed(servers, server_id, mode, options):
     if server_id not in ('', '0'):
@@ -619,6 +679,16 @@ def run_librespeed(servers, server_id, mode, options):
     update_state(server=selected['name'])
     out = {'provider': 'librespeed', 'timestamp': result['timestamp'], 'clientip': '',
            'serverid': selected['id'], 'servername': selected['name'], 'country': '', 'link': ''}
+    out['sponsor'] = optional_display_text(selected.get('sponsorName'))
+    client = result.get('client')
+    if isinstance(client, dict):
+        address = client.get('ip')
+        try:
+            address = (str(ipaddress.ip_address(address))
+                       if isinstance(address, str) and len(address) <= 45 and '%' not in address else '')
+        except ValueError:
+            address = ''
+        out['connection'] = {'ip': address, 'isp': optional_display_text(client.get('org'))}
     for field, key in [('latency', 'ping'), ('jitter', 'jitter')] + [(d, d) for d, _ in directions]:
         value = result.get(key)
         if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
@@ -646,7 +716,8 @@ def result_row(out):
             out.get('country', ''), out['download'], out['upload'], out['latency'], out.get('link', '')]
 
 def save_result(out):
-    append_record(dict(out, status='success'))
+    record = {key: value for key, value in out.items() if key != 'connection'}
+    append_record(dict(record, status='success'))
     if out['mode'] != 'both':
         return
     with open(csvfile, 'a', encoding="utf-8", newline='') as f:
@@ -671,7 +742,8 @@ def failure_record(message, server_id='0', name='Automatic selection', options=N
               'serverid': server_id if re.fullmatch(r'[1-9][0-9]{0,18}', str(server_id)) else '0',
               'selection': server_id, 'servername': name, 'mode': mode, 'status': 'failed',
               'error': message, 'options': options or {}}
-    append_record(record)
+    if not detection:
+        append_record(record)
     return record
 
 def report_error(error):
@@ -680,8 +752,10 @@ def report_error(error):
         try:
             failure_record(message, arg)
             update_state(status='failed', error=message)
+            if not detection:
+                prune_history()
         except (OSError, ValueError) as history_error:
-            message += '; unable to save failure details: ' + str(history_error)
+            message += '; unable to update failure history: ' + str(history_error)
     if args.origin == 'scheduled':
         syslog.syslog(syslog.LOG_ERR, 'LibreSpeed scheduled measurement: ' + message)
     emit({'error': message})
@@ -738,7 +812,7 @@ try:
         emit({'result': 'ok'})
         quit()
 
-    if arg == 'status':
+    if arg in ('status', 'detection-status'):
         emit(run_status())
         quit()
     if arg == 'history':
@@ -746,6 +820,18 @@ try:
             'days': args.days, 'page': args.page
         }
         emit(history_report(query))
+        quit()
+    if arg == 'public-list':
+        if native_settings().get('public_servers', '1') != '1':
+            emit({'error': 'Public server discovery is disabled. Enable it and save settings to load the catalog.'})
+        else:
+            servers = load_librespeed_servers(fetch_public_servers())
+            keys = ('name', 'server', 'dlURL', 'ulURL', 'pingURL', 'getIpURL')
+            emit({'servers': [
+                dict({key: server[key] for key in keys}, id=str(server['id']),
+                     sponsorName=optional_display_text(server.get('sponsorName')))
+                for server in servers
+            ]})
         quit()
     if arg == 'scheduled':
         schedule = native_settings('schedule')
@@ -772,12 +858,13 @@ try:
         # A process started before package removal must not recreate its history.
         if not os.path.isfile(__file__):
             raise FileNotFoundError('LibreSpeed was uninstalled before history could be updated')
-        try:
-            with open(csvfile, 'x', encoding="utf-8", newline='') as f:
-                os.fchmod(f.fileno(), 0o644)
-                csv.writer(f, dialect='excel').writerow(fields)
-        except FileExistsError:
-            pass
+        if not detection:
+            try:
+                with open(csvfile, 'x', encoding="utf-8", newline='') as f:
+                    os.fchmod(f.fileno(), 0o644)
+                    csv.writer(f, dialect='excel').writerow(fields)
+            except FileExistsError:
+                pass
         if not hold_lock:
             lock.close()
             lock = None
@@ -840,7 +927,7 @@ try:
         quit()
 
     if arg == 'clear':
-        for path in (history_file, state_file):
+        for path in (history_file, state_file, csvfile + '.detect.json'):
             try:
                 os.unlink(path)
             except FileNotFoundError:
@@ -911,10 +998,12 @@ try:
                     if args.origin == 'scheduled':
                         syslog.syslog(syslog.LOG_ERR, 'LibreSpeed scheduled measurement: ' + message)
                 else:
-                    save_result(result)
+                    if not detection:
+                        save_result(result)
                 results.append(result)
                 update_state(results=results, completed=index + 1)
-            prune_history()
+            if not detection:
+                prune_history()
             error = (results[0]['error'] if len(results) == 1 else f'{failed} of {len(results)} servers failed') if failed else None
             update_state(status='failed' if failed else 'completed', phase='finished', progress=100, error=error)
             active_run = None

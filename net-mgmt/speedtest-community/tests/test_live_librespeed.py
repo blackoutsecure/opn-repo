@@ -65,7 +65,8 @@ class LiveEngineTests(unittest.TestCase):
                             self.send_error(503)
                             return
                     self.reply(b'0' * 1048576 if path == '/garbage' else
-                               b'{"processedString":"127.0.0.1","rawIspInfo":""}' if path == '/ip' else b'')
+                               b'{"processedString":"127.0.0.1","rawIspInfo":{"ip":"127.0.0.1","org":"Fixture ISP"}}'
+                               if path == '/ip' else b'')
 
                 def do_POST(self):
                     if self.headers.get('Transfer-Encoding') == 'chunked':
@@ -102,7 +103,7 @@ class LiveEngineTests(unittest.TestCase):
                     servers = root / 'servers.json'
                     history = root / 'history.csv'
                     definitions = [{
-                        'id': 42, 'name': 'Verified HTTPS fixture',
+                        'id': 42, 'name': 'Verified HTTPS fixture', 'sponsorName': 'Fixture sponsor',
                         'server': f'https://127.0.0.1:{server.server_port}/',
                         'dlURL': 'garbage', 'ulURL': 'empty', 'pingURL': 'empty', 'getIpURL': 'ip'
                     }]
@@ -133,6 +134,8 @@ class LiveEngineTests(unittest.TestCase):
                                      '--no-pre-allocate', '--http2', '--run-id', f'{index:032x}')
                         self.assertIn(result['tls']['version'], ('TLS 1.2', 'TLS 1.3'))
                         self.assertTrue(result['tls']['cipher'])
+                        self.assertEqual(result['connection'], {'ip': '127.0.0.1', 'isp': 'Fixture ISP'})
+                        self.assertEqual(result['sponsor'], 'Fixture sponsor')
                         for direction in ('download', 'upload'):
                             if mode in ('both', direction):
                                 self.assertGreater(result[direction], 0)
@@ -171,6 +174,18 @@ class LiveEngineTests(unittest.TestCase):
                     self.assertEqual(detailed['metrics']['download']['count'], 2)
                     self.assertEqual(run('status')['status'], 'completed')
                     self.assertIn('status: completed', run('status', fmt='text'))
+                    preserved = {path: path.read_bytes() for path in (
+                        history, Path(str(history) + '.jsonl'), Path(str(history) + '.state.json'))}
+                    detected = run('detect', '--exclude', '42', '--private-ca', '--family', 'ipv4',
+                                   '--run-id', 'd' * 32)
+                    self.assertEqual((detected['serverid'], detected['mode']), (84, 'latency'))
+                    self.assertEqual(detected['connection'], {'ip': '127.0.0.1', 'isp': 'Fixture ISP'})
+                    self.assertEqual(detected['sponsor'], 'Fixture sponsor')
+                    self.assertNotIn('download', detected)
+                    self.assertNotIn('upload', detected)
+                    self.assertEqual(run('detection-status')['status'], 'completed')
+                    for path, content in preserved.items():
+                        self.assertEqual(path.read_bytes(), content)
                     native = [binary, '--local-json', str(servers), '--ca-cert', str(root / 'ca.pem'),
                               '--secure', '--no-icmp', '--no-download', '--no-upload']
                     stream = subprocess.run([*native, '--json-stream'], check=True, capture_output=True,
@@ -205,6 +220,7 @@ class LiveEngineTests(unittest.TestCase):
                         self.assertEqual(run('status')['status'], 'busy')
                         self.assertIn('already running', run('run', '--mode', 'latency', success=False)['error'])
                         self.assertIn('already running', run('clear', success=False)['error'])
+                        self.assertIn('already running', run('detect', success=False)['error'])
                     finally:
                         release.set()
                         try:

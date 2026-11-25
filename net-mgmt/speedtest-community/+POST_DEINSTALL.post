@@ -12,10 +12,10 @@ if [ -L "$data_dir" ] || [ -L "$lock" ] || { [ -e "$lock" ] && [ ! -f "$lock" ];
     echo "LibreSpeed uninstall: unsafe history directory or lock; history was retained." >&2
     cleanup_status=1
 elif [ -d "$data_dir" ]; then
-    if [ -e "$history" ] || [ -L "$history" ] || [ -e "$lock" ] || [ -e "$history.jsonl" ] || [ -L "$history.jsonl" ] || [ -e "$history.state.json" ] || [ -L "$history.state.json" ]; then
+    if [ -e "$history" ] || [ -L "$history" ] || [ -e "$lock" ] || [ -e "$history.jsonl" ] || [ -L "$history.jsonl" ] || [ -e "$history.state.json" ] || [ -L "$history.state.json" ] || [ -e "$history.detect.json" ] || [ -L "$history.detect.json" ]; then
         if ! /usr/bin/lockf -k -t 250 "$lock" /bin/sh -c '
             set -e
-            /bin/rm -f -- "$1" "$2" "$1.jsonl" "$1.state.json"
+            /bin/rm -f -- "$1" "$2" "$1.jsonl" "$1.state.json" "$1.detect.json"
         ' speedtest-cleanup "$history" "$lock"; then
             echo "LibreSpeed uninstall: unable to lock or remove history; check $data_dir." >&2
             cleanup_status=1

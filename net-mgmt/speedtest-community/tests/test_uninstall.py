@@ -35,6 +35,8 @@ class UninstallTests(unittest.TestCase):
         self.state = self.data / "speedtest.csv.state.json"
         self.details.write_text('{"saved":"details"}\n')
         self.state.write_text('{"status":"completed"}')
+        self.detection = self.data / "speedtest.csv.detect.json"
+        self.detection.write_text('{"status":"completed","mode":"latency"}')
         self.lock.touch()
         self.config = self.root / "config.xml"
         self.config.write_text(
@@ -148,6 +150,7 @@ class Config {
         self.assertFalse(self.history.exists())
         self.assertFalse(self.lock.exists())
         self.assertFalse(self.details.exists())
+        self.assertFalse(self.detection.exists())
         self.assertFalse(self.state.exists())
         self.assertEqual(note.read_text(), "keep")
         self.assertEqual((self.admin / "ca.pem").read_text(), "administrator CA")
@@ -176,9 +179,18 @@ class Config {
             self.assertTrue(self.lock.exists())
             self.assertTrue(self.details.exists())
             self.assertTrue(self.state.exists())
+            self.assertTrue(self.detection.exists())
             self.assertFalse(self.save_log.exists())
             self.assertFalse(self.cron_log.exists())
             self.assertEqual(self.auto_log.exists(), "PKG_ROOTDIR" not in environment)
+
+    def test_removes_detection_snapshot_without_any_measurement_history(self):
+        for path in (self.history, self.details, self.state, self.lock):
+            path.unlink()
+        result = self.run_hook()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(self.detection.exists())
+        self.assertFalse(self.data.exists())
 
     def test_busy_history_is_retained_and_cleanup_failure_is_reported(self):
         with self.lock.open("r+") as lock:

@@ -1,15 +1,20 @@
 # LibreSpeedtest for OPNsense
 
+<img src="src/opnsense/www/img/speedtest-community/speedtest-logo.png" alt="LibreSpeedtest plugin logo" width="96" height="96">
+
+**Maintained and supported by [BlackOut Secure](https://blackoutsecure.app/)
+for the OPNsense community.**
+
 [LibreSpeed](https://librespeed.org/) is the only measurement provider.
 Version **0.18** bundles the pinned native Rust `librespeed-cli 1.2.1`.
 There are **no additional runtime package dependencies**: integration uses
 OPNsense's existing PHP/Volt, configd and Python standard library. No compiler,
 Go, Node.js, extra Python package, daemon or network listener is installed.
 
-The Blackout Secure Rust guidance favors a narrow, maintained measurement
+The BlackOut Secure Rust guidance favors a narrow, maintained measurement
 engine over rewriting the platform's configuration, ACL and history facilities.
 The adapter preserves existing cron and CSV contracts.
-No unverified Blackout foundation crate is introduced.
+No unverified BlackOut Secure foundation crate is introduced.
 
 The reporting page now includes background measurements with phase/rate
 progress, sequential server comparisons, throughput and latency/jitter trends,
@@ -21,6 +26,61 @@ graph plots the engine's running-average download and upload rates. Server
 selection and latency have indeterminate progress because the engine does not
 report a percentage for those phases. The live graph contains the current or
 most recently tested server in a comparison and resets for the next server.
+Download and upload also have LibreSpeed-style semicircular gauges with exact
+auto-scaled readouts. Gauge ranges adjust to measured speed, not link capacity;
+there is no animated or estimated speed when the engine has not reported one.
+The run screen shows the sponsor from the configured server list and the
+firewall IP and ISP/network reported by that server. These describe the
+firewall's connection, not the browser's; missing details are marked
+**Not reported**.
+
+## Why LibreSpeed replaced Ookla
+
+All [Speedtest.net](https://www.speedtest.net/) / Ookla, LLC measurement
+integration has been removed from this plugin. It no longer installs,
+downloads or invokes the Ookla CLI, queries Ookla's server list or uses its
+measurement APIs. Existing historical results are preserved.
+
+The switch addresses licensing and FreeBSD compatibility concerns:
+
+- **Licensing:** Ookla's published [CLI EULA](https://www.speedtest.net/about/eula),
+  sections 1 and 2, limits use to personal, non-commercial use on a single
+  personal computer and expressly prohibits installation or use on routers,
+  modems and other non-personal-computer devices. Those published terms are
+  unsuitable for a general-purpose OPNsense plugin, including business and
+  community firewall deployments.
+- **FreeBSD packages:** as reviewed on **2026-11-25**, the official
+  [Ookla CLI download page](https://www.speedtest.net/apps/cli) still lists
+  version **1.2.0** packages for **FreeBSD 12 and 13**, with no package listed
+  for newer FreeBSD releases. Those legacy packages are not a supported
+  dependency for this plugin on current FreeBSD-based OPNsense releases.
+  The plugin does not force-install an older ABI package or depend on
+  compatibility libraries to keep it working.
+
+The replacement uses [LibreSpeed](https://librespeed.org/) exclusively, with
+the official [LibreSpeed Rust client](https://github.com/librespeed/speedtest-cli-rust)
+as the measurement engine. The native FreeBSD build, packaging and OPNsense
+integration have been updated for modern releases instead of relying on
+obsolete prebuilt binaries. Build and validate against the exact target
+OPNsense release, FreeBSD ABI and architecture before distributing a package;
+see [Building the bundled engine](#building-the-bundled-engine).
+Native model/API/ACL and rendered-UI checks have been exercised on
+**OPNsense 26.7 / FreeBSD 15.1-RELEASE-p1 (amd64)**.
+
+LibreSpeed is **free and open-source software**, including for commercial use
+subject to its license terms, rather than a personal-use-only CLI:
+
+- [LibreSpeed server source](https://github.com/librespeed/speedtest) and
+  [LGPL-3.0 license](https://github.com/librespeed/speedtest/blob/master/LICENSE).
+- [Rust client source](https://github.com/librespeed/speedtest-cli-rust) and
+  [the pinned client's LGPL-3.0-only license](https://github.com/librespeed/speedtest-cli-rust/blob/v1.2.1/LICENSE).
+
+Free does not mean license-free: redistribution must preserve the applicable
+licenses, notices and source obligations, including those of bundled
+dependencies. Existing plugin copyright notices remain intact. Public test
+servers remain subject to their operators' access and usage policies.
+BlackOut Secure maintains this plugin's integration; LibreSpeed remains the
+independent upstream measurement project.
 
 ## Setup and saved defaults
 
@@ -28,8 +88,8 @@ When no custom or administrator-managed server list is available, the plugin
 uses the official LibreSpeed.org public list by default. It retrieves the list
 from [`servers.php`](https://librespeed.org/backend-servers/servers.php) over
 HTTPS, validates the entries, then selects the lowest-latency server. In
-**Reporting > Speedtest > Settings and CLI**, disable **Use the official
-LibreSpeed.org public server list** to opt out. The registry and selected test
+**Reporting > Speedtest > Advanced settings**, disable **Enable the official
+LibreSpeed.org catalog** and save to opt out. The registry and selected test
 servers can see the firewall's public IP; the plugin does not share results or
 send telemetry. List retrieval or validation failures are reported
 explicitly; they never fall back to an unexpected server.
@@ -37,11 +97,41 @@ explicitly; they never fall back to an unexpected server.
 Save up to 50 custom HTTPS servers with unique positive IDs and relative
 endpoint paths to prefer servers you operate or are authorized to use:
 
+**Advanced settings > Servers** separates the searchable official catalog
+from your custom servers. No JSON editing is needed:
+
+- The catalog refreshes when the tab opens while public discovery is enabled,
+  or on demand with **Refresh catalog**. Initially, all official servers,
+  including future additions, are allowed. **Remove** switches to a fixed
+  allow-list of the remaining IDs; **Allow** adds an individual ID back.
+  New catalog entries then require approval. **Allow all official servers**
+  returns to automatic inclusion; **Remove all official servers** permits
+  only custom or firewall-managed entries. This is permission to test, not
+  a security endorsement of third-party servers.
+- **Add custom server** opens OPNsense-style labeled fields for name and
+  HTTPS backend URL. IDs and standard PHP paths are filled in automatically;
+  **Advanced endpoint options** supports other backends. Rows have **Edit**
+  and **Remove** actions. **Apply to custom list** stages an edit; canceling
+  leaves the list unchanged. Raw JSON remains an optional bulk-edit tool.
+- **Save settings** persists the allowed IDs, custom list, and source policy.
+  Changes on the page do not immediately alter live tests. By default,
+  saved custom servers retain their previous precedence. Enable **Include
+  allowed official servers alongside custom servers** to test both sources.
+  Combined entries must have distinct IDs and URLs and total at most 50.
+
+Allowed official entries resolve against the latest registry at test time,
+so endpoint updates do not need copying. Catalog refresh cannot overwrite
+custom entries or approval choices. Removed official IDs are shown as missing
+after a successful refresh and can be removed from the allow-list. A missing
+or empty allowed set never falls back to unapproved public servers. Explicit
+run IDs, automatic selection, comparisons and scheduled runs all use the same
+source policy. The privileged terminal `--config` override remains available.
+
 ```json
 [
   {
     "id": 42,
-    "name": "Blackout lab",
+    "name": "BlackOut Secure lab",
     "server": "https://bench.example.net/",
     "dlURL": "garbage.php",
     "ulURL": "empty.php",
@@ -53,14 +143,32 @@ endpoint paths to prefer servers you operate or are authorized to use:
 
 The paths depend on your server backend. The example host is a placeholder,
 not a provisioned service. Saved custom servers take priority over the
-administrator-managed file; if neither exists, the optional official public
-list is used. `0` selects the lowest-latency server; `-1` compares all listed
+administrator-managed file; if neither exists, the optional allowed official
+list is used. Combining adds allowed official entries to the selected local
+source. `0` selects the lowest-latency server; `-1` compares all listed
 servers sequentially.
 Choose specific IDs or exclude servers from automatic/all-server selection.
 Explicit IDs cannot be combined with exclusions. A local source binding is
 retained for like-for-like history filtering. Existing CSV data is preserved.
 
-The run screen keeps server and mode selection. **Settings and CLI** contains
+With automatic selection, opening the run screen detects a lowest-latency
+server for users with run permission. The refresh button reloads the configured
+list and re-scans; it can find a better server as conditions change. Detection
+uses the saved server source and current page's measurement options, including
+exclusions, source binding and verified HTTPS trust. It performs only latency
+probes, never download/upload measurements, and does not save success or failure
+records to history. Its separate transient status preserves the last test and live trace.
+The actual test rechecks automatic selection when it starts. View-only visits
+do not initiate probes, and detection waits for active tests/history operations.
+The existing engine requests the selected server's `getIP` endpoint during
+detection and tests; no additional IP lookup service is contacted by the
+plugin. The server may query an ISP provider according to its own configuration.
+Reported IP/ISP details are kept only in the root-owned, mode-0600 latest
+measurement and detection status snapshots, not the CSV or JSONL history.
+They remain until the next corresponding operation, history clearing or
+uninstall; users with view access can see those snapshots.
+
+The run screen keeps server and mode selection. **Advanced settings** contains
 the measurement options: edits apply to manual tests in the current page
 without saving, including for users with run permission but not configure
 permission. Saving makes them defaults for future runs. Saving also persists
@@ -68,11 +176,19 @@ measurement defaults under
 `OPNsense/speedtest/general` in `/conf/config.xml`, using native model validation,
 configuration locking, revisions and backups. New GUI, cron, API and terminal
 runs inherit these defaults; explicit run options override them. No restart is
-needed. Leave server JSON empty to use the root-owned file
-`/usr/local/etc/speedtest-community/librespeed-servers.json`. Saved nonempty
-server JSON takes precedence. If the file is absent, public list discovery
-follows the **Use the official LibreSpeed.org public server list** setting;
+needed. Leave the custom list empty to use the root-owned file
+`/usr/local/etc/speedtest-community/librespeed-servers.json`. Saved custom
+entries take precedence. If the file is absent, or combining sources is
+enabled, public discovery follows **Enable the official LibreSpeed.org catalog**
+and your official-server allow-list;
 terminal `--config` explicitly overrides all other sources.
+On first install, the native model and CLI use the measurement values in the
+table below; they do not overwrite existing saved settings on upgrade.
+**Restore recommended measurement settings** resets only the current page's
+measurement controls (including IP family, source and optional flags). It
+does not change servers, retention, history or the schedule, and does not
+persist until an administrator clicks **Save settings**. Run-only users can
+restore the controls for a temporary test without saving configuration.
 The external server file and CA bundle are not embedded in configuration backups.
 Server lists may contain up to 50 entries and 64 KiB. GUI settings are
 compacted and must also fit the native configd message limit (3500 encoded
@@ -96,8 +212,30 @@ being truncated. Use the external file for unusually long lists or URLs.
 | Upload memory | Optional reduced preallocation; server must accept chunked uploads |
 | Private CA | Optional PEM bundle, with certificate verification retained |
 | Display units | Throughput automatically scales in bits per second; charts share one unit per axis. Stored measurements remain Mbps. |
-| History retention | Optional days (1-3650) and/or records (1-100000); 0 disables each limit |
+| History retention | 31 days and 10,000 records by default, whichever limit is reached first; configurable days (1-3650) and records (1-100000); 0 disables each limit |
 | Scheduled measurements | Disabled by default; hourly, daily, weekdays or weekly; selected mode and server IDs |
+
+These conservative FreeBSD starting values use HTTP latency and HTTP/1.1 by
+default, leave source binding automatic and avoid requiring raw ICMP
+privileges, HTTP/2 support, or a separately provisioned private CA. Individual
+firewalls and test servers may benefit from different values; no benchmark
+result is implied by these defaults.
+
+History defaults follow OPNsense's roughly month-long logging convention:
+its [Syslog model defaults to 31 preserved files](https://github.com/opnsense/core/blob/master/src/opnsense/mvc/app/models/OPNsense/Syslog/Syslog.xml).
+That is a file count, not a guaranteed day count; this plugin uses an actual
+31-day cutoff and a separate 10,000-record safety cap for frequent tests and
+comparisons. These are age/count limits, not a disk-space quota.
+Pruning covers successful and failed records in JSONL and the compatible CSV
+after each run, including failures before measurement starts. When no further
+tests run, there is no history growth and no separate cleanup daemon.
+On first installation native model migration persists both recommended limits,
+so GUI, scheduled and terminal runs share the same policy. Upgrades preserve
+saved choices, including explicit zeros for unlimited history; missing legacy
+limits remain unlimited rather than deleting previously retained data. In Advanced
+settings, **Use recommended retention** fills in both limits without saving;
+**Save settings** applies them for subsequent tests. Shortening saved limits
+requires confirmation. Export history before enabling or reducing limits.
 
 Source binding does not override routing or multi-WAN policy. FreeBSD interface
 binding is not supported by this engine; Linux-only firewall marks are not
@@ -106,14 +244,17 @@ latency are not reported. TLS metadata describes the server probe, not every
 transfer connection. Larger payloads, concurrency and duration use more memory
 and transfer more data; tests can saturate a production link.
 
-Each engine invocation has a 100-240 second deadline, derived from
+Each engine invocation has a 100-840 second deadline, derived from
 directions, duration, server count and request timeout. Comparisons invoke
 one server at a time; each additional server increases runtime and traffic.
 GUI tests use native configd detachment and poll an atomic progress snapshot,
 so they continue after leaving the page without holding a long HTTP request.
+The page also checks for other tests every 30 seconds while visible and idle.
+A **Check test status** action appears only when the status cannot be checked
+or the test's state is uncertain.
 The status action detects interrupted workers when their lock is no longer
 held. Version checks are bounded at 10 seconds.
-GUI, cron, terminal-wrapper runs and history clearing share an exclusive lock,
+GUI, cron, terminal-wrapper runs, server detection and history clearing share an exclusive lock,
 including runs using an alternate history file. A status query reports `busy`
 while another history's test, an initializing test, or a history operation
 holds the lock. After that operation finishes, the GUI identifies the displayed
@@ -229,7 +370,7 @@ Assign native privileges under **System > Access > Users or Groups**:
 | Privilege | Access |
 | --- | --- |
 | LibreSpeed: View results | Page, charts/history/status, dashboard data and exports |
-| LibreSpeed: Run measurements | Start full tests and diagnostics |
+| LibreSpeed: Run measurements | Start full tests, diagnostics and server detection |
 | LibreSpeed: Configure settings | Read/save server configuration and defaults |
 | LibreSpeed: Manage schedule | Manage the plugin's fixed native cron job, not arbitrary cron commands |
 | LibreSpeed: Clear history | Delete stored measurements |
@@ -249,9 +390,10 @@ names with LibreSpeed. Legacy statistics/widgets continue to use full
 successful tests, including existing CSV measurements. New JSONL metadata in
 `speedtest.csv.jsonl` additionally records every mode and operational failure,
 jitter, byte counters, probe TLS, engine version, trigger and measurement
-options. New public client IP/ISP information is not retained.
+options. New public client IP/ISP information is not retained in history.
 `speedtest.csv.state.json` is an atomic current/latest-run progress snapshot,
-not another daemon or history database.
+not another daemon or history database. `speedtest.csv.detect.json` separately
+tracks the current/latest history-free server detection.
 
 The history API merges legacy CSV and detailed records without counting the
 CSV mirror of a modern full test twice. The GUI separates legacy and Rust
@@ -276,16 +418,20 @@ tests. Neither file needs world-write or executable permissions. Legacy links
 remain in exports but are not opened by the UI. Corrupt detailed history is
 reported explicitly, never silently replaced.
 
-Read APIs: `/api/speedtest/service/{history,status,showstat,stat,showrecent,showlog}`.
+Read APIs: `/api/speedtest/service/{history,status,detectionstatus,showstat,stat,showrecent,showlog}`.
 The `stat` alias repairs the originally documented stats route.
 `history` accepts POST filters `days`, `page`, `limit` (1-200), `server`,
 `mode`, `status`, `origin`, `family`, `source`, `provider`.
 Start using POST `/api/speedtest/service/start/<ids>/<mode>` and follow its
 `run_id` through `status`; the legacy synchronous `run` route remains usable.
+POST `/api/speedtest/service/detect` accepts the same measurement options,
+always disables both throughput directions, and returns a `run_id` to follow
+through `detectionstatus`.
 
 ### Uninstall
 
-Removing the package deletes its default CSV, detailed JSONL and progress snapshot, saved
+Removing the package deletes its default CSV, detailed JSONL, measurement and
+detection progress snapshots, saved
 `OPNsense/speedtest` settings and OPNsense cron jobs using the `speedtest`
 configd action; export history first if it should be retained. The uninstaller
 waits up to 250 seconds for an active measurement's history lock and reports
@@ -384,7 +530,8 @@ not a real `Config::save`.
 Adapter coverage includes all four measurement modes, advanced flags and
 overrides, certificate failure, real NDJSON progress/result handling,
 server comparisons and partial failures, exclusions, legacy merging, history
-filters/pagination/statistics, opt-in retention, interrupted runs and cleanup.
+filters/pagination/statistics, bounded defaults and optional unlimited retention,
+interrupted runs and cleanup.
 The native engine's own tests remain responsible for its direct-client-only
 formatting, telemetry and platform-specific internals; they are not falsely
 advertised as plugin capabilities.
@@ -414,7 +561,23 @@ timestamp/probe changes are left to their own pull requests.
 
 ## Project and support
 
-- [Blackout plugin issues](https://github.com/blackoutsecure/opn-repo/issues)
+[BlackOut Secure](https://blackoutsecure.app/) is happy to provide ongoing
+maintenance and community support for this plugin.
+
+Please [open a GitHub issue](https://github.com/blackoutsecure/opn-repo/issues)
+for bugs, compatibility updates, feedback or feature requests. Other
+measurement providers and their maintainers are welcome to propose an
+integration there; include the provider's licensing terms, client/API
+documentation and FreeBSD support details so it can be evaluated. LibreSpeed
+remains the only integrated provider unless a future change is explicitly
+reviewed and accepted.
+
+For bug reports, include the plugin, OPNsense and FreeBSD versions, architecture,
+test mode and relevant redacted error output. Do not post passwords, API keys,
+private keys or an unredacted firewall configuration.
+
+- [BlackOut Secure website](https://blackoutsecure.app/)
+- [Plugin issues, updates and feedback](https://github.com/blackoutsecure/opn-repo/issues)
 - [Rust client documentation and issues](https://github.com/librespeed/speedtest-cli-rust)
 - [LibreSpeed server](https://github.com/librespeed/speedtest)
 - [Optional Rust server backend](https://github.com/librespeed/speedtest-rust)
@@ -428,7 +591,7 @@ cron/multi-WAN discussion comments, focused repository searches and the
 OPNsense topic results. This is a bounded snapshot, not a claim that every
 GitHub repository or unrelated network-driver regression has been fixed.
 
-| Reports/proposals | Blackout disposition |
+| Reports/proposals | BlackOut Secure disposition |
 | --- | --- |
 | [mimugmail/opn-repo#264](https://github.com/mimugmail/opn-repo/issues/264), [mimugmail/opn-repo#283](https://github.com/mimugmail/opn-repo/issues/283), [mimugmail/opn-repo#318](https://github.com/mimugmail/opn-repo/pull/318) | Package self-conflict removed; modern result parsing never depends on a share URL |
 | [mimugmail/opn-repo#313](https://github.com/mimugmail/opn-repo/issues/313), [mimugmail/opn-repo#160](https://github.com/mimugmail/opn-repo/issues/160), [mimugmail/opn-repo#109](https://github.com/mimugmail/opn-repo/issues/109), [mimugmail/opn-repo#298](https://github.com/mimugmail/opn-repo/pull/298) | No advanced-mode log toggle, old regex text parser or mandatory sharing; explicit history/error handling |

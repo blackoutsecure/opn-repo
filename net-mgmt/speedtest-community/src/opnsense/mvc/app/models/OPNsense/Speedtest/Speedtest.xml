@@ -1,12 +1,18 @@
 <model>
     <mount>//OPNsense/speedtest</mount>
-    <version>1.2.2</version>
+    <version>1.2.3</version>
     <description>
         Speedtest plugin
     </description>
     <items>
         <general>
             <public_servers type="BooleanField"><default>1</default><Required>Y</Required></public_servers>
+            <public_selection type="TextField">
+                <default>all</default><Required>Y</Required>
+                <Mask>/^(?:all|none|[1-9][0-9]{0,18}(?:,[1-9][0-9]{0,18}){0,49})$/D</Mask>
+                <ValidationMessage>Select all, none, or up to 50 official server IDs.</ValidationMessage>
+            </public_selection>
+            <combine_servers type="BooleanField"><default>0</default><Required>Y</Required></combine_servers>
             <servers type="TextField">
                 <Required>N</Required>
                 <Mask>/^.{0,65536}$/s</Mask>
@@ -27,8 +33,8 @@
             <no_pre_allocate type="BooleanField"><default>0</default><Required>Y</Required></no_pre_allocate>
             <private_ca type="BooleanField"><default>0</default><Required>Y</Required></private_ca>
             <exclude type="TextField"><Required>N</Required><Mask>/^[0-9,]{0,199}$/D</Mask></exclude>
-            <retention_days type="IntegerField"><default>0</default><Required>Y</Required><MinimumValue>0</MinimumValue><MaximumValue>3650</MaximumValue></retention_days>
-            <history_limit type="IntegerField"><default>0</default><Required>Y</Required><MinimumValue>0</MinimumValue><MaximumValue>100000</MaximumValue></history_limit>
+            <retention_days type="IntegerField"><default>31</default><Required>Y</Required><MinimumValue>0</MinimumValue><MaximumValue>3650</MaximumValue></retention_days>
+            <history_limit type="IntegerField"><default>10000</default><Required>Y</Required><MinimumValue>0</MinimumValue><MaximumValue>100000</MaximumValue></history_limit>
         </general>
         <schedule>
             <enabled type="BooleanField"><default>0</default><Required>Y</Required></enabled>

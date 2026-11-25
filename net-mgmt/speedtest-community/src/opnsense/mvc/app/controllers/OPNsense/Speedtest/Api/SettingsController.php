@@ -11,6 +11,11 @@ class SettingsController extends ApiMutableModelControllerBase
     protected static $internalModelName = 'speedtest';
     protected static $internalModelClass = 'OPNsense\Speedtest\Speedtest';
 
+    public function catalogAction()
+    {
+        return (new Backend())->configdRun('speedtest public-list');
+    }
+
     protected function setActionHook()
     {
         $posted = $this->request->getPost('speedtest');
@@ -19,7 +24,7 @@ class SettingsController extends ApiMutableModelControllerBase
         }
         $general = $this->getModel()->general;
         $settings = [];
-        foreach (['public_servers', 'servers', 'duration', 'timeout', 'concurrent', 'chunks', 'upload_size',
+        foreach (['public_servers', 'public_selection', 'combine_servers', 'servers', 'duration', 'timeout', 'concurrent', 'chunks', 'upload_size',
                   'family', 'source', 'icmp', 'http2', 'no_pre_allocate', 'private_ca',
                   'exclude', 'retention_days', 'history_limit'] as $key) {
             $settings[$key] = (string)$general->{$key};

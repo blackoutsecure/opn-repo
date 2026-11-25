@@ -69,6 +69,16 @@ class ServiceController extends ApiControllerBase
         return (new Backend())->configdRun('speedtest status');
     }
 
+    public function detectAction()
+    {
+        return $this->measurement('0', 'latency', true, true);
+    }
+
+    public function detectionstatusAction()
+    {
+        return (new Backend())->configdRun('speedtest detection-status');
+    }
+
     public function historyAction()
     {
         $filters = [];
@@ -89,7 +99,7 @@ class ServiceController extends ApiControllerBase
         return $this->showstatAction();
     }
 
-    protected function measurement($serverid, $mode, $background)
+    protected function measurement($serverid, $mode, $background, $detection = false)
     {
         $this->throwReadOnly();
         if (!$this->request->isPost()) {
@@ -159,9 +169,9 @@ class ServiceController extends ApiControllerBase
                 return ['error' => gettext('A speedtest is already running')];
             }
             $runId = bin2hex(random_bytes(16));
-            $response = trim($backend->configdpRun('speedtest start', [
-                $serverid, $mode, base64_encode(json_encode((object)$options)), $runId
-            ], true));
+            $encoded = base64_encode(json_encode((object)$options));
+            $response = trim($backend->configdpRun($detection ? 'speedtest detect' : 'speedtest start',
+                $detection ? [$mode, $encoded, $runId] : [$serverid, $mode, $encoded, $runId], true));
             if (!preg_match('/^[a-f0-9-]{36}$/D', $response)) {
                 return ['error' => gettext('Unable to queue the measurement. Check backend logs.')];
             }

@@ -29,7 +29,22 @@
 namespace OPNsense\Speedtest;
 
 use OPNsense\Base\BaseModel;
+use OPNsense\Core\Config;
 
 class Speedtest extends BaseModel
 {
+    protected function init()
+    {
+        $config = Config::getInstance()->object();
+        if (!isset($config->OPNsense->speedtest) && !is_file('/usr/local/opnsense/scripts/OPNsense/speedtest/speedtest.csv')
+            && !is_file('/usr/local/opnsense/scripts/OPNsense/speedtest/speedtest.csv.jsonl')) {
+            return;
+        }
+        // An upgrade must not opt legacy history into deletion through newly required defaults.
+        foreach (['retention_days', 'history_limit'] as $key) {
+            if (!isset($config->OPNsense->speedtest->general->$key)) {
+                $this->general->$key = '0';
+            }
+        }
+    }
 }

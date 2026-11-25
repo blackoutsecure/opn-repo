@@ -11,7 +11,8 @@ class SpeedtestTestBackend
     public function configdpRun(...$arguments)
     {
         self::$call = $arguments;
-        return $arguments[0] === 'speedtest start' ? '12345678-1234-1234-1234-123456789012' : self::$response;
+        return in_array($arguments[0], ['speedtest start', 'speedtest detect'], true)
+            ? '12345678-1234-1234-1234-123456789012' : self::$response;
     }
 
     public function configdRun($action)
@@ -31,10 +32,53 @@ function check($condition, $message)
     }
 }
 
+$configRoot = \OPNsense\Core\Config::getInstance()->object()->OPNsense;
+$savedNode = isset($configRoot->speedtest) ? dom_import_simplexml($configRoot->speedtest) : null;
+$savedCopy = $savedNode?->cloneNode(true);
+$parent = dom_import_simplexml($configRoot);
+try {
+    $fixture = new DOMDocument();
+    $fixture->loadXML('<speedtest version="1.2.2"><general><timeout>5</timeout></general></speedtest>');
+    $fixtureNode = $parent->ownerDocument->importNode($fixture->documentElement, true);
+    if ($savedNode === null) {
+        $parent->appendChild($fixtureNode);
+    } else {
+        $parent->replaceChild($fixtureNode, $savedNode);
+    }
+    $legacy = new \OPNsense\Speedtest\Speedtest();
+    check((string)$legacy->general->retention_days === '0' && (string)$legacy->general->history_limit === '0',
+          'Missing legacy retention fields must remain unlimited before migration');
+    check($legacy->runMigrations(), 'Native upgrade migration succeeds without saving system configuration');
+    check((string)$configRoot->speedtest->general->retention_days === '0'
+          && (string)$configRoot->speedtest->general->history_limit === '0',
+          'Native migration persists legacy unlimited choices, not new deletion limits');
+    $legacy->Default();
+    check((string)$legacy->general->retention_days === '31'
+          && (string)$legacy->general->history_limit === '10000', 'Native first-install defaults match the recommendation');
+    $legacy->serializeToConfig();
+    check((string)$configRoot->speedtest->general->retention_days === '31'
+          && (string)$configRoot->speedtest->general->history_limit === '10000',
+          'Native serialization supplies both first-install limits to the Python runtime');
+} finally {
+    if ($savedCopy === null) {
+        $parent->removeChild(dom_import_simplexml($configRoot->speedtest));
+    } else {
+        $parent->replaceChild($savedCopy, dom_import_simplexml($configRoot->speedtest));
+    }
+}
+
 $model = new \OPNsense\Speedtest\Speedtest();
 check((string)$model->general->duration === '10', 'Default duration');
 check((string)$model->general->public_servers === '1', 'Official server discovery is enabled by default');
+check((string)$model->general->public_selection === 'all', 'New installs allow the official catalog');
+check((string)$model->general->combine_servers === '0', 'Existing custom server precedence is preserved');
 $modelXml = simplexml_load_file($root . '/src/opnsense/mvc/app/models/OPNsense/Speedtest/Speedtest.xml');
+check((string)$modelXml->items->general->retention_days->default === '31'
+      && (string)$modelXml->items->general->history_limit->default === '10000',
+      'First-install retention is bounded by both age and record count');
+$model->setNodes(['general' => ['retention_days' => '0', 'history_limit' => '0']]);
+check((string)$model->general->retention_days === '0' && (string)$model->general->history_limit === '0',
+      'Explicit unlimited retention overrides the recommended defaults');
 check((string)$modelXml->items->general->timeout->default === '15',
       'Default request timeout accommodates slow OPNsense DNS');
 require $root . '/src/opnsense/mvc/app/models/OPNsense/Speedtest/Migrations/M1_2_2.php';
@@ -48,8 +92,10 @@ check((string)$model->general->timeout === '5', 'Migration preserves customized 
 $model->setNodes(['general' => ['duration' => '31']]);
 check(count($model->performValidation()) > 0, 'Invalid duration must be rejected by the native model');
 $model->setNodes(['general' => ['duration' => '15', 'family' => 'ipv6',
-                                  'private_ca' => '1', 'public_servers' => '0']]);
+                                  'private_ca' => '1', 'public_servers' => '0',
+                                  'public_selection' => '52,84', 'combine_servers' => '1']]);
 check(count($model->performValidation()) === 0, 'Valid settings must pass native validation');
+check((string)$model->general->public_selection === '52,84', 'Official approvals use native saved settings');
 check((string)$model->general->private_ca === '1', 'Boolean settings persist in native format');
 check((string)$model->general->public_servers === '0', 'Public registry opt-out persists in native settings');
 $model->setNodes(['schedule' => ['enabled' => '1', 'cadence' => 'daily', 'hour' => '24']]);
@@ -79,16 +125,21 @@ check($acl->isPageAccessible('viewer', '/api/speedtest/service/showstat'), 'View
 check($acl->isPageAccessible('viewer', '/api/speedtest/download/csv'), 'Viewer CSV access');
 check(!$acl->isPageAccessible('viewer', '/api/speedtest/service/run/42/both'), 'Viewer cannot run');
 check(!$acl->isPageAccessible('viewer', '/api/speedtest/settings/set'), 'Viewer cannot save');
+check(!$acl->isPageAccessible('viewer', '/api/speedtest/settings/catalog'), 'Viewer cannot refresh the editing catalog');
 check(!$acl->isPageAccessible('viewer', '/api/speedtest/service/deletelog'), 'Viewer cannot clear');
 check(!$acl->isPageAccessible('viewer', '/api/speedtest/service/start/42/both'), 'Viewer cannot queue a run');
+check(!$acl->isPageAccessible('viewer', '/api/speedtest/service/detect'), 'Viewer cannot start active server probes');
+check($acl->isPageAccessible('viewer', '/api/speedtest/service/detectionstatus'), 'Detection status is read-only');
 check(!$acl->isPageAccessible('viewer', '/api/speedtest/schedule/set'), 'Viewer cannot schedule');
 check($acl->isPageAccessible('viewer', '/api/speedtest/service/history'), 'Viewer can query trends');
 check($acl->isPageAccessible('viewer', '/api/speedtest/download/json'), 'Viewer can export details');
 check($acl->isPageAccessible('scheduler', '/api/speedtest/schedule/set'), 'Scheduler can save');
 check(!$acl->isPageAccessible('scheduler', '/api/cron/settings/setJob'), 'Scheduler cannot edit arbitrary cron jobs');
 check($acl->isPageAccessible('runner', '/api/speedtest/service/run/42/latency'), 'Runner can diagnose');
+check($acl->isPageAccessible('runner', '/api/speedtest/service/detect'), 'Runner can detect servers');
 check(!$acl->isPageAccessible('runner', '/api/speedtest/service/deletelog'), 'Runner cannot clear');
 check($acl->isPageAccessible('editor', '/api/speedtest/settings/set'), 'Settings privilege');
+check($acl->isPageAccessible('editor', '/api/speedtest/settings/catalog'), 'Configurator can browse the official catalog');
 check($acl->isPageAccessible('clearer', '/api/speedtest/service/deletelog'), 'Clear privilege');
 
 require $root . '/src/opnsense/mvc/app/controllers/OPNsense/Speedtest/Api/ServiceController.php';
@@ -132,8 +183,15 @@ check(SpeedtestTestBackend::$call[3] === 250, 'Backend wait covers the maximum m
 $started = $controller->startAction('42,84', 'both');
 check($started['result'] === 'started' && strlen($started['run_id']) === 32, 'Detached measurement has its own tracking ID');
 check(SpeedtestTestBackend::$call[2] === true, 'Long measurements use native configd detachment');
+$detected = $controller->detectAction();
+check($detected['result'] === 'started' && strlen($detected['run_id']) === 32,
+      'Server detection is a separately tracked native job');
+check(SpeedtestTestBackend::$call[0] === 'speedtest detect'
+      && SpeedtestTestBackend::$call[1][0] === 'latency' && SpeedtestTestBackend::$call[2] === true,
+      'Detection cannot start bandwidth measurements or synchronous HTTP waits');
 SpeedtestTestBackend::$status = '{"status":"running"}';
 check(isset($controller->startAction()['error']), 'An active run cannot be queued again');
+check(isset($controller->detectAction()['error']), 'Detection cannot be queued during a measurement');
 SpeedtestTestBackend::$status = '{"status":"busy"}';
 check(isset($controller->startAction()['error']), 'A run with a different history cannot be queued again');
 SpeedtestTestBackend::$status = '{"status":"unexpected"}';
@@ -166,8 +224,9 @@ $request->post = ['duration' => '31'];
 check(isset($controller->runAction()['error']), 'Invalid API limits are rejected');
 $request->isPost = false;
 check(isset($controller->runAction()['error']), 'GET cannot start a test');
+check(isset($controller->detectAction()['error']), 'GET cannot start server probes');
 $controller->readOnly = true;
-foreach (['runAction', 'startAction', 'deletelogAction'] as $action) {
+foreach (['runAction', 'startAction', 'detectAction', 'deletelogAction'] as $action) {
     try {
         $controller->{$action}();
         throw new RuntimeException('Read-only action was not rejected: ' . $action);
@@ -193,8 +252,11 @@ $settingsController->request = $request;
 check(is_string($settingsController->getAction()['speedtest']['general']['servers']),
       'Native GET returns server JSON text');
 $settingsController->checkSettings();
-check(json_decode(base64_decode(SpeedtestTestBackend::$call[1][0]), true)['duration'] === '15',
+$candidate = json_decode(base64_decode(SpeedtestTestBackend::$call[1][0]), true);
+check($candidate['duration'] === '15',
       'Pre-save validation receives the candidate model');
+check($candidate['public_selection'] === '52,84' && $candidate['combine_servers'] === '1',
+      'Official approval and source-combining policies reach backend validation');
 SpeedtestTestBackend::$response = '{"error":"Invalid server JSON"}';
 try {
     $settingsController->checkSettings();

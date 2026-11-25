@@ -11,6 +11,7 @@
             <pattern>api/speedtest/service/showlog</pattern>
             <pattern>api/speedtest/service/stat</pattern>
             <pattern>api/speedtest/service/status</pattern>
+            <pattern>api/speedtest/service/detectionstatus</pattern>
             <pattern>api/speedtest/service/history</pattern>
             <pattern>api/speedtest/download/csv</pattern>
             <pattern>api/speedtest/download/json</pattern>
@@ -18,11 +19,11 @@
     </page-reporting-speedtest>
     <page-reporting-speedtest-run>
         <name>Reporting: LibreSpeed: Run measurements</name>
-        <patterns><pattern>api/speedtest/service/run/*</pattern><pattern>api/speedtest/service/run</pattern><pattern>api/speedtest/service/start</pattern><pattern>api/speedtest/service/start/*</pattern></patterns>
+        <patterns><pattern>api/speedtest/service/run/*</pattern><pattern>api/speedtest/service/run</pattern><pattern>api/speedtest/service/start</pattern><pattern>api/speedtest/service/start/*</pattern><pattern>api/speedtest/service/detect</pattern></patterns>
     </page-reporting-speedtest-run>
     <page-reporting-speedtest-settings>
         <name>Reporting: LibreSpeed: Configure settings</name>
-        <patterns><pattern>api/speedtest/settings/get</pattern><pattern>api/speedtest/settings/set</pattern></patterns>
+        <patterns><pattern>api/speedtest/settings/get</pattern><pattern>api/speedtest/settings/set</pattern><pattern>api/speedtest/settings/catalog</pattern></patterns>
     </page-reporting-speedtest-settings>
     <page-reporting-speedtest-schedule>
         <name>Reporting: LibreSpeed: Manage schedule</name>
