@@ -498,14 +498,18 @@ assert.equal(vm.runInContext('liveChart.data.datasets[0].data[0].y', page.contex
 vm.runInContext(`followStatus('${'a'.repeat(32)}')`, page.context);
 page.request('/status').resolve({status: 'completed', run_id: 'a'.repeat(32),
     phase: 'finished', server: 'Lab', samples: {download: [{seconds: 2, mbps: 40}], upload: []},
-    results: [{serverid: 42, servername: 'Lab', download: 80, latency: 1, jitter: 0, mode: 'download',
-        timestamp: '2026-01-02T03:04:05.000Z', bytes_received: 1048576,
+    results: [{serverid: 42, servername: 'Atlanta, United States (New sponsor)', download: 80, latency: 1, jitter: 0, mode: 'download',
+        timestamp: '2026-01-02T03:04:05.000Z', bytes_received: 1048576, tls: {version: 'TLS 1.3', cipher: 'TLS_AES_256_GCM_SHA384'},
         sponsor: 'New sponsor', sponsor_url: 'https://partner.example.net/', connection: {ip: '2001:db8::1', isp: 'New ISP'}}]});
 assert.equal(page.elements.get('#reportAct').properties.disabled, false);
 assert.match(page.elements.get('#test_status').message, /Result saved to history/);
 assert.equal(page.elements.get('#download').message, '80 Mbps');
 assert.equal(page.elements.get('#result_time').attributes.datetime, '2026-01-02T03:04:05.000Z');
+assert.equal(page.elements.get('#result_meta').properties.hidden, false);
 assert.equal(page.elements.get('#result_details').properties.open, true, 'Test details open on a new result');
+assert.equal(detailValue(page, '#result_details', 'Test server'), 'Atlanta, United States');
+assert.deepEqual(page.elements.get('#result_details dl').children.slice(0, 2).map(entry => entry.children[0].message),
+                 ['Test server', 'Server sponsor'], 'The server appears immediately before its sponsor');
 const resultSponsor = detailField(page, '#result_details', 'Server sponsor').children[0];
 assert.equal(resultSponsor.message, 'New sponsor');
 assert.equal(resultSponsor.attributes.href, 'https://partner.example.net/');
@@ -514,6 +518,7 @@ assert.equal(resultSponsor.attributes.rel, 'noopener noreferrer');
 assert.equal(detailValue(page, '#result_details', 'Firewall IP seen by server'), '2001:db8::1');
 assert.equal(detailValue(page, '#result_details', 'ISP / network'), 'New ISP');
 assert.equal(detailValue(page, '#result_details', 'Received'), '1 MiB');
+assert.equal(detailField(page, '#result_details', 'Probe TLS'), undefined, 'Probe TLS metadata is not displayed');
 assert.equal(detailValue(page, '#result_details', 'Sent'), undefined);
 assert.equal(page.elements.get('#upload_metric').properties.hidden, true);
 assert.equal(page.elements.get('#jitter').message, '0 ms', 'Zero is a measured value');
@@ -1092,6 +1097,9 @@ assert.equal(detailValue(viewerLatest, '#result_details', 'Firewall IP seen by s
 assert.equal(viewerLatest.elements.get('#test_status').message, '', 'Loading a saved result is not a new completion');
 assert.equal(viewerLatest.request('/detect'), undefined);
 assert.equal(viewerLatest.elements.get('#result_details').properties.open, true, 'Saved result details open on page load');
+assert.equal(detailValue(viewerLatest, '#result_details', 'Test server'), 'Lab');
+assert.equal(viewerLatest.elements.get('#result_meta').properties.hidden, true,
+             'Without a recorded timestamp, the header stays empty');
 vm.runInContext(`renderResults([{serverid:42,servername:'Lab',sponsor:'Lab sponsor',sponsor_url:'javascript:void(0)'}])`, viewerLatest.context);
 const unsafeSponsor = detailField(viewerLatest, '#result_details', 'Server sponsor');
 assert.equal(unsafeSponsor.message, 'Lab sponsor');

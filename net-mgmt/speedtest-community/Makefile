@@ -1,5 +1,5 @@
 PLUGIN_NAME=		speedtest-community
-PLUGIN_VERSION=		0.22
+PLUGIN_VERSION=		0.23
 PLUGIN_COMMENT=		Speedtest network measurements
 PLUGIN_LICENSE=		LGPL3
 PLUGIN_MAINTAINER=	miha.kralj@outlook.com

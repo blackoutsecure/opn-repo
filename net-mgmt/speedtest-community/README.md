@@ -7,7 +7,7 @@ for the OPNsense community.**
 
 Speedtest measures throughput and latency from OPNsense. It uses only
 [LibreSpeed](https://librespeed.org/) for measurements, with the pinned Rust
-engine `librespeed-cli 1.2.1` bundled in version **0.22**.
+engine `librespeed-cli 1.2.1` bundled in version **0.23**.
 There are **no additional runtime package dependencies**: integration uses
 OPNsense's existing PHP/Volt, configd and Python standard library. No compiler,
 Go, Node.js, extra Python package, daemon or network listener is installed.
@@ -25,13 +25,13 @@ the Chart.js already shipped by OPNsense; no external assets are loaded.
 The Run tab shows one progress indicator for the active phase and an optional
 live chart of the engine's running-average rates. Server selection and latency
 have indeterminate progress. Live samples reset for each server and disappear
-when the test ends. The latest single result shows its server, timestamp and
+when the test ends. The latest single result shows its timestamp and
 only the metrics that were measured; a multi-server run shows a comparison
 table instead. Compact throughput gauges scale to the measured rate, not link
 capacity. **Test details** opens by default for the latest single result and
-shows the firewall IP seen by the server, ISP/network, sponsor, transferred
-bytes, and probe TLS. If the test server did not provide an IP or ISP, the
-page says so rather than guessing or making a separate lookup.
+shows the test server, sponsor, firewall IP, ISP/network, and transferred bytes.
+If the test server did not provide an IP or ISP, the page says so rather than
+guessing or making a separate lookup.
 The sponsor name links to its HTTP(S) website when the server definition
 includes a valid `sponsorURL`; otherwise it is plain text. Speedtest does not
 contact that website automatically.

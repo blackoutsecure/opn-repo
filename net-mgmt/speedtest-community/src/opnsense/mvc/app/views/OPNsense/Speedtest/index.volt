@@ -47,7 +47,7 @@
     .speedtest-subtle { text-decoration: underline; color: inherit; }
     .speedtest-server-preview { margin-top: 8px; overflow-wrap: anywhere; }
     .speedtest-readout { min-width: 0; margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(127, 127, 127, .38); }
-    .speedtest-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 0; overflow-wrap: anywhere; }
+    .speedtest-meta { margin: 0; }
     .speedtest-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 130px), 1fr)); align-items: start; gap: 12px; margin: 16px 0 0; max-width: 760px; }
     .speedtest-metrics > div { min-width: 0; }
     .speedtest-metrics dt { margin-bottom: 4px; font-weight: 600; }
@@ -146,7 +146,7 @@
             <section class="speedtest-readout" aria-labelledby="readout_heading">
                 <h3 id="readout_heading">{{ lang._('Latest result') }}</h3>
                 <p id="readout_hint" class="speedtest-secondary">{{ lang._('Loading latest result...') }}</p>
-                <p id="result_meta" class="speedtest-meta" hidden><strong id="test_server"></strong><time id="result_time" hidden></time></p>
+                <p id="result_meta" class="speedtest-meta" hidden><time id="result_time"></time></p>
                 <div id="run_progress" hidden>
                     <p id="phase_status" role="status"></p>
                     <progress id="phase_progress" max="100" aria-label="{{ lang._('Current measurement phase progress') }}"></progress>
@@ -1093,9 +1093,14 @@ opn-speedtest history --days 30 --format json</pre>
     function transferDetails(result) {
         return [
             ["{{ lang._('Received') }}", byteSize(result?.bytes_received)],
-            ["{{ lang._('Sent') }}", byteSize(result?.bytes_sent)],
-            ["{{ lang._('Probe TLS') }}", [result?.tls?.version, result?.tls?.cipher].filter(Boolean).join(' / ')]
+            ["{{ lang._('Sent') }}", byteSize(result?.bytes_sent)]
         ];
+    }
+    function serverLocation(result) {
+        const name = result?.servername;
+        if (typeof name !== 'string' || !result.sponsor) return name;
+        const suffix = ' (' + result.sponsor + ')';
+        return name.endsWith(suffix) ? name.slice(0, -suffix.length) : name;
     }
     function displayValue(element, text, website) {
         if (text && typeof website === 'string' && website.length <= 2048 && /^https?:\/\/[^/]/i.test(website)
@@ -1154,17 +1159,18 @@ opn-speedtest history --days 30 --format json</pre>
         $('#readout_heading').text(comparison ? "{{ lang._('Comparison results') }}" : "{{ lang._('Latest result') }}");
         $('#readout_hint').text(failed ? "{{ lang._('No measurements from the last test.') }}" : "{{ lang._('No results yet.') }}")
             .prop('hidden', !!result || comparison);
-        $('#result_meta').prop('hidden', !result);
-        $('#test_server').text(result?.servername || '');
-        const timestamp = new Date(result?.timestamp);
+        const timestamp = new Date(result?.timestamp ?? NaN);
         const hasTime = Number.isFinite(timestamp.getTime());
         if (hasTime) {
             $('#result_time').attr('datetime', timestamp.toISOString()).text(timestamp.toLocaleString());
         } else {
             $('#result_time').removeAttr('datetime').text('');
         }
-        $('#result_time').prop('hidden', !hasTime);
-        renderDetails('#result_details', [...connectionDetails(result, true), ...transferDetails(result)], detailsOpen);
+        $('#result_meta').prop('hidden', !hasTime);
+        renderDetails('#result_details', [
+            ["{{ lang._('Test server') }}", serverLocation(result)],
+            ...connectionDetails(result, true), ...transferDetails(result)
+        ], detailsOpen);
         $('#comparison').prop('hidden', !comparison);
         const rows = $('#comparison_rows').empty();
         if (!comparison) return;
