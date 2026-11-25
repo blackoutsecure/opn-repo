@@ -10,6 +10,9 @@ assert.ok(markup.includes(pluginLogo), 'The run header uses the packaged logo');
 const rawScript = markup.match(/<script>([\s\S]*?)<\/script>/)[1];
 const measurement = markup.slice(markup.indexOf('id="measurement"'), markup.indexOf('id="history"'));
 const setup = markup.slice(markup.indexOf('id="setup"'), markup.indexOf('<script>'));
+for (const [details] of markup.slice(0, markup.indexOf('<script>')).matchAll(/<details\b[^>]*>/g)) {
+    assert.match(details, /\sopen(?:\s|>)/, 'Page disclosures open when their contents are available');
+}
 assert.ok(!measurement.includes('id="units"'), 'Throughput units are selected automatically');
 const statusButton = measurement.match(/<button[^>]*id="check_status"[^>]*>/);
 assert.ok(statusButton && /\shidden(?:\s|>)/.test(statusButton[0]),
@@ -25,6 +28,11 @@ assert.ok(!measurement.includes('id="mode"') && setup.includes('id="mode"'),
 for (const control of ['serverid', 'speed_units', 'detect_server', 'serverlistAct']) {
     assert.ok(!measurement.includes(`id="${control}"`) && setup.includes(`id="${control}"`),
               control + ' belongs in Settings, not the run screen');
+}
+for (const section of ['catalog_panel', 'custom_servers_panel']) {
+    const details = setup.match(new RegExp(`<details id="${section}"[^>]*>`));
+    assert.ok(details && !/\shidden(?:\s|>)/.test(details[0]),
+              section + ' is an independently expandable section, even with no servers enabled');
 }
 // CI substitutes only script tokens; native OPNsense separately compiles the full Volt template.
 function scriptTokens(source, privileged) {
@@ -71,7 +79,12 @@ function fixture(source = script) {
             },
             removeAttr(key) { this.attributes[key] = null; return this; },
             empty() { this.children = []; return this; },
-            append(child) { this.children.push(child); return this; },
+            append(child) {
+                this.children.push(child);
+                if (child && typeof child === 'object') child.parent = this;
+                return this;
+            },
+            remove() { this.parent.children = this.parent.children.filter(child => child !== this); return this; },
             tab(action) { this.properties.tab = action; return this; },
             trigger(event) {
                 this.properties.trigger = event;
@@ -169,14 +182,29 @@ function completeDetection(page, name = 'Lab', alreadyStarted = false) {
     assert.equal(page.elements.get('#serverid').value, '42', 'The one-time scan selects its winning server');
     assert.equal(page.elements.get('#detection_status').message, 'Detected latency: 2.5 ms · Jitter: 0.3 ms');
     assert.equal(page.elements.get('#preview_details').properties.hidden, false);
-    assert.equal(page.elements.get('#preview_details').properties.open, false);
+    assert.equal(page.elements.get('#preview_details').properties.open, true, 'A new scan shows its connection details');
     assert.equal(detailValue(page, '#preview_details', 'Firewall IP seen by server'), '192.0.2.9');
 }
 function detailValue(page, section, label) {
-    return page.elements.get(section + ' dl').children.find(entry => entry.children[0].message === label)?.children[1].message;
+    return detailField(page, section, label)?.message;
+}
+function detailField(page, section, label) {
+    return page.elements.get(section + ' dl').children.find(entry => entry.children[0].message === label)?.children[1];
 }
 function openCatalog(page) {
-    page.elements.get('#catalog_panel').prop('open', true).trigger('toggle');
+    vm.runInContext('$("#setup").addClass("active"); $("#server_options").prop("open", true); $("#catalog_panel").prop("open", true)', page.context);
+    page.elements.get('#setup_tab').trigger('shown.bs.tab');
+}
+function customServerRow(page, index = 0) {
+    const [actions, nameCell, urlCell] = page.elements.get('#custom_server_rows').children[index].children;
+    const [url, advanced] = urlCell.children;
+    const advancedFields = advanced.children[1].children[1].children;
+    return {remove: actions.children[0], name: nameCell.children[0], label: nameCell.children[1], url, advanced,
+        id: advancedFields[0].children[0], downloadPath: advancedFields[2].children[0]};
+}
+function publicServerRow(page, index = 0) {
+    const [checkbox, change] = page.elements.get('#catalog_rows').children[index].children[2].children[0].children;
+    return {checkbox, change};
 }
 const page = fixture();
 page.request('/defaults').resolve(defaults);
@@ -236,28 +264,44 @@ assert.ok(page.requests.every(r => r.options.url.startsWith('/api/speedtest/')),
 
 const manager = fixture();
 assert.equal(manager.request('/settings/catalog'), undefined);
+vm.runInContext('$("#server_options").prop("open", true); $("#catalog_panel").prop("open", true)', manager.context);
 manager.request('/defaults').resolve(defaults);
 manager.request('/settings/get').resolve({speedtest: {general: {servers: ''}}});
-assert.equal(manager.request('/settings/catalog'), undefined, 'Loading settings alone must not fetch the catalog');
+assert.equal(manager.request('/settings/catalog'), undefined, 'An open disclosure in an inactive tab must not fetch the catalog');
+assert.equal(manager.elements.get('#catalog_summary').message, 'All allowed');
+assert.equal(manager.elements.get('#custom_summary').message, '0 configured');
 const official = {id: '52', name: 'New York', server: 'https://nyc.example.net/', sponsorName: 'Clouvider',
+    sponsorURL: 'https://www.clouvider.example/',
     dlURL: 'garbage.php', ulURL: 'empty.php', pingURL: 'empty.php', getIpURL: 'getIP.php'};
 openCatalog(manager);
 manager.request('/settings/catalog').resolve({servers: [official]});
 assert.equal(manager.elements.get('#catalog_rows').children.length, 1);
+const catalogSponsor = manager.elements.get('#catalog_rows').children[0].children[1].children[0];
+assert.equal(catalogSponsor.message, 'Clouvider');
+assert.equal(catalogSponsor.attributes.href, official.sponsorURL);
 manager.elements.get('#catalog_search').val('missing').handlers.input();
 assert.equal(manager.elements.get('#catalog_no_matches').properties.hidden, false);
 manager.elements.get('#catalog_search').val('clouvider').handlers.input();
-manager.elements.get('#catalog_rows').children[0].children[3].children[0].handlers.click();
+assert.equal(publicServerRow(manager).checkbox.properties.checked, true);
+publicServerRow(manager).checkbox.trigger('change');
 assert.equal(vm.runInContext('publicSelection', manager.context), 'none');
-manager.elements.get('#catalog_rows').children[0].children[3].children[0].handlers.click();
+assert.equal(publicServerRow(manager).checkbox.properties.checked, false);
+assert.equal(publicServerRow(manager).change.message, 'Changed');
+assert.equal(manager.elements.get('#catalog_pending').properties.hidden, false);
+publicServerRow(manager).checkbox.trigger('change');
 assert.equal(vm.runInContext('publicSelection', manager.context), '52');
-manager.elements.get('#add_custom_server').handlers.click();
-assert.equal(manager.elements.get('#server_edit_id').value, '10000');
-assert.equal(manager.elements.get('#save_settings').properties.disabled, true);
-const editor = manager.elements.get('#custom_server_editor');
-manager.elements.get('#server_edit_name').val('My New York');
-manager.elements.get('#server_edit_server').val('https://custom.example.net/');
-editor.handlers.submit.call(editor[0], {preventDefault() {}});
+manager.elements.get('#add_custom_server').trigger('click');
+const firstRow = customServerRow(manager);
+assert.equal(firstRow.name.properties.trigger, 'focus');
+assert.equal(firstRow.label.message, 'Added');
+assert.equal(manager.elements.get('#custom_summary').message, '1 configured');
+assert.equal(manager.elements.get('#custom_pending').properties.hidden, false);
+assert.equal(firstRow.advanced.properties.open, true, 'Endpoint options open by default for custom rows');
+manager.elements.get('#save_settings').trigger('click');
+assert.equal(manager.request('/settings/set'), undefined, 'An incomplete inline row must not be submitted');
+assert.match(manager.elements.get('#custom_server_status').message, /server name/);
+firstRow.name.val('My New York').trigger('input');
+firstRow.url.val('https://custom.example.net/').trigger('input');
 const custom = {id: 10000, name: 'My New York', server: 'https://custom.example.net/',
     dlURL: 'garbage.php', ulURL: 'empty.php', pingURL: 'empty.php', getIpURL: 'getIP.php'};
 assert.deepEqual(JSON.parse(manager.elements.get('#servers_json').value), [custom]);
@@ -268,25 +312,30 @@ assert.equal(vm.runInContext('publicSelection', manager.context), '52', 'Catalog
 manager.elements.get('#catalog_search').val('').handlers.input();
 manager.elements.get('#catalog_refresh').handlers.click();
 manager.request('/settings/catalog').resolve({servers: [official, {...official, id: '84', name: 'New official', server: 'https://other.example.net/'}]});
-assert.equal(manager.elements.get('#catalog_rows').children[1].children[2].message, 'No',
+assert.equal(publicServerRow(manager, 1).checkbox.properties.checked, false,
              'A restrictive allow-list must not automatically allow newly published servers');
-manager.elements.get('#custom_server_rows').children[0].children[1].children[0].handlers.click();
-manager.elements.get('#server_edit_server').val('https://user:password@custom.example.net/');
-editor.handlers.submit.call(editor[0], {preventDefault() {}});
-assert.match(manager.elements.get('#server_edit_status').message, /without credentials/);
-assert.deepEqual(JSON.parse(manager.elements.get('#servers_json').value), [custom], 'Invalid edit leaves the custom list intact');
-manager.elements.get('#cancel_server_edit').handlers.click();
-assert.deepEqual(JSON.parse(manager.elements.get('#servers_json').value), [custom], 'Cancel leaves the custom list intact');
-manager.elements.get('#custom_server_rows').children[0].children[1].children[2].handlers.click();
-assert.equal(manager.elements.get('#servers_json').value, '', 'Remove custom server requires no JSON editing');
-manager.elements.get('#add_custom_server').handlers.click();
-manager.elements.get('#server_edit_name').val(custom.name);
-manager.elements.get('#server_edit_server').val(custom.server);
-editor.handlers.submit.call(editor[0], {preventDefault() {}});
-assert.deepEqual(JSON.parse(manager.elements.get('#servers_json').value), [custom]);
+firstRow.url.val('https://user:password@custom.example.net/').trigger('input');
+manager.elements.get('#save_settings').trigger('click');
+assert.equal(manager.request('/settings/set'), undefined, 'Credentials in the backend URL must not be submitted');
+assert.match(manager.elements.get('#custom_server_status').message, /without credentials/);
+firstRow.url.val(custom.server).trigger('input');
+manager.elements.get('#add_custom_server').trigger('click');
+const secondRow = customServerRow(manager, 1);
+secondRow.name.val('Second site').trigger('input');
+secondRow.url.val('https://second.example.net/').trigger('input');
+secondRow.id.val(String(custom.id)).trigger('input');
+manager.elements.get('#save_settings').trigger('click');
+assert.equal(manager.request('/settings/set'), undefined, 'Duplicate inline IDs must not be submitted');
+assert.match(manager.elements.get('#custom_server_status').message, /Server row 2: .*unique positive/);
+assert.equal(secondRow.advanced.properties.open, true, 'An invalid advanced field must be revealed');
+assert.equal(manager.elements.get('#custom_servers_panel').properties.open, true);
+secondRow.remove.trigger('click');
+assert.deepEqual(JSON.parse(manager.elements.get('#servers_json').value), [custom], 'Remove preserves other inline edits');
 manager.elements.get('#public_servers').prop('checked', false).handlers.change();
 assert.equal(manager.elements.get('#catalog_table').properties.hidden, true);
-assert.equal(manager.elements.get('#catalog_panel').properties.hidden, true);
+assert.equal(manager.elements.get('#catalog_panel').properties.open, true, 'Turning off the catalog must not collapse its settings');
+assert.equal(manager.elements.get('#catalog_summary').message, 'Off');
+assert.equal(manager.elements.get('#catalog_refresh').properties.disabled, true, 'Opting out prevents catalog fetches');
 assert.equal(manager.requests.filter(r => r.options.url.endsWith('/settings/catalog')).length, 3);
 assert.equal(manager.request('/settings/set'), undefined, 'Catalog and custom edits remain unsaved until Save settings');
 manager.elements.get('#save_settings').handlers.click();
@@ -299,21 +348,50 @@ assert.equal(JSON.parse(customSave.servers)[0].name, 'My New York');
 const approvedManager = fixture();
 approvedManager.request('/defaults').resolve(defaults);
 approvedManager.request('/settings/get').resolve({speedtest: {general: {
-    servers: JSON.stringify([custom]), public_selection: '52,84', combine_servers: '1'
+    servers: JSON.stringify([{...custom, dlURL: 'backend/download'}]), public_selection: '52,84', combine_servers: '1'
 }}});
+const existingRow = customServerRow(approvedManager);
+existingRow.name.val('Renamed site').trigger('input');
+assert.equal(JSON.parse(approvedManager.elements.get('#servers_json').value)[0].id, custom.id, 'Editing a name retains the saved ID');
+assert.equal(existingRow.downloadPath.val(), 'backend/download', 'Existing endpoint overrides remain editable');
+assert.equal(existingRow.label.message, 'Edited');
+approvedManager.elements.get('#discard_settings').trigger('click');
+assert.equal(customServerRow(approvedManager).name.val(), custom.name, 'Discard restores the saved inline row');
+assert.equal(customServerRow(approvedManager).label.properties.hidden, true);
+assert.equal(approvedManager.elements.get('#custom_pending').properties.hidden, true);
+assert.equal(approvedManager.request('/settings/set'), undefined);
+approvedManager.context.window.confirm = () => false;
+customServerRow(approvedManager).remove.trigger('click');
+assert.equal(approvedManager.elements.get('#custom_server_rows').children.length, 1, 'Removing the last saved row can be canceled');
+approvedManager.context.window.confirm = () => true;
+customServerRow(approvedManager).remove.trigger('click');
+assert.equal(approvedManager.elements.get('#servers_json').value, '', 'Removing the last row restores the fallback only after saving');
+approvedManager.elements.get('#discard_settings').trigger('click');
+approvedManager.elements.get('#servers_json').val(JSON.stringify([{...custom, name: 'Raw edit'}])).trigger('input');
+assert.equal(customServerRow(approvedManager).name.val(), 'Raw edit', 'Raw JSON edits refresh the inline rows');
+approvedManager.elements.get('#discard_settings').trigger('click');
 assert.equal(approvedManager.elements.get('#combine_servers').properties.checked, true);
 openCatalog(approvedManager);
 approvedManager.request('/settings/catalog').resolve({servers: [official]});
 assert.equal(approvedManager.elements.get('#catalog_rows').children.length, 2,
              'Missing approved IDs stay visible for removal');
-approvedManager.elements.get('#catalog_rows').children[1].children[3].children[0].handlers.click();
+publicServerRow(approvedManager, 1).checkbox.trigger('change');
 assert.equal(vm.runInContext('publicSelection', approvedManager.context), '52');
 approvedManager.elements.get('#save_settings').handlers.click();
 assert.equal(approvedManager.request('/settings/set').options.data.speedtest.general.combine_servers, '1');
 approvedManager.request('/settings/set').resolve({result: 'failed'});
-approvedManager.elements.get('#catalog_allow_all').handlers.click();
+const previouslySubmitted = approvedManager.request('/settings/set');
+const customDraft = approvedManager.elements.get('#servers_json').value;
+approvedManager.elements.get('#public_servers').prop('checked', false).trigger('change');
+assert.equal(approvedManager.elements.get('#catalog_reset').properties.disabled, false,
+             'The allow-list can be reset without enabling the catalog');
+approvedManager.elements.get('#catalog_reset').trigger('click');
 assert.equal(vm.runInContext('publicSelection', approvedManager.context), 'all');
-approvedManager.elements.get('#catalog_allow_none').handlers.click();
+assert.equal(approvedManager.elements.get('#public_servers').properties.checked, false);
+assert.equal(approvedManager.elements.get('#servers_json').value, customDraft);
+assert.equal(approvedManager.request('/settings/set'), previouslySubmitted, 'Reset never saves on its own');
+approvedManager.elements.get('#public_servers').prop('checked', true).trigger('change');
+approvedManager.elements.get('#catalog_allow_none').trigger('click');
 assert.equal(vm.runInContext('publicSelection', approvedManager.context), 'none');
 
 const retentionPage = fixture();
@@ -422,12 +500,19 @@ page.request('/status').resolve({status: 'completed', run_id: 'a'.repeat(32),
     phase: 'finished', server: 'Lab', samples: {download: [{seconds: 2, mbps: 40}], upload: []},
     results: [{serverid: 42, servername: 'Lab', download: 80, latency: 1, jitter: 0, mode: 'download',
         timestamp: '2026-01-02T03:04:05.000Z', bytes_received: 1048576,
-        sponsor: 'New sponsor', connection: {ip: '2001:db8::1', isp: 'New ISP'}}]});
+        sponsor: 'New sponsor', sponsor_url: 'https://partner.example.net/', connection: {ip: '2001:db8::1', isp: 'New ISP'}}]});
 assert.equal(page.elements.get('#reportAct').properties.disabled, false);
 assert.match(page.elements.get('#test_status').message, /Result saved to history/);
 assert.equal(page.elements.get('#download').message, '80 Mbps');
 assert.equal(page.elements.get('#result_time').attributes.datetime, '2026-01-02T03:04:05.000Z');
+assert.equal(page.elements.get('#result_details').properties.open, true, 'Test details open on a new result');
+const resultSponsor = detailField(page, '#result_details', 'Server sponsor').children[0];
+assert.equal(resultSponsor.message, 'New sponsor');
+assert.equal(resultSponsor.attributes.href, 'https://partner.example.net/');
+assert.equal(resultSponsor.attributes.target, '_blank');
+assert.equal(resultSponsor.attributes.rel, 'noopener noreferrer');
 assert.equal(detailValue(page, '#result_details', 'Firewall IP seen by server'), '2001:db8::1');
+assert.equal(detailValue(page, '#result_details', 'ISP / network'), 'New ISP');
 assert.equal(detailValue(page, '#result_details', 'Received'), '1 MiB');
 assert.equal(detailValue(page, '#result_details', 'Sent'), undefined);
 assert.equal(page.elements.get('#upload_metric').properties.hidden, true);
@@ -848,7 +933,10 @@ vm.runInContext('historyReload()', filtersPage.context);
 assert.deepEqual(JSON.parse(JSON.stringify(filtersPage.request('/history').options.data)), {page: 1, days: '90',
     server: '42', mode: 'latency', provider: 'librespeed', status: 'failed',
     origin: 'scheduled', family: 'ipv6', source: '::1'});
+vm.runInContext('$("#history_more_filters").prop("open", true)', filtersPage.context);
 filtersPage.elements.get('#reset_history_filters').trigger('click');
+assert.equal(filtersPage.elements.get('#history_more_filters').properties.open, true,
+             'Resetting filters preserves the expanded controls');
 assert.deepEqual(JSON.parse(JSON.stringify(filtersPage.request('/history').options.data)), {page: 1, days: '30',
     server: 'all', mode: 'all', provider: 'librespeed', status: 'all',
     origin: 'all', family: 'all', source: ''});
@@ -930,12 +1018,27 @@ assert.equal(page.elements.get('#setup_tab').properties.tab, 'show');
 page.tabs.handlers.keydown.call(page.elements.get('#measurement_tab')[0], {key: 'ArrowLeft', preventDefault() {}});
 assert.equal(page.elements.get('#setup_tab').properties.trigger, 'focus');
 
+const emptyHistory = {rows: [], series: [], metrics: {}, successful: 0, failed: 0,
+    bytes_received: 0, bytes_sent: 0, servers: {}, sources: [], total: 0, limit: 50};
 vm.runInContext('historyReload()', page.context);
-page.request('/history').resolve({rows: [], series: [], metrics: {}, successful: 0, failed: 0,
-    bytes_received: 0, bytes_sent: 0, servers: {}, sources: [], total: 0, limit: 50});
+page.request('/history').resolve(emptyHistory);
 assert.equal(page.elements.get('#trend_charts').properties.hidden, true);
 assert.equal(page.elements.get('#history_results').properties.hidden, true);
-assert.match(page.elements.get('#history_status').message, /No matching records/);
+assert.equal(page.elements.get('#history_management').properties.hidden, true);
+assert.equal(page.elements.get('#history_status').message, 'No test results yet.');
+assert.equal(page.elements.get('#history_status').classes.has('text-danger'), false);
+vm.runInContext('historyReload()', page.context);
+page.request('/history').resolve({...emptyHistory, servers: {'42': 'Saved server'}});
+assert.equal(page.elements.get('#history_management').properties.hidden, false,
+             'Exports cover saved tests even if the current filters match none');
+assert.match(page.elements.get('#history_status').message, /No tests match these filters/);
+vm.runInContext('historyReload()', page.context);
+page.request('/history').resolve({error: 'The history service did not respond. Check that configd is running.'});
+assert.match(page.elements.get('#history_status').message, /configd/);
+assert.equal(page.elements.get('#history_status').classes.has('text-danger'), true);
+vm.runInContext('historyReload()', page.context);
+page.request('/history').reject('timeout');
+assert.match(page.elements.get('#history_status').message, /timed out/);
 vm.runInContext('historyReload()', page.context);
 const priorCharts = page.chartConfigs.length;
 page.request('/history').resolve({rows: [], series: [{epoch: 1700000000, download: 1500, upload: 20, latency: 2, jitter: 0}],
@@ -988,6 +1091,17 @@ assert.equal(detailValue(viewerLatest, '#result_details', 'Firewall IP seen by s
              'A viewer can see the latest saved status without triggering a new probe');
 assert.equal(viewerLatest.elements.get('#test_status').message, '', 'Loading a saved result is not a new completion');
 assert.equal(viewerLatest.request('/detect'), undefined);
+assert.equal(viewerLatest.elements.get('#result_details').properties.open, true, 'Saved result details open on page load');
+vm.runInContext(`renderResults([{serverid:42,servername:'Lab',sponsor:'Lab sponsor',sponsor_url:'javascript:void(0)'}])`, viewerLatest.context);
+const unsafeSponsor = detailField(viewerLatest, '#result_details', 'Server sponsor');
+assert.equal(unsafeSponsor.message, 'Lab sponsor');
+assert.equal(unsafeSponsor.children.length, 0, 'Unsafe sponsor URLs must remain plain text');
+vm.runInContext(`renderResults([{serverid:42,servername:'Lab',connection:{ip:'192.0.2.9',isp:''}}])`, viewerLatest.context);
+assert.equal(detailValue(viewerLatest, '#result_details', 'ISP / network'), 'Not reported by the test server');
+viewerLatest.elements.get('#result_details').prop('open', false);
+viewerLatest.elements.get('#speed_units').val('Gbps').trigger('change');
+assert.equal(viewerLatest.elements.get('#result_details').properties.open, false,
+             'Changing display units must not reopen details the viewer collapsed');
 const runner = fixture(script.replace('const canConfigure = true;', 'const canConfigure = false;'));
 runner.request('/defaults').resolve(defaults);
 runner.request('/version').resolve({message: 'librespeed-cli v1.2.1'});

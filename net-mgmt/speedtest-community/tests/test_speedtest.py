@@ -73,6 +73,7 @@ class WrapperTests(unittest.TestCase):
     def test_librespeed_runs_only_against_configured_server(self):
         servers = self.configure_librespeed()
         servers[0]['sponsorName'] = 'Lab network'
+        servers[0]['sponsorURL'] = 'https://sponsor.example.net/about?source=provider'
         self.librespeed_servers.write_text(json.dumps(servers))
         second = dict(servers[0], id=84, server="https://other.example.net/")
         self.librespeed_servers.write_text(json.dumps([*servers, second]))
@@ -88,11 +89,13 @@ class WrapperTests(unittest.TestCase):
         self.assertNotIn("packetloss", output)
         self.assertEqual(output["clientip"], "")
         self.assertEqual(output['sponsor'], 'Lab network')
+        self.assertEqual(output['sponsor_url'], servers[0]['sponsorURL'])
         self.assertEqual(output['connection'], {'ip': '192.0.2.9', 'isp': 'Example ISP'})
         self.assertNotIn('192.0.2.9', self.csvfile.read_text())
         self.assertNotIn('192.0.2.9', Path(str(self.csvfile) + '.jsonl').read_text())
         self.assertNotIn('Example ISP', Path(str(self.csvfile) + '.jsonl').read_text())
         self.assertEqual(self.run_wrapper('status', [])[0]['results'][0]['connection'], output['connection'])
+        self.assertEqual(self.query_history()['rows'][0]['sponsor_url'], servers[0]['sponsorURL'])
         self.assertEqual(output["link"], "")
         run.assert_called_once()
         self.assertEqual(run.call_args.args[0][:4], [str(self.librespeed), "--local-json", "-", "--json"])
@@ -464,7 +467,7 @@ class WrapperTests(unittest.TestCase):
 
     def test_catalog_is_independent_of_custom_list_and_does_not_write_history(self):
         servers = self.configure_librespeed()
-        official = dict(servers[0], id=109, name="Official", sponsorName="Sponsor")
+        official = dict(servers[0], id=109, name="Official", sponsorName="Sponsor", sponsorURL="http://sponsor.example.org/")
         self.config_xml.write_text("<opnsense/>")
         with patch("urllib.request.OpenerDirector.open") as fetch:
             fetch.return_value.__enter__.return_value.read.return_value = json.dumps([official]).encode()
@@ -476,6 +479,21 @@ class WrapperTests(unittest.TestCase):
         self.assertIn("relative endpoint path", invalid["error"])
         self.assertFalse(self.csvfile.exists())
         run.assert_not_called()
+
+    def test_catalog_rejects_unsafe_optional_sponsor_links_without_losing_servers(self):
+        server = dict(self.configure_librespeed()[0], sponsorName="Sponsor")
+        self.config_xml.write_text("<opnsense/>")
+        with patch("urllib.request.OpenerDirector.open") as fetch:
+            for website in (None, "javascript:void(0)", "//example.org", "https:///example.org",
+                            "https://user@example.org", "https://example.org:99999", "https://example.org\t/path",
+                            "https://example.org\\path", "https://example.org/" + "a" * 2048):
+                with self.subTest(website=website):
+                    fetch.return_value.__enter__.return_value.read.return_value = json.dumps([
+                        dict(server, sponsorURL=website)
+                    ]).encode()
+                    output, _ = self.run_wrapper("public-list", [])
+                    self.assertEqual(output["servers"][0]["sponsorName"], "Sponsor")
+                    self.assertEqual(output["servers"][0]["sponsorURL"], "")
 
     def set_server_policy(self, selection='all', combine='0'):
         import xml.etree.ElementTree as ET

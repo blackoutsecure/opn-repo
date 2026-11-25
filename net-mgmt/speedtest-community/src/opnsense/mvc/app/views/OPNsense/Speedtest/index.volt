@@ -61,13 +61,26 @@
     .speedtest-result-details > div { min-width: 0; }
     .speedtest-result-details dd { margin: 0; overflow-wrap: anywhere; }
     .speedtest-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin: 16px 0; }
-    #catalog_table, #custom_server_table { max-height: 24rem; overflow: auto; }
-    #catalog_rows td:first-child, #custom_server_rows td:first-child { overflow-wrap: anywhere; }
+    #catalog_table { max-height: 24rem; overflow: auto; }
+    #catalog_table th, #catalog_table td { white-space: normal; overflow-wrap: anywhere; }
+    .speedtest-catalog-allow { display: flex; align-items: center; gap: 4px; min-height: 30px; margin: 0; font-weight: 400; }
+    .speedtest-catalog-allow input { margin: 0; }
+    #custom_server_table table { table-layout: fixed; }
+    #custom_server_table th, #custom_server_table td { white-space: normal; }
+    #custom_server_table th:first-child { width: 3.5em; }
+    #custom_server_table th:nth-child(2) { width: 34%; }
+    #custom_server_table .form-control { width: 100%; max-width: none; min-width: 0; }
+    #custom_server_table label { min-width: 0; overflow-wrap: anywhere; }
     .speedtest-chart { position: relative; height: 220px; margin: 8px 0 16px; }
     .speedtest-disclosure { margin: 12px 0; }
     .speedtest-disclosure > summary { cursor: pointer; font-weight: 600; }
     .speedtest-disclosure > div { margin-top: 10px; }
     .speedtest-disclosure > summary:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+    .speedtest-server-section > summary { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; list-style: none; }
+    .speedtest-server-section > summary::-webkit-details-marker { display: none; }
+    .speedtest-server-section > summary > .fa { width: .75em; text-align: center; }
+    .speedtest-server-section[open] > summary > .fa { transform: rotate(90deg); }
+    .speedtest-server-meta { font-size: .9em; font-weight: 400; }
     .speedtest-surface progress { display: block; width: 100%; max-width: 760px; height: 8px; margin-bottom: 12px; }
     .speedtest-surface .table td { vertical-align: top; }
     .speedtest-surface .table .speedtest-disclosure { margin: 3px 0 0; }
@@ -166,7 +179,7 @@
                     <div id="latency_metric" hidden><dt>{{ lang._('Latency') }}</dt><dd id="latency"></dd></div>
                     <div id="jitter_metric" hidden><dt>{{ lang._('Jitter') }}</dt><dd id="jitter"></dd></div>
                 </dl>
-                <details id="live_chart_region" class="speedtest-disclosure" hidden>
+                <details id="live_chart_region" class="speedtest-disclosure" open hidden>
                     <summary>{{ lang._('Live throughput chart') }}</summary>
                     <div>
                         <p id="live_speed" class="numeric"></p>
@@ -175,11 +188,10 @@
                         <p>{{ lang._('Speeds are running averages. Time starts again for each direction.') }}</p>
                     </div>
                 </details>
-                <details id="result_details" class="speedtest-disclosure" hidden>
+                <details id="result_details" class="speedtest-disclosure" open hidden>
                     <summary>{{ lang._('Test details') }}</summary>
                     <div>
                         <dl class="speedtest-result-details"></dl>
-                        <p>{{ lang._('Gauge scales are for display, not link capacity. TLS refers to the latency probe.') }}</p>
                     </div>
                 </details>
                 <div class="table-responsive" id="comparison" hidden>
@@ -200,7 +212,7 @@
                     <button class="btn btn-default" id="refresh_history" type="button">{{ lang._('Refresh history') }}</button>
                     <button class="btn btn-default" id="reset_history_filters" type="button" hidden>{{ lang._('Reset filters') }}</button>
                 </div>
-                <details id="history_more_filters" class="speedtest-disclosure">
+                <details id="history_more_filters" class="speedtest-disclosure" open>
                     <summary>{{ lang._('More filters') }}</summary>
                     <div class="speedtest-toolbar">
                         <div><label for="history_mode">{{ lang._('Mode') }}</label><select id="history_mode" class="form-control"><option value="all">{{ lang._('All modes') }}</option><option value="both">{{ lang._('Full test') }}</option><option value="download">{{ lang._('Download') }}</option><option value="upload">{{ lang._('Upload') }}</option><option value="latency">{{ lang._('Latency') }}</option></select></div>
@@ -225,7 +237,7 @@
                     </table>
                 </div>
                 <div id="history_pagination" class="speedtest-actions" hidden><button id="history_previous" type="button" class="btn btn-default">{{ lang._('Newer') }}</button><span id="history_page"></span><button id="history_next" type="button" class="btn btn-default">{{ lang._('Older') }}</button></div>
-                <details id="history_trends" class="speedtest-disclosure" hidden>
+                <details id="history_trends" class="speedtest-disclosure" open hidden>
                     <summary>{{ lang._('Trends and averages') }}</summary>
                     <div>
                         <div class="row" id="trend_charts" hidden>
@@ -237,7 +249,7 @@
                     </div>
                 </details>
             </div>
-            <details class="speedtest-disclosure">
+            <details id="history_management" class="speedtest-disclosure" open>
                 <summary>{{ lang._('Export and manage history') }}</summary>
                 <div>
                     <p>{{ lang._('Exports cover all retained dates. CSV includes full tests; JSONL includes detailed records. Clearing history removes both.') }}</p>
@@ -279,7 +291,7 @@
                 </div>
             </fieldset></form>
             <p id="schedule_status" class="speedtest-status" role="status"></p>
-            <details id="schedule_recovery" class="speedtest-disclosure">
+            <details id="schedule_recovery" class="speedtest-disclosure" open>
                 <summary>{{ lang._('Cron tools') }}</summary>
                 <div>
                     <p>{{ lang._('Cron uses the firewall timezone. Daylight-saving changes may skip or repeat a run. Overlapping tests are refused.') }}</p>
@@ -302,7 +314,7 @@
             {% endif %}
             <p id="settings_status" class="speedtest-status" role="status"></p>
             {% if canRun or canConfigure %}
-            <details id="measurement_options" class="speedtest-disclosure">
+            <details id="measurement_options" class="speedtest-disclosure" open>
             <summary id="measurement_settings_heading">{{ lang._('Measurement options') }}</summary>
             <div>
             <p class="section-note">{{ lang._('Unsaved options apply only to manual tests started from this page.') }}</p>
@@ -332,7 +344,7 @@
                     <strong id="detected_server"></strong>
                     <p id="detection_status" class="speedtest-status" role="status"></p>
                     <p id="preview_note" hidden>{{ lang._('Selected for manual tests on this page. No bandwidth test was run or result saved to history.') }}</p>
-                    <details id="preview_details" class="speedtest-disclosure" hidden>
+                    <details id="preview_details" class="speedtest-disclosure" open hidden>
                         <summary>{{ lang._('Scan connection details') }}</summary>
                         <div><dl class="speedtest-result-details"></dl></div>
                     </details>
@@ -386,66 +398,55 @@
             </details>
             {% endif %}
             {% if canConfigure %}
-            <details id="server_options" class="speedtest-disclosure">
-            <summary id="server_settings_heading">{{ lang._('Servers') }}</summary>
+            <details id="server_options" class="speedtest-disclosure speedtest-server-section" open>
+            <summary id="server_settings_heading"><i class="fa fa-angle-right" aria-hidden="true"></i>{{ lang._('Servers') }}</summary>
+            <div>
+            <details id="catalog_panel" class="speedtest-disclosure speedtest-server-section" open>
+            <summary><i class="fa fa-angle-right" aria-hidden="true"></i>{{ lang._('Public Servers') }}
+                <span id="catalog_summary" class="speedtest-server-meta"></span>
+                <span id="catalog_pending" class="speedtest-server-meta" hidden>{{ lang._('Unsaved changes') }}</span>
+            </summary>
             <div>
             <div class="checkbox"><label><input id="public_servers" type="checkbox">{{ lang._('Use the public server catalog') }}</label></div>
-            <details id="catalog_panel" class="speedtest-disclosure" hidden>
-            <summary>{{ lang._('Manage allowed official servers') }}</summary>
-            <div>
             <p id="catalog_selection_status" class="speedtest-status" role="status"></p>
             <div class="speedtest-toolbar">
-                <div><label for="catalog_search">{{ lang._('Search by server, sponsor, host, or ID') }}</label><input id="catalog_search" class="form-control" type="search"></div>
-                <button id="catalog_refresh" type="button" class="btn btn-default" disabled>{{ lang._('Refresh catalog') }}</button>
-                <button id="catalog_allow_all" type="button" class="btn btn-default" disabled hidden>{{ lang._('Allow all official servers') }}</button>
-                <button id="catalog_allow_none" type="button" class="btn btn-default" disabled hidden>{{ lang._('Remove all official servers') }}</button>
+                <div id="catalog_search_group" hidden><label for="catalog_search">{{ lang._('Search by server, sponsor, host, or ID') }}</label><input id="catalog_search" class="form-control" type="search"></div>
+                <button id="catalog_refresh" type="button" class="btn btn-default" aria-describedby="catalog_controls_help" disabled>{{ lang._('Refresh catalog') }}</button>
+                <button id="catalog_reset" type="button" class="btn btn-default" aria-describedby="catalog_controls_help" disabled>{{ lang._('Reset allow-list') }}</button>
+                <button id="catalog_allow_none" type="button" class="btn btn-default" disabled>{{ lang._('Disallow all') }}</button>
             </div>
+            <p id="catalog_controls_help" class="help-block">{{ lang._('Refresh keeps your choices. Reset allows all current and future public servers after you save, without turning the catalog on or off.') }}</p>
             <p id="catalog_status" class="speedtest-status" role="status"></p>
             <p id="catalog_no_matches" hidden>{{ lang._('No servers match your search.') }}</p>
             <div class="table-responsive" id="catalog_table" tabindex="0" role="region" aria-label="{{ lang._('Public servers') }}" hidden>
-                <table class="table table-striped">
+                <table class="table table-striped table-condensed">
                     <caption class="sr-only">{{ lang._('Public servers') }}</caption>
-                    <thead><tr><th scope="col">{{ lang._('Server') }}</th><th scope="col">{{ lang._('Sponsor') }}</th><th scope="col">{{ lang._('Allowed') }}</th><th scope="col">{{ lang._('Actions') }}</th></tr></thead>
+                    <thead><tr><th scope="col">{{ lang._('Server') }}</th><th scope="col">{{ lang._('Sponsor') }}</th><th scope="col">{{ lang._('Allow') }}</th></tr></thead>
                     <tbody id="catalog_rows"></tbody>
                 </table>
             </div>
             </div>
             </details>
+            <details id="custom_servers_panel" class="speedtest-disclosure speedtest-server-section" open>
+            <summary><i class="fa fa-angle-right" aria-hidden="true"></i>{{ lang._('Custom Servers') }}
+                <span id="custom_summary" class="speedtest-server-meta"></span>
+                <span id="custom_pending" class="speedtest-server-meta" hidden>{{ lang._('Unsaved changes') }}</span>
+            </summary>
+            <div>
             <div id="combine_servers_field" class="checkbox" hidden><label><input id="combine_servers" type="checkbox" disabled>{{ lang._('Include allowed official servers alongside custom servers') }}</label></div>
-            <h3>{{ lang._('Custom servers') }}</h3>
-            <p id="servers_help">{{ lang._('Custom servers replace the official list unless you combine them. With no custom entries, the firewall-managed server file takes priority over the catalog.') }}</p>
+            <p id="servers_help" class="section-note">{{ lang._('Use the HTTPS backend URL, not a results page. Save settings to apply edits.') }}</p>
+            <p class="help-block">{{ lang._('Custom servers replace the official list unless you combine them. With no custom entries, the firewall-managed server file takes priority over the catalog.') }}</p>
             <fieldset id="custom_server_controls" disabled>
+                <p id="custom_server_status" class="speedtest-status" role="status"></p>
                 <div class="table-responsive" id="custom_server_table" tabindex="0" role="region" aria-label="{{ lang._('Custom servers') }}" hidden>
-                    <table class="table table-striped">
+                    <table class="table table-striped table-condensed">
                         <caption class="sr-only">{{ lang._('Custom servers') }}</caption>
-                        <thead><tr><th scope="col">{{ lang._('Server') }}</th><th scope="col">{{ lang._('Actions') }}</th></tr></thead>
+                        <thead><tr><th scope="col"><span class="sr-only">{{ lang._('Actions') }}</span></th><th scope="col">{{ lang._('Name') }}</th><th scope="col">{{ lang._('HTTPS backend URL') }}</th></tr></thead>
                         <tbody id="custom_server_rows"></tbody>
                     </table>
                 </div>
-                <p id="custom_server_status" role="status" aria-live="polite"></p>
-                <button id="add_custom_server" type="button" class="btn btn-default">{{ lang._('Add custom server') }}</button>
-                <form id="custom_server_editor" class="form-horizontal" hidden>
-                    <h5 id="custom_server_editor_title"></h5>
-                    <div class="form-group"><label for="server_edit_name" class="col-sm-3 control-label">{{ lang._('Name') }}</label><div class="col-sm-9"><input id="server_edit_name" class="form-control" maxlength="200" required></div></div>
-                    <div class="form-group"><label for="server_edit_server" class="col-sm-3 control-label">{{ lang._('HTTPS base URL') }}</label><div class="col-sm-9"><input id="server_edit_server" type="url" class="form-control" placeholder="https://speed.example.net/backend/" required><span class="help-block">{{ lang._('Use the backend URL, not a results page. Standard PHP endpoint paths are filled in for you.') }}</span></div></div>
-                    <details id="server_endpoint_options" class="speedtest-disclosure">
-                        <summary>{{ lang._('Advanced endpoint options') }}</summary>
-                        <div>
-                            <div class="form-group"><label for="server_edit_id" class="col-sm-3 control-label">{{ lang._('Server ID') }}</label><div class="col-sm-9"><input id="server_edit_id" class="form-control" inputmode="numeric" pattern="[1-9][0-9]{0,15}" required><span class="help-block">{{ lang._('Assigned automatically for new entries. Keep existing IDs stable for schedules and history.') }}</span></div></div>
-                            <div class="form-group"><label for="server_edit_sponsorName" class="col-sm-3 control-label">{{ lang._('Sponsor (optional)') }}</label><div class="col-sm-9"><input id="server_edit_sponsorName" class="form-control" maxlength="200"></div></div>
-                            <div class="form-group"><label for="server_edit_dlURL" class="col-sm-3 control-label">{{ lang._('Download path') }}</label><div class="col-sm-9"><input id="server_edit_dlURL" class="form-control" required></div></div>
-                            <div class="form-group"><label for="server_edit_ulURL" class="col-sm-3 control-label">{{ lang._('Upload path') }}</label><div class="col-sm-9"><input id="server_edit_ulURL" class="form-control" required></div></div>
-                            <div class="form-group"><label for="server_edit_pingURL" class="col-sm-3 control-label">{{ lang._('Latency path') }}</label><div class="col-sm-9"><input id="server_edit_pingURL" class="form-control" required></div></div>
-                            <div class="form-group"><label for="server_edit_getIpURL" class="col-sm-3 control-label">{{ lang._('Client IP path') }}</label><div class="col-sm-9"><input id="server_edit_getIpURL" class="form-control" required></div></div>
-                        </div>
-                    </details>
-                    <div class="speedtest-toolbar">
-                        <button type="submit" class="btn btn-default">{{ lang._('Apply to custom list') }}</button>
-                        <button id="cancel_server_edit" type="button" class="btn btn-default">{{ lang._('Cancel edit') }}</button>
-                    </div>
-                    <p id="server_edit_status" role="status" aria-live="polite"></p>
-                </form>
-                <details class="speedtest-disclosure">
+                <button id="add_custom_server" type="button" class="btn btn-default"><i class="fa fa-plus" aria-hidden="true"></i> {{ lang._('Add custom server') }}</button>
+                <details class="speedtest-disclosure" open>
                     <summary>{{ lang._('Edit raw server JSON') }}</summary>
                     <div><label for="servers_json">{{ lang._('Custom servers (JSON)') }}</label>
                     <textarea id="servers_json" class="form-control" rows="7" spellcheck="false" aria-describedby="servers_help"></textarea></div>
@@ -453,7 +454,9 @@
             </fieldset>
             </div>
             </details>
-            <details id="retention_options" class="speedtest-disclosure">
+            </div>
+            </details>
+            <details id="retention_options" class="speedtest-disclosure" open>
             <summary>{{ lang._('History retention') }}</summary>
             <div>
             <form id="retention_form" class="speedtest-toolbar">
@@ -469,7 +472,7 @@
             <p>{{ lang._('Saving defaults or changing servers and retention requires the Speedtest configure privilege.') }}</p>
             {% endif %}
             {% endif %}
-            <details class="speedtest-disclosure">
+            <details class="speedtest-disclosure" open>
                 <summary>{{ lang._('Speed display') }}</summary>
                 <div class="speedtest-field">
                     <label for="speed_units">{{ lang._('Speed units') }}</label>
@@ -484,7 +487,7 @@
                     <span id="speed_units_help" class="help-block">{{ lang._('Display only. This does not cap the test speed or change stored results.') }}</span>
                 </div>
             </details>
-            <details class="speedtest-disclosure">
+            <details class="speedtest-disclosure" open>
                 <summary>{{ lang._('About Speedtest') }}</summary>
                 <div>
                     <p>{{ lang._('Measurements use the LibreSpeed Rust engine.') }}
@@ -497,7 +500,7 @@
                     <p>{{ lang._('The optional firewall-managed server list is at') }} <code>/usr/local/etc/speedtest-community/librespeed-servers.json</code>.</p>
                 </div>
             </details>
-            <details class="speedtest-disclosure">
+            <details class="speedtest-disclosure" open>
                 <summary>{{ lang._('Terminal commands') }}</summary>
                 <div><pre>opn-speedtest --help
 opn-speedtest list
@@ -506,7 +509,7 @@ opn-speedtest run --server 42 --server 84
 opn-speedtest history --days 30 --format json</pre>
                 <p>{{ lang._('Terminal commands share the GUI lock and history.') }}</p></div>
             </details>
-            <details class="speedtest-disclosure">
+            <details class="speedtest-disclosure" open>
                 <summary>{{ lang._('Permissions and support') }}</summary>
                 <div>
                     <p>{{ lang._('Assign privileges under System > Access > Users or Groups. View results includes charts, dashboard data and exports. Running tests, configuring settings, managing the schedule and clearing history require separate privileges. Grant View results alongside additional privileges. Read-only accounts cannot run tests or change settings.') }}</p>
@@ -540,7 +543,7 @@ opn-speedtest history --days 30 --format json</pre>
     let catalog = [];
     let catalogReceived = false;
     let publicSelection = 'all';
-    let serverEditIndex = null;
+    let customServerRows = null;
     let savedPublicServers = false;
     let statusReady = false;
     let statusNeedsAttention = false;
@@ -569,6 +572,13 @@ opn-speedtest history --days 30 --format json</pre>
     const booleanKeys = ['icmp', 'http2', 'no_pre_allocate', 'private_ca'];
     const recommendedRetention = {retention_days: '31', history_limit: '10000'};
     const serverFields = ['id', 'name', 'server', 'dlURL', 'ulURL', 'pingURL', 'getIpURL', 'sponsorName'];
+    const serverPaths = {dlURL: 'garbage.php', ulURL: 'empty.php', pingURL: 'empty.php', getIpURL: 'getIP.php'};
+    const customServerLabels = {
+        name: "{{ lang._('Server name') }}", server: "{{ lang._('HTTPS backend URL') }}",
+        id: "{{ lang._('Server ID') }}", sponsorName: "{{ lang._('Sponsor (optional)') }}",
+        dlURL: "{{ lang._('Download path') }}", ulURL: "{{ lang._('Upload path') }}",
+        pingURL: "{{ lang._('Latency path') }}", getIpURL: "{{ lang._('Client IP path') }}"
+    };
     const recommendedOptions = {
         duration: '10', timeout: '15', concurrent: '3', chunks: '100', upload_size: '1024',
         family: 'auto', source: '', exclude: '', icmp: '0', http2: '0',
@@ -597,7 +607,9 @@ opn-speedtest history --days 30 --format json</pre>
             || (selected === '-1' ? "{{ lang._('Compare all servers') }}" : selected === 'custom' ? "{{ lang._('Custom server IDs') }}" : ''));
         const catalogEnabled = $('#public_servers').prop('checked');
         const measurementDraft = defaultsReady && differs(currentOptions(), savedSettings);
-        const settingsDraft = canConfigure && defaultsReady && settingsReady && differs(settingsOptions(), savedSettings);
+        const settings = canConfigure && defaultsReady && settingsReady ? settingsOptions() : null;
+        const settingsDraft = settings && differs(settings, savedSettings);
+        if (settings) renderServerSummaries(settings);
         $('#test_controls, #server_controls').prop('disabled', busy || !defaultsReady || !canRun);
         $('#serverid').prop('disabled', !serversReady);
         $('#measurement_options_controls').prop('disabled', busy || !defaultsReady || (!canRun && !canConfigure));
@@ -614,18 +626,17 @@ opn-speedtest history --days 30 --format json</pre>
         $('#run_overrides').prop('hidden', !overrides.length);
         $('#open_test_settings').text(overrides.join(' · '));
         $('#restore_measurement').prop('hidden', !measurementDraft && !alternateMode);
-        $('#save_settings, #discard_settings').prop('disabled', busy || !settingsDraft || serverEditIndex !== null);
+        $('#save_settings, #discard_settings').prop('disabled', busy || !settingsDraft);
         $('#discard_settings').prop('hidden', !settingsDraft);
         $('#public_servers').prop('disabled', busy || !settingsReady);
         $('#reset_retention').prop('disabled', busy || !defaultsReady || !settingsReady || !canConfigure);
         $('#combine_servers').prop('disabled', busy || !settingsReady || !catalogEnabled);
         $('#custom_server_controls').prop('disabled', busy || !settingsReady);
-        $('#servers_json').prop('disabled', serverEditIndex !== null);
-        $('#catalog_refresh').prop('disabled', busy || !settingsReady || !defaultsReady || catalogLoading
-            || !savedPublicServers || !catalogEnabled);
-        $('#catalog_rows button').prop('disabled', busy || !settingsReady || serverEditIndex !== null);
-        $('#catalog_allow_all, #catalog_allow_none').prop('disabled', busy || !settingsReady || !defaultsReady
-            || catalogLoading || !savedPublicServers || !catalogEnabled);
+        $('#add_custom_server').prop('disabled', !customServerRows || customServerRows.length >= 50);
+        const catalogBusy = busy || !settingsReady || !defaultsReady || catalogLoading;
+        $('#catalog_refresh, #catalog_rows input').prop('disabled', catalogBusy || !savedPublicServers || !catalogEnabled);
+        $('#catalog_reset').prop('disabled', catalogBusy || publicSelection === 'all');
+        $('#catalog_allow_none').prop('disabled', catalogBusy || !catalogEnabled || publicSelection === 'none');
         $('#schedule_controls').prop('disabled', busy || !scheduleReady);
         $('#apply_schedule').prop('disabled', busy || !scheduleReady || scheduleChanged());
         $('#deletelogAct').prop('disabled', busy);
@@ -652,6 +663,18 @@ opn-speedtest history --days 30 --format json</pre>
             public_selection: publicSelection, combine_servers: $('#combine_servers').prop('checked') ? '1' : '0',
             servers: $('#servers_json').val(), retention_days: $('#retention_days').val(), history_limit: $('#history_limit').val()};
     }
+    function renderServerSummaries(settings) {
+        $('#catalog_summary').text(settings.public_servers === '0' ? "{{ lang._('Off') }}"
+            : settings.public_selection === 'all' ? "{{ lang._('All allowed') }}"
+            : settings.public_selection === 'none' ? "{{ lang._('None allowed') }}"
+            : settings.public_selection.split(',').length + ' ' + "{{ lang._('allowed') }}");
+        $('#catalog_pending').prop('hidden', settings.public_servers === savedSettings.public_servers
+            && settings.public_selection === savedSettings.public_selection);
+        $('#custom_summary').text(customServerRows
+            ? customServerRows.length + ' ' + "{{ lang._('configured') }}" : "{{ lang._('JSON only') }}");
+        $('#custom_pending').prop('hidden', settings.servers === savedSettings.servers
+            && settings.combine_servers === savedSettings.combine_servers);
+    }
     function differs(values, saved) {
         return Object.entries(values).some(([key, value]) => value !== saved[key]);
     }
@@ -674,10 +697,9 @@ opn-speedtest history --days 30 --format json</pre>
                     : "{{ lang._('The service could not be reached. Check your session and backend logs.') }}", true);
             });
     }
-    function customServers() {
+    function customServers(text = $('#servers_json').val()) {
         try {
-            const text = $('#servers_json').val().trim();
-            const list = text ? JSON.parse(text) : [];
+            const list = text.trim() ? JSON.parse(text) : [];
             return Array.isArray(list) && list.every(server => server && Number.isSafeInteger(server.id)) ? list : null;
         } catch (error) {
             if (!(error instanceof SyntaxError)) throw error;
@@ -688,96 +710,156 @@ opn-speedtest history --days 30 --format json</pre>
         return $('<td/>').append($('<strong/>').text('(' + server.id + ') ' + server.name))
             .append($('<div/>').text(String(server.server ?? '')));
     }
-    function rowButton(label, name, handler) {
-        return $('<button/>').attr('type', 'button').attr('aria-label', label + ': ' + name)
-            .addClass('btn btn-default btn-xs').text(label).on('click', handler);
-    }
-    function approvedPublicIds() {
-        return publicSelection === 'all' ? catalog.map(server => server.id)
-            : publicSelection === 'none' ? [] : publicSelection.split(',');
+    function approvedPublicIds(selection = publicSelection) {
+        return selection === 'all' ? catalog.map(server => server.id)
+            : selection === 'none' ? [] : selection.split(',');
     }
     function setPublicSelection(selection) {
-        if (!canConfigure || !settingsReady || running || saving || detecting || serverEditIndex !== null) return;
+        if (!canConfigure || !settingsReady || !defaultsReady || catalogLoading
+            || running || starting || saving || detecting || selection === publicSelection) return;
         publicSelection = selection;
         renderCatalog();
-        showStatus('#settings_status', "{{ lang._('Server permissions changed on this page. Save settings to apply them to tests.') }}");
+        showStatus('#settings_status', selection === savedSettings.public_selection ? ''
+            : "{{ lang._('Public allow-list changed. Save settings to apply it.') }}");
     }
     function togglePublicServer(server) {
         const ids = new Set(approvedPublicIds());
         if (ids.has(server.id)) ids.delete(server.id);
         else ids.add(server.id);
         if (ids.size > 50) {
+            renderCatalog();
             showStatus('#catalog_selection_status', "{{ lang._('Select up to 50 official servers.') }}", true);
             return;
         }
         setPublicSelection(ids.size ? [...ids].join(',') : 'none');
     }
     function nextCustomServerId() {
-        const ids = new Set([...(customServers() || []).map(server => String(server.id)), ...catalog.map(server => server.id)]);
+        const ids = new Set([...customServerRows.map(({server}) => String(server.id)), ...catalog.map(server => server.id)]);
         let id = 10000;
         while (ids.has(String(id))) id++;
         return id;
     }
     function renderCustomServers() {
         const list = customServers();
-        const rows = $('#custom_server_rows').empty();
-        $('#custom_server_table').prop('hidden', !list?.length);
-        $('#add_custom_server, #custom_server_rows button').prop('disabled', !list || serverEditIndex !== null);
-        if (!list) {
-            showStatus('#custom_server_status', "{{ lang._('Use raw JSON to correct this list or edit IDs larger than the form supports.') }}", true);
-            return;
-        }
-        showStatus('#custom_server_status', list.length ? '' : "{{ lang._('No custom servers. Tests use the configured fallback source.') }}");
-        list.forEach((server, index) => {
-            const buttons = $('<td/>')
-                .append(rowButton("{{ lang._('Edit') }}", server.name, () => editServer(server, index)))
-                .append(' ')
-                .append(rowButton("{{ lang._('Remove') }}", server.name, () => {
-                    if (running || saving || detecting || serverEditIndex !== null) return;
-                    if (list.length === 1 && !window.confirm("{{ lang._('Removing the last custom server restores the configured fallback source after saving. Remove it?') }}")) return;
-                    list.splice(index, 1);
-                    writeCustomServers(list);
-                    $('#add_custom_server').trigger('focus');
-                }));
-            rows.append($('<tr/>').append(serverNameCell(server)).append(buttons));
+        const saved = customServers(savedSettings.servers);
+        const byId = new Map((saved ?? []).map(server => [server.id, server]));
+        $('#custom_server_rows').empty();
+        customServerRows = list?.map(server => appendCustomServerRow(server, saved ? byId.get(server.id) : null)) ?? null;
+        updateCustomServerTable();
+    }
+    function updateCustomServerTable() {
+        const count = customServerRows?.length ?? 0;
+        $('#custom_server_table').prop('hidden', count === 0);
+        customServerRows?.forEach(({server, original, label}) => {
+            const change = original === undefined ? "{{ lang._('Added') }}"
+                : original && serverFields.some(key => (server[key] ?? '') !== (original[key] ?? '')) ? "{{ lang._('Edited') }}" : '';
+            label.text(change).prop('hidden', !change);
         });
-        $('#custom_server_rows button').prop('disabled', serverEditIndex !== null);
+        showStatus('#custom_server_status', !customServerRows
+            ? "{{ lang._('Use raw JSON to correct this list or edit IDs larger than the form supports.') }}"
+            : count === 0 ? "{{ lang._('No custom servers configured.') }}"
+            : count >= 50 ? "{{ lang._('The custom list supports up to 50 servers.') }}" : '', !customServerRows);
+        updateControls();
     }
-    function writeCustomServers(list) {
+    function writeCustomServers() {
+        const list = customServerRows.map(({server}) => server);
         $('#servers_json').val(list.length ? JSON.stringify(list, null, 2) : '');
-        renderCustomServers();
-        updateControls();
-        showStatus('#custom_server_status', "{{ lang._('Custom list updated on this page. Save settings to use it for tests.') }}");
+        showStatus('#settings_status', '');
+        updateCustomServerTable();
     }
-    function editServer(server, index) {
-        if (running || saving || detecting || !settingsReady || serverEditIndex !== null || !customServers()) return;
-        serverEditIndex = index;
-        $('#custom_server_editor_title').text(index === -1
-            ? "{{ lang._('Add to custom servers') }}" : "{{ lang._('Edit custom server') }}");
-        serverFields.forEach(key => $('#server_edit_' + key).val(String(server[key] ?? '')));
-        $('#server_endpoint_options').prop('open', false);
-        showStatus('#server_edit_status', '');
-        $('#custom_server_editor').prop('hidden', false);
-        renderCustomServers();
-        updateControls();
-        $('#server_edit_name').trigger('focus');
+    function appendCustomServerRow(server, original) {
+        const row = $('<tr/>');
+        const fields = {};
+        const advanced = $('<details/>').addClass('speedtest-disclosure').prop('open', true)
+            .append($('<summary/>').text("{{ lang._('Advanced options') }}"));
+        const grid = $('<div/>').addClass('speedtest-option-grid');
+        const label = $('<small/>').addClass('speedtest-server-meta');
+        const entry = {server, original, fields, advanced, label};
+        for (const [key, label] of Object.entries(customServerLabels)) {
+            const input = $('<input/>').addClass('form-control').attr('aria-label', label)
+                .attr('type', key === 'server' ? 'url' : 'text').val(String(server[key] ?? ''));
+            if (key === 'id') input.attr('inputmode', 'numeric');
+            if (key === 'name' || key === 'sponsorName') input.attr('maxlength', '200');
+            if (key === 'server') input.attr('placeholder', 'https://speed.example.net/backend/');
+            if (key !== 'name' && key !== 'server') grid.append($('<label/>').text(label).append(input));
+            fields[key] = input;
+            input.on('input', function() {
+                const value = input.val().trim();
+                if (key === 'sponsorName' && !value) delete server[key];
+                else if (key === 'id' && /^[1-9][0-9]*$/.test(value) && Number.isSafeInteger(Number(value))) server.id = Number(value);
+                else server[key] = value;
+                input.removeAttr('aria-invalid').removeAttr('aria-describedby');
+                writeCustomServers();
+            });
+        }
+        advanced.append($('<div/>').append($('<p/>').text("{{ lang._('Keep existing IDs for schedules and history. Change paths only if your server uses different endpoints.') }}"))
+            .append(grid));
+        const remove = $('<button/>').attr('type', 'button').attr('aria-label', "{{ lang._('Remove custom server') }}")
+            .addClass('btn btn-default btn-sm').append($('<i/>').attr('aria-hidden', 'true').addClass('fa fa-minus'))
+            .on('click', function() {
+                const index = customServerRows?.indexOf(entry) ?? -1;
+                if (index < 0 || running || starting || saving || detecting) return;
+                if (customServerRows.length === 1 && savedSettings.servers.trim()
+                    && !window.confirm("{{ lang._('Removing the last custom server restores the configured fallback source after saving. Remove it?') }}")) return;
+                customServerRows.splice(index, 1);
+                row.remove();
+                writeCustomServers();
+                (customServerRows[index] || customServerRows[index - 1])?.fields.name.trigger('focus');
+                if (!customServerRows.length) $('#add_custom_server').trigger('focus');
+            });
+        $('#custom_server_rows').append(row.append($('<td/>').append(remove)).append($('<td/>').append(fields.name).append(label))
+            .append($('<td/>').append(fields.server).append(advanced)));
+        return entry;
     }
-    function closeServerEditor() {
-        serverEditIndex = null;
-        $('#custom_server_editor').prop('hidden', true);
-        renderCustomServers();
-        updateControls();
-        $('#add_custom_server').trigger('focus');
+    function serverUrlKey(value) {
+        return String(value ?? '').replace(/\/+$/, '');
+    }
+    function validateCustomServers() {
+        const ids = new Set(), urls = new Set();
+        return (customServerRows ?? []).every(({server, fields, advanced}, index) => {
+            function problem(key, message) {
+                $('#server_options, #custom_servers_panel').prop('open', true);
+                if (key !== 'name' && key !== 'server') advanced.prop('open', true);
+                showStatus('#custom_server_status', "{{ lang._('Server row') }} " + (index + 1) + ': ' + message, true);
+                fields[key].attr('aria-invalid', 'true').attr('aria-describedby', 'custom_server_status').trigger('focus');
+                return false;
+            }
+            if (!Number.isSafeInteger(server.id) || server.id < 1 || ids.has(server.id)) {
+                return problem('id', "{{ lang._('Enter a unique positive server ID.') }}");
+            }
+            if (typeof server.name !== 'string' || !server.name.trim() || server.name.length > 200 || /[\u0000-\u001f\u007f]/.test(server.name)) {
+                return problem('name', "{{ lang._('Enter a server name of up to 200 characters.') }}");
+            }
+            let url;
+            try { url = new URL(server.server); }
+            catch (error) {
+                if (!(error instanceof TypeError)) throw error;
+                return problem('server', "{{ lang._('Enter a valid HTTPS backend URL.') }}");
+            }
+            const urlKey = serverUrlKey(server.server);
+            if (url.protocol !== 'https:' || !/^https:\/\/[^/]/.test(server.server) || url.username || url.password
+                || url.search || url.hash || /[\s\\]/.test(server.server) || urls.has(urlKey)) {
+                return problem('server', "{{ lang._('Use a unique HTTPS URL without credentials, queries or fragments.') }}");
+            }
+            for (const key of Object.keys(serverPaths)) {
+                const path = server[key];
+                if (typeof path !== 'string' || !/^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*$/.test(path)
+                    || path.split('/').some(part => part === '.' || part === '..')) {
+                    return problem(key, "{{ lang._('Use a relative endpoint path without dot or parent segments.') }}");
+                }
+            }
+            ids.add(server.id);
+            urls.add(urlKey);
+            return true;
+        });
     }
     function renderCatalog() {
         const desired = $('#public_servers').prop('checked');
         const enabled = savedPublicServers && desired;
-        $('#catalog_panel, #combine_servers_field').prop('hidden', !desired);
-        if (!desired) {
-            $('#catalog_panel').prop('open', false);
-            $('#catalog_search').val('');
-            showStatus('#catalog_status', '');
-        }
+        $('#combine_servers_field').prop('hidden', !desired);
+        $('#catalog_search_group').prop('hidden', !enabled || !catalogReceived);
+        if (!desired) $('#catalog_search').val('');
+        if (!enabled) showStatus('#catalog_status', '');
         const query = $('#catalog_search').val().trim().toLowerCase();
         const ids = approvedPublicIds();
         const unavailable = publicSelection === 'all' || !catalogReceived ? [] : ids.filter(id => !catalog.some(server => server.id === id))
@@ -785,26 +867,34 @@ opn-speedtest history --days 30 --format json</pre>
         const matches = enabled ? [...catalog, ...unavailable].filter(server =>
             [server.id, server.name, server.server, server.sponsorName].some(value => value.toLowerCase().includes(query))) : [];
         const rows = $('#catalog_rows').empty();
+        const previouslyAllowed = new Set(approvedPublicIds(savedSettings.public_selection ?? 'all'));
         matches.forEach(server => {
-            const allowed = publicSelection === 'all' || ids.includes(server.id);
-            rows.append($('<tr/>').append(serverNameCell(server)).append($('<td/>').text(server.sponsorName))
-                .append($('<td/>').text(allowed ? "{{ lang._('Yes') }}" : "{{ lang._('No') }}"))
-                .append($('<td/>').append(rowButton(allowed ? "{{ lang._('Remove') }}" : "{{ lang._('Allow') }}",
-                    server.name, () => {
-                        togglePublicServer(server);
-                        $('#catalog_allow_' + server.id).trigger('focus');
-                    }).attr('id', 'catalog_allow_' + server.id))));
+            const allowed = ids.includes(server.id);
+            const checkbox = $('<input/>').attr('type', 'checkbox').attr('id', 'catalog_allow_' + server.id)
+                .attr('aria-label', "{{ lang._('Allow public server') }}: " + server.name)
+                .prop('checked', allowed).on('change', () => {
+                    togglePublicServer(server);
+                    const replacement = $('#catalog_allow_' + server.id);
+                    (replacement.length ? replacement : $('#catalog_search')).trigger('focus');
+                });
+            const allow = $('<label/>').addClass('speedtest-catalog-allow').append(checkbox);
+            if (allowed !== previouslyAllowed.has(server.id)) {
+                const labelId = 'catalog_changed_' + server.id;
+                allow.append($('<small/>').attr('id', labelId).text("{{ lang._('Changed') }}"));
+                checkbox.attr('aria-describedby', labelId);
+            }
+            rows.append($('<tr/>').append(serverNameCell(server)).append(displayValue($('<td/>'), server.sponsorName, server.sponsorURL))
+                .append($('<td/>').append(allow)));
         });
         $('#catalog_table').prop('hidden', !matches.length);
         $('#catalog_no_matches').prop('hidden', !enabled || !catalog.length || !!matches.length);
         $('#catalog_search').prop('disabled', !enabled || !catalogReceived);
-        $('#catalog_allow_all').prop('hidden', publicSelection === 'all' || !enabled);
-        $('#catalog_allow_none').prop('hidden', publicSelection === 'none' || !enabled);
-        showStatus('#catalog_selection_status', publicSelection === 'all'
-            ? "{{ lang._('All official servers are allowed, including new additions. Removing one creates a fixed allow-list.') }}"
-            : publicSelection === 'none' ? "{{ lang._('No official servers are allowed.') }}"
-            : "{{ lang._('Only selected servers are allowed. New additions require approval.') }}");
-        if (desired && !savedPublicServers) showStatus('#catalog_status', "{{ lang._('Save settings to load the official catalog.') }}");
+        showStatus('#catalog_selection_status', !settingsReady || !defaultsReady ? ''
+            : !desired ? "{{ lang._('Enable and save the public catalog to refresh its server list.') }}"
+            : !savedPublicServers ? "{{ lang._('Save settings to load the public server catalog.') }}"
+            : publicSelection === 'all' ? "{{ lang._('All public servers are allowed. Uncheck a server to create a fixed allow-list.') }}"
+            : publicSelection === 'none' ? "{{ lang._('No public servers are allowed.') }}"
+            : "{{ lang._('Only checked public servers are allowed. New entries require approval.') }}");
         updateControls();
     }
     function refreshCatalog() {
@@ -829,9 +919,12 @@ opn-speedtest history --days 30 --format json</pre>
             updateControls();
         });
     }
+    function loadVisibleCatalog() {
+        if (!catalogReceived && $('#setup').hasClass('active')
+            && $('#server_options').prop('open') && $('#catalog_panel').prop('open')) refreshCatalog();
+    }
     function clearPreview() {
         $('#server_preview, #preview_note, #preview_details').prop('hidden', true);
-        $('#preview_details').prop('open', false);
         $('#preview_details dl').empty();
         $('#detected_server').text('');
         showStatus('#detection_status', '');
@@ -989,11 +1082,12 @@ opn-speedtest history --days 30 --format json</pre>
         const power = value < 1024 ? 0 : Math.min(4, Math.floor(Math.log2(value) / 10));
         return number(value / 1024 ** power, ' ' + ['B', 'KiB', 'MiB', 'GiB', 'TiB'][power]);
     }
-    function connectionDetails(result) {
+    function connectionDetails(result, showMissing = false) {
+        const notReported = showMissing && result ? "{{ lang._('Not reported by the test server') }}" : '';
         return [
-            ["{{ lang._('Server sponsor') }}", result?.sponsor],
-            ["{{ lang._('Firewall IP seen by server') }}", result?.connection?.ip],
-            ["{{ lang._('ISP / network') }}", result?.connection?.isp]
+            ["{{ lang._('Server sponsor') }}", result?.sponsor, result?.sponsor_url],
+            ["{{ lang._('Firewall IP seen by server') }}", result?.connection?.ip || notReported],
+            ["{{ lang._('ISP / network') }}", result?.connection?.isp || notReported]
         ];
     }
     function transferDetails(result) {
@@ -1003,15 +1097,29 @@ opn-speedtest history --days 30 --format json</pre>
             ["{{ lang._('Probe TLS') }}", [result?.tls?.version, result?.tls?.cipher].filter(Boolean).join(' / ')]
         ];
     }
+    function displayValue(element, text, website) {
+        if (text && typeof website === 'string' && website.length <= 2048 && /^https?:\/\/[^/]/i.test(website)
+            && !/[\s\\\p{C}]/u.test(website)) {
+            let url;
+            try { url = new URL(website); }
+            catch (error) { if (!(error instanceof TypeError)) throw error; }
+            if (url?.hostname && !url.username && !url.password && url.port !== '0') {
+                return element.append($('<a/>').addClass('speedtest-subtle').attr('href', url.href).attr('target', '_blank')
+                    .attr('rel', 'noopener noreferrer').text(text));
+            }
+        }
+        return element.text(text);
+    }
     function fillDetails(list, fields) {
         list.empty();
         const entries = fields.filter(([, value]) => typeof value === 'string' && value.trim());
-        entries.forEach(([label, value]) => list.append($('<div/>').append($('<dt/>').text(label)).append($('<dd/>').text(value))));
+        entries.forEach(([label, value, website]) => list.append($('<div/>').append($('<dt/>').text(label))
+            .append(displayValue($('<dd/>'), value, website))));
         return entries.length > 0;
     }
-    function renderDetails(selector, fields) {
+    function renderDetails(selector, fields, open = true) {
         const present = fillDetails($(selector + ' dl'), fields);
-        $(selector).prop('open', false).prop('hidden', !present);
+        $(selector).prop('open', present && open).prop('hidden', !present);
     }
     function renderGauge(key, value, live = false) {
         const measured = Number.isFinite(value) && value >= 0;
@@ -1038,6 +1146,7 @@ opn-speedtest history --days 30 --format json</pre>
         $('#test_metrics').prop('hidden', !hasMeasurements);
     }
     function renderResults(results, failed = false) {
+        const detailsOpen = lastReadout?.results === results ? $('#result_details').prop('open') : true;
         lastReadout = {results, failed};
         const comparison = results.length > 1;
         const result = !comparison && !results[0]?.error ? results[0] : null;
@@ -1055,7 +1164,7 @@ opn-speedtest history --days 30 --format json</pre>
             $('#result_time').removeAttr('datetime').text('');
         }
         $('#result_time').prop('hidden', !hasTime);
-        renderDetails('#result_details', [...connectionDetails(result), ...transferDetails(result)]);
+        renderDetails('#result_details', [...connectionDetails(result, true), ...transferDetails(result)], detailsOpen);
         $('#comparison').prop('hidden', !comparison);
         const rows = $('#comparison_rows').empty();
         if (!comparison) return;
@@ -1088,7 +1197,6 @@ opn-speedtest history --days 30 --format json</pre>
         const hasSamples = samples.download.length || samples.upload.length;
         $('#live_chart_region').prop('hidden', !hasSamples);
         if (!hasSamples) {
-            $('#live_chart_region').prop('open', false);
             if (liveChart) liveChart.destroy();
             liveChart = null;
             return;
@@ -1192,10 +1300,11 @@ opn-speedtest history --days 30 --format json</pre>
             const list = $('<dl/>').addClass('speedtest-result-details');
             if (fillDetails(list, [
                 ["{{ lang._('Server ID') }}", String(item.serverid)], ["{{ lang._('Engine') }}", item.engine],
+                ["{{ lang._('Server sponsor') }}", item.sponsor, item.sponsor_url],
                 ["{{ lang._('Source IP') }}", item.options?.source], ["{{ lang._('IP family setting') }}", item.options?.family],
                 ...transferDetails(item)
             ])) {
-                server.append($('<details/>').addClass('speedtest-disclosure')
+                server.append($('<details/>').addClass('speedtest-disclosure').prop('open', true)
                     .append($('<summary/>').text("{{ lang._('Details') }}")).append($('<div/>').append(list)));
             }
             row.append(server).append($('<td/>').text(modeNames[item.mode] || item.mode));
@@ -1226,7 +1335,11 @@ opn-speedtest history --days 30 --format json</pre>
         $('#history_page').text("{{ lang._('Page') }} " + historyPage + ' / ' + Math.max(1, Math.ceil(data.total / data.limit))
             + ' · ' + data.total + ' ' + "{{ lang._('records') }}"
             + (data.total > 10000 ? ' · ' + "{{ lang._('Browse up to 10000 rows per filter; narrow filters or export for the complete set.') }}" : ''));
-        showStatus('#history_status', data.total ? '' : "{{ lang._('No matching records. Adjust the filters or run a test. Older CSV results appear under Legacy CSV.') }}");
+        const hasHistory = Object.keys(data.servers).length > 0;
+        $('#history_management').prop('hidden', !hasHistory);
+        showStatus('#history_status', data.total ? '' : hasHistory
+            ? "{{ lang._('No tests match these filters. Adjust the filters or select Legacy CSV for older results.') }}"
+            : "{{ lang._('No test results yet.') }}");
         renderCharts(data);
     }
     function historyReload() {
@@ -1241,8 +1354,9 @@ opn-speedtest history --days 30 --format json</pre>
             dataType: 'json', timeout: 30000})
             .done(function(data) {
                 if (generation !== historyGeneration) return;
-                if (!Array.isArray(data?.rows) || !Array.isArray(data?.series) || !data.metrics) {
-                    showStatus('#history_status', readableError(data?.error) || "{{ lang._('Unable to load history') }}", true);
+                if (!Array.isArray(data?.rows) || !Array.isArray(data?.series) || !data.metrics
+                    || !data.servers || !Array.isArray(data.sources)) {
+                    showStatus('#history_status', readableError(data?.error) || "{{ lang._('History returned an invalid response. Try Refresh history.') }}", true);
                     return;
                 }
                 if (historyPage > 1 && !data.rows.length) {
@@ -1252,8 +1366,13 @@ opn-speedtest history --days 30 --format json</pre>
                 }
                 historyLoaded = true;
                 renderHistory(data);
-            }).fail(function() {
-                if (generation === historyGeneration) showStatus('#history_status', "{{ lang._('Unable to load history. Check your session and refresh.') }}", true);
+            }).fail(function(xhr, reason) {
+                if (generation !== historyGeneration) return;
+                const detail = readableError(xhr.responseJSON?.errorMessage || xhr.responseJSON?.error);
+                const fallback = reason === 'timeout' ? "{{ lang._('The history request timed out. Try Refresh history.') }}"
+                    : [401, 403].includes(xhr.status) ? "{{ lang._('Access to history was denied. Check your session and permissions.') }}"
+                    : "{{ lang._('Unable to load history. Try Refresh history.') }}";
+                showStatus('#history_status', detail || fallback, true);
             });
     }
     function statusProblem(message) {
@@ -1480,7 +1599,7 @@ opn-speedtest history --days 30 --format json</pre>
                 defaultsReady = true;
                 if (canConfigure) renderCatalog();
                 else updateControls();
-                if ($('#catalog_panel').prop('open') && !catalogReceived) refreshCatalog();
+                if (canConfigure) loadVisibleCatalog();
             }, '#run_defaults_status, #settings_status');
         }
         $('#check_status').on('click', function() {
@@ -1580,7 +1699,7 @@ opn-speedtest history --days 30 --format json</pre>
                 showStatus('#settings_status', "{{ lang._('Recommended retention selected. Export history before saving shorter limits.') }}");
             });
             $('#discard_settings').on('click', function() {
-                if (running || starting || saving || detecting || !settingsReady || !defaultsReady || serverEditIndex !== null) return;
+                if (running || starting || saving || detecting || !settingsReady || !defaultsReady) return;
                 fillMeasurementOptions(savedSettings);
                 Object.keys(recommendedRetention).forEach(key => $('#' + key).val(savedSettings[key]));
                 $('#public_servers').prop('checked', savedPublicServers);
@@ -1589,65 +1708,28 @@ opn-speedtest history --days 30 --format json</pre>
                 showStatus('#settings_status', '');
                 $('#setup_tab').trigger('focus');
             });
-            $('#catalog_panel').on('toggle', function() {
-                if ($('#catalog_panel').prop('open') && !catalogReceived) refreshCatalog();
-            });
+            $('#setup_tab').on('shown.bs.tab', loadVisibleCatalog);
+            $('#server_options, #catalog_panel').on('toggle', loadVisibleCatalog);
             $('#catalog_refresh').on('click', refreshCatalog);
-            $('#catalog_allow_all').on('click', () => setPublicSelection('all'));
+            $('#catalog_reset').on('click', () => setPublicSelection('all'));
             $('#catalog_allow_none').on('click', () => setPublicSelection('none'));
             $('#public_servers').on('change', function() {
                 renderCatalog();
                 showStatus('#settings_status', '');
+                loadVisibleCatalog();
             });
             $('#combine_servers').on('change', updateControls);
             $('#catalog_search').on('input', renderCatalog);
-            $('#servers_json').on('input', function() { renderCustomServers(); updateControls(); });
-            $('#add_custom_server').on('click', () => editServer({
-                id: nextCustomServerId(),
-                dlURL: 'garbage.php', ulURL: 'empty.php', pingURL: 'empty.php', getIpURL: 'getIP.php'
-            }, -1));
-            $('#cancel_server_edit').on('click', closeServerEditor);
-            $('#custom_server_editor')[0].addEventListener('invalid', function() {
-                $('#server_endpoint_options').prop('open', true);
-            }, true);
-            $('#custom_server_editor').on('submit', function(event) {
-                event.preventDefault();
-                if (serverEditIndex === null || running || saving || detecting || !this.reportValidity()) return;
-                const list = customServers();
-                if (!list) return;
-                const server = serverEditIndex === -1 ? {} : {...list[serverEditIndex]};
-                serverFields.forEach(key => server[key] = $('#server_edit_' + key).val().trim());
-                server.id = Number(server.id);
-                let url;
-                try { url = new URL(server.server); }
-                catch (error) {
-                    if (!(error instanceof TypeError)) throw error;
-                    showStatus('#server_edit_status', "{{ lang._('Enter a valid HTTPS backend URL.') }}", true);
-                    return;
-                }
-                if (!Number.isSafeInteger(server.id) || server.id < 1 || !server.name || /[\u0000-\u001f\u007f]/.test(server.name)
-                    || url.protocol !== 'https:' || !/^https:\/\/[^/]/.test(server.server) || url.username || url.password
-                    || url.search || url.hash || /[\s\\]/.test(server.server)
-                    || list.some((entry, index) => index !== serverEditIndex && (entry.id === server.id
-                        || String(entry.server).replace(/\/+$/, '') === server.server.replace(/\/+$/, '')))) {
-                    $('#server_endpoint_options').prop('open', true);
-                    showStatus('#server_edit_status', "{{ lang._('Use a unique positive ID, a name, and a unique HTTPS URL without credentials, queries or fragments.') }}", true);
-                    return;
-                }
-                if (['dlURL', 'ulURL', 'pingURL', 'getIpURL'].some(key =>
-                    !/^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*$/.test(server[key])
-                    || server[key].split('/').some(part => part === '.' || part === '..'))) {
-                    showStatus('#server_edit_status', "{{ lang._('Endpoint paths must be relative and cannot contain dot or parent segments.') }}", true);
-                    return;
-                }
-                if (serverEditIndex === -1 && list.length >= 50) {
-                    showStatus('#server_edit_status', "{{ lang._('Remove a custom server before adding another. The list supports up to 50.') }}", true);
-                    return;
-                }
-                if (!server.sponsorName) delete server.sponsorName;
-                list[serverEditIndex === -1 ? list.length : serverEditIndex] = server;
-                closeServerEditor();
-                writeCustomServers(list);
+            $('#servers_json').on('input', function() {
+                showStatus('#settings_status', '');
+                renderCustomServers();
+            });
+            $('#add_custom_server').on('click', function() {
+                if (running || starting || saving || detecting || !settingsReady || !customServerRows || customServerRows.length >= 50) return;
+                const entry = appendCustomServerRow({id: nextCustomServerId(), name: '', server: '', ...serverPaths});
+                customServerRows.push(entry);
+                writeCustomServers();
+                entry.fields.name.trigger('focus');
             });
             $.ajax({url: '/api/speedtest/settings/get', dataType: 'json', timeout: 30000}).done(function(data) {
                 const general = data?.speedtest?.general;
@@ -1659,20 +1741,21 @@ opn-speedtest history --days 30 --format json</pre>
                     combine_servers: general.combine_servers === '1' ? '1' : '0'});
                 settingsReady = true;
                 fillServerSettings();
-                if ($('#catalog_panel').prop('open') && !catalogReceived) refreshCatalog();
+                loadVisibleCatalog();
             }).fail(() => showStatus('#settings_status', "{{ lang._('Unable to load server settings') }}", true));
         }
         $('#save_settings').on('click', function() {
-            if (running || starting || saving || detecting || !settingsReady || !defaultsReady || !canConfigure || serverEditIndex !== null) return;
+            if (running || starting || saving || detecting || !settingsReady || !defaultsReady || !canConfigure) return;
             if (!$('#measurement_options_form')[0].reportValidity()) return;
             if (!$('#retention_form')[0].reportValidity()) return;
             const options = settingsOptions();
             if (!differs(options, savedSettings)) return;
+            if (options.servers !== savedSettings.servers && !validateCustomServers()) return;
             if (options.combine_servers === '1' && options.public_servers === '1') {
                 const allowed = approvedPublicIds();
                 if ((customServers() || []).some(server => catalog.some(official =>
                     allowed.includes(official.id) && (String(server.id) === official.id
-                        || String(server.server ?? '').replace(/\/+$/, '') === official.server.replace(/\/+$/, ''))))) {
+                        || serverUrlKey(server.server) === serverUrlKey(official.server))))) {
                     showStatus('#settings_status', "{{ lang._('Custom and allowed official servers share an ID or URL. Edit the custom entry or remove the official server from the allowed list before combining.') }}", true);
                     return;
                 }
@@ -1695,7 +1778,7 @@ opn-speedtest history --days 30 --format json</pre>
                     savedPublicServers = options.public_servers === '1';
                     fillServerSettings();
                     showStatus('#settings_status', "{{ lang._('Settings saved.') }}");
-                    if ($('#catalog_panel').prop('open') && !catalogReceived) refreshCatalog();
+                    loadVisibleCatalog();
                     if (serverChanges) serversReload();
                 }).fail(xhr => showStatus('#settings_status', xhr.responseJSON?.errorMessage || "{{ lang._('Unable to save settings; check permissions, server JSON, and backend logs.') }}", true))
                 .always(function() {
@@ -1747,7 +1830,6 @@ opn-speedtest history --days 30 --format json</pre>
         $('#history_filters').on('submit', event => event.preventDefault()).on('change', function() { historyPage = 1; historyReload(); });
         $('#reset_history_filters').on('click', function() {
             Object.entries(historyDefaults).forEach(([key, value]) => $('#history_' + key).val(value));
-            $('#history_more_filters').prop('open', false);
             $('#history_days').trigger('focus');
             historyPage = 1;
             historyReload();

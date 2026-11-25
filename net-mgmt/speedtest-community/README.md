@@ -7,7 +7,7 @@ for the OPNsense community.**
 
 Speedtest measures throughput and latency from OPNsense. It uses only
 [LibreSpeed](https://librespeed.org/) for measurements, with the pinned Rust
-engine `librespeed-cli 1.2.1` bundled in version **0.21**.
+engine `librespeed-cli 1.2.1` bundled in version **0.22**.
 There are **no additional runtime package dependencies**: integration uses
 OPNsense's existing PHP/Volt, configd and Python standard library. No compiler,
 Go, Node.js, extra Python package, daemon or network listener is installed.
@@ -28,8 +28,13 @@ have indeterminate progress. Live samples reset for each server and disappear
 when the test ends. The latest single result shows its server, timestamp and
 only the metrics that were measured; a multi-server run shows a comparison
 table instead. Compact throughput gauges scale to the measured rate, not link
-capacity. Expand **Test details** for reported connection information,
-transferred bytes and probe TLS.
+capacity. **Test details** opens by default for the latest single result and
+shows the firewall IP seen by the server, ISP/network, sponsor, transferred
+bytes, and probe TLS. If the test server did not provide an IP or ISP, the
+page says so rather than guessing or making a separate lookup.
+The sponsor name links to its HTTP(S) website when the server definition
+includes a valid `sponsorURL`; otherwise it is plain text. Speedtest does not
+contact that website automatically.
 
 ## Measurement engine and licensing
 
@@ -94,22 +99,25 @@ explicitly; they never fall back to an unexpected server.
 Save up to 50 custom HTTPS servers with unique positive IDs and relative
 endpoint paths to prefer servers you operate or are authorized to use:
 
-**Settings > Servers** separates the searchable official catalog
-from your custom servers. No JSON editing is needed:
+**Settings > Servers** has separate **Public Servers** and **Custom Servers**
+sections. Their summaries show public allow-list status, the custom server
+count, and whether either section has unsaved changes. No JSON editing is needed:
 
-- Expand **Manage allowed official servers** to load the enabled catalog.
-  Use **Refresh catalog** to check for changes. Initially, all official servers,
-  including future additions, are allowed. **Remove** switches to a fixed
-  allow-list of the remaining IDs; **Allow** adds an individual ID back.
-  New catalog entries then require approval. **Allow all official servers**
-  returns to automatic inclusion; **Remove all official servers** permits
-  only custom or firewall-managed entries. This is permission to test, not
-  a security endorsement of third-party servers.
-- **Add custom server** opens OPNsense-style labeled fields for name and
-  HTTPS backend URL. IDs and standard PHP paths are filled in automatically;
-  **Advanced endpoint options** supports other backends. Rows have **Edit**
-  and **Remove** actions. **Apply to custom list** stages an edit; canceling
-  leaves the list unchanged. Raw JSON remains an optional bulk-edit tool.
+- **Public Servers** opens by default and loads the enabled catalog when the
+  Settings tab is visible. **Refresh catalog**
+  updates the list without changing your choices. By default, all public
+  servers are allowed. Unchecking a row switches to a fixed allow-list;
+  newly listed servers then require approval. **Reset allow-list** stages
+  allowing all current and future public servers. It leaves the catalog
+  toggle and custom servers unchanged. **Disallow all** stages an empty
+  public allow-list. Neither action takes effect until **Save settings**.
+  Allowing a server permits testing; it is not a security endorsement.
+- **Add custom server** adds an editable row. Enter a name and HTTPS backend
+  URL, or edit an existing row directly. The minus button removes a row.
+  IDs and standard PHP paths are filled in automatically for new rows.
+  **Advanced options** shows the ID, sponsor and endpoint paths. Keep existing
+  IDs stable for schedules and history. **Discard changes** restores the
+  saved list; raw JSON remains an optional bulk-edit tool.
 - **Save settings** persists the allowed IDs, custom list, and source policy.
   Changes on the page do not immediately alter live tests. By default,
   saved custom servers retain their previous precedence. Enable **Include
@@ -403,11 +411,14 @@ tracks the current/latest history-free server detection.
 
 The history API merges legacy CSV and detailed records without counting the
 CSV mirror of a modern full test twice. The GUI separates legacy and Rust
-measurements. The History tab opens on the saved tests; use **More filters**
-for mode, outcome, trigger, IP family or source binding. **Reset filters**
-returns to the last 30 days of Speedtest results. **Trends and averages**
-opens charts and statistics when measurements are available, and **Export and
-manage history** keeps exports and deletion separate from browsing. Results
+measurements. A fresh or cleared history shows a neutral empty state and
+hides export and clear controls; service failures remain visible as errors.
+Speedtest sections are expanded by default and can be collapsed. The History
+tab shows saved tests with **More filters** expanded.
+**Reset filters** returns to the last 30 days of Speedtest results.
+**Trends and averages** is also expanded by default when measurements are
+available. **Export and manage history**
+keeps exports and deletion separate from browsing. Results
 paginate 50 rows at a time. Up to 200 pages may be browsed per filter; narrow a filter
 or export for larger sets. Throughput and latency/jitter plots use UTC-day
 averages, coarsened to at most 500 buckets for long histories. Tables display

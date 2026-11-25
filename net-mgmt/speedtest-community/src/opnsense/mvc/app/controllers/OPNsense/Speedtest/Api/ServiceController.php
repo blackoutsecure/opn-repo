@@ -91,7 +91,10 @@ class ServiceController extends ApiControllerBase
                 $filters[$key] = (string)$value;
             }
         }
-        return (new Backend())->configdpRun('speedtest history', [base64_encode(json_encode((object)$filters))]);
+        $response = (new Backend())->configdpRun('speedtest history', [base64_encode(json_encode((object)$filters))]);
+        return trim($response) === ''
+            ? ['error' => gettext('The history service did not respond. Check that configd is running.')]
+            : $response;
     }
 
     public function statAction()

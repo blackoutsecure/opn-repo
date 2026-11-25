@@ -180,6 +180,15 @@ check(json_decode(base64_decode(SpeedtestTestBackend::$call[1][2]), true) === []
       'Omitted API options preserve saved source and IP family');
 check(base64_decode(SpeedtestTestBackend::$call[1][2]) === '{}', 'Empty API options use the JSON object contract');
 check(SpeedtestTestBackend::$call[3] === 250, 'Backend wait covers the maximum measurement deadline');
+$request->post = ['days' => '30', 'provider' => 'librespeed'];
+$emptyHistory = '{"rows":[],"series":[],"metrics":{},"servers":{},"sources":[],"total":0}';
+SpeedtestTestBackend::$response = $emptyHistory;
+check($controller->historyAction() === $emptyHistory, 'An empty history response stays valid JSON');
+SpeedtestTestBackend::$response = '';
+check(str_contains($controller->historyAction()['error'], 'configd'),
+      'No backend response reports a service error instead of invalid JSON');
+SpeedtestTestBackend::$response = '{"result":"ok"}';
+$request->post = [];
 $started = $controller->startAction('42,84', 'both');
 check($started['result'] === 'started' && strlen($started['run_id']) === 32, 'Detached measurement has its own tracking ID');
 check(SpeedtestTestBackend::$call[2] === true, 'Long measurements use native configd detachment');

@@ -634,6 +634,19 @@ def optional_display_text(value):
         return ''
     return value.strip()
 
+def sponsor_website(value):
+    if (not isinstance(value, str) or len(value) > 2048 or not re.match(r'https?://[^/]', value, re.I)
+            or '\\' in value or any(c.isspace() or unicodedata.category(c).startswith('C') for c in value)):
+        return ''
+    try:
+        endpoint = urlsplit(value)
+        if (endpoint.hostname and endpoint.username is None and endpoint.port != 0
+                and not any(c in endpoint.hostname for c in '<>^|%')):
+            return value
+    except ValueError:
+        pass
+    return ''
+
 def run_librespeed(servers, server_id, mode, options):
     if server_id not in ('', '0'):
         servers = [server for server in servers if server['id'] == int(server_id)]
@@ -681,6 +694,9 @@ def run_librespeed(servers, server_id, mode, options):
     out = {'provider': 'librespeed', 'timestamp': result['timestamp'], 'clientip': '',
            'serverid': selected['id'], 'servername': selected['name'], 'country': '', 'link': ''}
     out['sponsor'] = optional_display_text(selected.get('sponsorName'))
+    website = sponsor_website(selected.get('sponsorURL'))
+    if out['sponsor'] and website:
+        out['sponsor_url'] = website
     client = result.get('client')
     if isinstance(client, dict):
         address = client.get('ip')
@@ -830,7 +846,8 @@ try:
             keys = ('name', 'server', 'dlURL', 'ulURL', 'pingURL', 'getIpURL')
             emit({'servers': [
                 dict({key: server[key] for key in keys}, id=str(server['id']),
-                     sponsorName=optional_display_text(server.get('sponsorName')))
+                     sponsorName=optional_display_text(server.get('sponsorName')),
+                     sponsorURL=sponsor_website(server.get('sponsorURL')))
                 for server in servers
             ]})
         quit()
