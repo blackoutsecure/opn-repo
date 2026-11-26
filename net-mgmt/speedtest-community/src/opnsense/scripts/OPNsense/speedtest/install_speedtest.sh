@@ -21,49 +21,77 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-BASE_PY_VER=$(pkg info -x 'python3*' | grep 'python3' | sed -n 's/^python3\([0-9]*\).*/\1/p')
-BASE_PY_VER=${BASE_PY_VER:-999}
-
-# Find the newest py3<ver>-speedtest-cli flavor that is actually published in the
-# configured repositories, walking down from the base python3 version. This
-# covers the window right after a FreeBSD default python3 bump (e.g. 311 -> 313)
-# where the ports tree hasn't cut every py3xx flavor of net/py-speedtest-cli yet.
-find_speedtest_pkg() {
-  for ver in 313 312 311 310 39; do
-    if [ "${ver}" -gt "${BASE_PY_VER}" ]; then
-      continue
-    fi
-    if pkg search -qe "^py3${ver}-speedtest-cli-" > /dev/null 2>&1; then
-      echo "py3${ver}-speedtest-cli"
-      return 0
-    fi
-  done
-  return 1
+remove_legacy_python_client() {
+  pkg info -x '^py3[0-9]+-speedtest-cli-' 2>/dev/null |
+    while IFS= read -r package; do
+      [ -z "${package}" ] || pkg delete -y "${package}" >/dev/null
+    done
 }
 
-PYTHON_PKG_NAME=$(find_speedtest_pkg)
-OOKLA_URL=$(curl -s "https://www.speedtest.net/apps/cli" | xmllint --html --xpath "string(//*[@id='freebsd']/pre/code[7]/text())" - 2>/dev/null | awk -F'"' '{print $2}')
-
-if [ "$1" = 'http' ]
-then
-  if [ -z "${PYTHON_PKG_NAME}" ]; then
-    echo "No matching py3xx-speedtest-cli package is available in the configured repositories." >&2
-    exit 1
-  fi
-  pkg delete -y speedtest
-  pkg install -f -y ${PYTHON_PKG_NAME}
-elif [ "$1" = 'socket' ]
-then
-  if [ -n "${PYTHON_PKG_NAME}" ]; then
-    pkg delete -y ${PYTHON_PKG_NAME}
-  fi
+install_native_client() {
+  OOKLA_URL=$(
+    curl -fsSL "https://www.speedtest.net/apps/cli" |
+      xmllint --html --xpath "string(//*[@id='freebsd']/pre/code[7]/text())" - 2>/dev/null |
+      awk -F'"' '{print $2}'
+  )
+  case "${OOKLA_URL}" in
+    https://install.speedtest.net/*.pkg) ;;
+    *)
+      echo "Unable to determine the current FreeBSD Speedtest package URL." >&2
+      exit 1
+      ;;
+  esac
+  remove_legacy_python_client
   pkg install -y libidn2
-  pkg add -f ${OOKLA_URL}
-elif [ "$1" = 'delete' ]
-then
-  pkg delete -y speedtest
-  if [ -n "${PYTHON_PKG_NAME}" ]; then
-    pkg delete -y ${PYTHON_PKG_NAME}
+  pkg add -f "${OOKLA_URL}"
+}
+
+install_rust_engine() {
+  if /usr/local/bin/librespeed-cli-rust --version 2>/dev/null |
+      grep -q '^librespeed-cli v1\.2\.1 '; then
+    echo "Native Rust transfer engine 1.2.1 is already installed."
+    return 0
   fi
-fi
+  RUST_REMOVE=0
+  if ! pkg info -e rust >/dev/null 2>&1; then
+    pkg install -y rust
+    RUST_REMOVE=1
+  fi
+  cleanup_rust_build() {
+    rm -rf /var/tmp/opnsense-librespeed-rust
+    if [ "${RUST_REMOVE}" -eq 1 ]; then
+      pkg delete -y rust >/dev/null 2>&1 || true
+    fi
+  }
+  trap cleanup_rust_build EXIT HUP INT TERM
+  rm -rf /var/tmp/opnsense-librespeed-rust
+  mkdir -p /var/tmp/opnsense-librespeed-rust/home \
+    /var/tmp/opnsense-librespeed-rust/root \
+    /var/tmp/opnsense-librespeed-rust/target
+  CARGO_HOME=/var/tmp/opnsense-librespeed-rust/home \
+    CARGO_TARGET_DIR=/var/tmp/opnsense-librespeed-rust/target \
+    cargo install --locked --version 1.2.1 librespeed-cli \
+      --root /var/tmp/opnsense-librespeed-rust/root
+  install -m 0755 -o root -g wheel \
+    /var/tmp/opnsense-librespeed-rust/root/bin/librespeed-cli \
+    /usr/local/bin/librespeed-cli-rust
+}
+
+case "$1" in
+  http|socket|native)
+    install_native_client
+    ;;
+  rust)
+    install_rust_engine
+    ;;
+  delete)
+    pkg delete -y speedtest >/dev/null 2>&1 || true
+    remove_legacy_python_client
+    rm -f /usr/local/bin/librespeed-cli-rust
+    ;;
+  *)
+    echo "Usage: $0 {native|rust|delete}" >&2
+    exit 64
+    ;;
+esac
 

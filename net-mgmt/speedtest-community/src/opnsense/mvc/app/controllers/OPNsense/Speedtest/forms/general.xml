@@ -1,0 +1,89 @@
+<form>
+    <field>
+        <id>speedtest.ooklaEnabled</id>
+        <label>Enable public CLI network</label>
+        <type>checkbox</type>
+        <help>Use targets exposed by the optional native public-network CLI.</help>
+    </field>
+    <field>
+        <id>speedtest.librespeedEnabled</id>
+        <label>Enable compatible HTTP networks</label>
+        <type>checkbox</type>
+        <help>Use interoperable self-hosted PHP, Go, Node, or Rust measurement targets.</help>
+    </field>
+    <field>
+        <id>speedtest.cloudflareEnabled</id>
+        <label>Enable automatic edge network</label>
+        <type>checkbox</type>
+        <help>Use the automatic edge target and configured compatible edge endpoints.</help>
+    </field>
+    <field>
+        <id>speedtest.librespeedListUrl</id>
+        <label>HTTP target list URL</label>
+        <type>text</type>
+        <help>Public JSON list used for compatible HTTP measurement targets.</help>
+        <advanced>true</advanced>
+    </field>
+    <field>
+        <id>speedtest.cloudflareBaseUrl</id>
+        <label>Automatic edge endpoint</label>
+        <type>text</type>
+        <help>Origin used for edge download and upload endpoint measurements.</help>
+        <advanced>true</advanced>
+    </field>
+    <field>
+        <id>speedtest.autoRefresh</id>
+        <label>Auto-refresh public targets</label>
+        <type>checkbox</type>
+        <help>Refresh enabled networks automatically when this page opens and the saved list is stale.</help>
+    </field>
+    <field>
+        <id>speedtest.refreshInterval</id>
+        <label>Refresh interval</label>
+        <type>text</type>
+        <help>Minutes between automatic public target-list refreshes.</help>
+        <advanced>true</advanced>
+    </field>
+    <field>
+        <id>speedtest.maxCandidates</id>
+        <label>Maximum candidates per network</label>
+        <type>text</type>
+        <help>Maximum configured/public candidates to latency-probe for an automatic test.</help>
+        <advanced>true</advanced>
+    </field>
+    <field>
+        <id>speedtest.pingSamples</id>
+        <label>Latency samples</label>
+        <type>text</type>
+        <help>Number of latency probes per target. Selection uses the median plus a jitter penalty.</help>
+        <advanced>true</advanced>
+    </field>
+    <field>
+        <id>speedtest.probeTimeout</id>
+        <label>Probe timeout</label>
+        <type>text</type>
+        <help>Seconds to wait for an automatic target-selection probe.</help>
+        <advanced>true</advanced>
+    </field>
+    <field>
+        <id>speedtest.probeWorkers</id>
+        <label>Probe concurrency</label>
+        <type>text</type>
+        <help>Maximum target probes running concurrently.</help>
+        <advanced>true</advanced>
+    </field>
+    <field>
+        <id>speedtest.testDuration</id>
+        <label>Transfer test duration</label>
+        <type>text</type>
+        <help>Seconds per direction for compatible HTTP transfer measurements.</help>
+        <advanced>true</advanced>
+    </field>
+    <field>
+        <id>speedtest.transferStreams</id>
+        <label>Transfer streams</label>
+        <type>text</type>
+        <help>Concurrent HTTP transfer streams used by compatible engines.</help>
+        <advanced>true</advanced>
+    </field>
+</form>

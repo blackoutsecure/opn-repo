@@ -1,0 +1,130 @@
+<form>
+    <field>
+        <id>server.enabled</id>
+        <label>Enabled</label>
+        <type>checkbox</type>
+        <help>Include this target when its network is selected or automatic selection is used.</help>
+        <grid_view>
+            <width>5em</width>
+            <type>boolean</type>
+            <formatter>rowtoggle</formatter>
+        </grid_view>
+    </field>
+    <field>
+        <id>server.provider</id>
+        <label>Network</label>
+        <type>dropdown</type>
+        <help>Measurement adapter used for this target.</help>
+        <grid_view>
+            <width>8em</width>
+        </grid_view>
+    </field>
+    <field>
+        <id>server.name</id>
+        <label>Name</label>
+        <type>text</type>
+        <help>Display name for the target.</help>
+    </field>
+    <field>
+        <id>server.serverId</id>
+        <label>Network target id</label>
+        <type>text</type>
+        <help>Required for custom native-CLI targets and optional for HTTP targets.</help>
+        <grid_view>
+            <width>8em</width>
+        </grid_view>
+    </field>
+    <field>
+        <id>server.location</id>
+        <label>Location</label>
+        <type>text</type>
+        <help>Optional city or region shown in the selector.</help>
+        <grid_view>
+            <visible>false</visible>
+        </grid_view>
+    </field>
+    <field>
+        <id>server.country</id>
+        <label>Country</label>
+        <type>text</type>
+        <help>Optional country shown in the selector.</help>
+        <grid_view>
+            <visible>false</visible>
+        </grid_view>
+    </field>
+    <field>
+        <id>server.baseUrl</id>
+        <label>Base URL</label>
+        <type>text</type>
+        <help>HTTP(S) origin for compatible measurement endpoints. Not required for native-CLI target IDs.</help>
+    </field>
+    <field>
+        <id>server.host</id>
+        <label>Latency host</label>
+        <type>text</type>
+        <help>Optional native-CLI target host. Public discovery fills this value automatically.</help>
+        <grid_view>
+            <visible>false</visible>
+        </grid_view>
+        <advanced>true</advanced>
+    </field>
+    <field>
+        <id>server.port</id>
+        <label>Latency port</label>
+        <type>text</type>
+        <help>Optional TCP port for native-CLI target selection.</help>
+        <grid_view>
+            <visible>false</visible>
+        </grid_view>
+        <advanced>true</advanced>
+    </field>
+    <field>
+        <id>server.downloadPath</id>
+        <label>Download path</label>
+        <type>text</type>
+        <help>Compatible download endpoint path.</help>
+        <grid_view>
+            <visible>false</visible>
+        </grid_view>
+        <advanced>true</advanced>
+    </field>
+    <field>
+        <id>server.uploadPath</id>
+        <label>Upload path</label>
+        <type>text</type>
+        <help>Compatible upload endpoint path.</help>
+        <grid_view>
+            <visible>false</visible>
+        </grid_view>
+        <advanced>true</advanced>
+    </field>
+    <field>
+        <id>server.pingPath</id>
+        <label>Latency path</label>
+        <type>text</type>
+        <help>HTTP endpoint used for latency and jitter selection.</help>
+        <grid_view>
+            <visible>false</visible>
+        </grid_view>
+        <advanced>true</advanced>
+    </field>
+    <field>
+        <id>server.ipPath</id>
+        <label>IP path</label>
+        <type>text</type>
+        <help>Optional endpoint that returns the client IP.</help>
+        <grid_view>
+            <visible>false</visible>
+        </grid_view>
+        <advanced>true</advanced>
+    </field>
+    <field>
+        <id>server.source</id>
+        <label>Origin</label>
+        <type>dropdown</type>
+        <help>Public entries are refreshed automatically. Custom entries are retained during public-list refreshes.</help>
+        <grid_view>
+            <width>7em</width>
+        </grid_view>
+    </field>
+</form>

@@ -3,6 +3,8 @@
         <name>Monitoring: Speedtest</name>
         <patterns>
             <pattern>api/speedtest/service/*</pattern>
+            <pattern>api/speedtest/settings/*</pattern>
+            <pattern>api/speedtest/download/*</pattern>
         </patterns>
     </page-reporting-speedtest>
 </acl>

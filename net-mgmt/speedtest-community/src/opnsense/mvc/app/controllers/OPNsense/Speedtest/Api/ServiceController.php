@@ -2,29 +2,10 @@
 
 /*
  * Copyright 2021 Miha Kralj
- *    All rights reserved.
- *
- *    Redistribution and use in source and binary forms, with or without
- *    modification, are permitted provided that the following conditions are met:
- *
- *    1. Redistributions of source code must retain the above copyright notice,
- *       this list of conditions and the following disclaimer.
- *
- *    2. Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in the
- *       documentation and/or other materials provided with the distribution.
- *
- *    THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES,
- *    INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
- *    AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- *    AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
- *    OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- *    SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- *    INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- *    CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- *    ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- *    POSSIBILITY OF SUCH DAMAGE.
+ * Copyright 2026
+ * SPDX-License-Identifier: BSD-2-Clause
  */
+
 namespace OPNsense\Speedtest\Api;
 
 use OPNsense\Base\ApiControllerBase;
@@ -34,52 +15,86 @@ class ServiceController extends ApiControllerBase
 {
     public function versionAction()
     {
-        return (new Backend())->configdRun("speedtest version");
+        return (new Backend())->configdRun('speedtest version');
     }
 
-    public function serverlistAction()
+    public function providerlistAction()
     {
-        return (new Backend())->configdRun("speedtest serverlist");
+        return (new Backend())->configdRun('speedtest providers');
     }
 
-    public function runAction($serverid = 0)
+    public function serverlistAction($provider = null)
     {
-        $serverid = trim((string)$serverid);
-        if ($serverid === '') {
-            $serverid = '0';
+        if ($provider === null) {
+            return (new Backend())->configdRun('speedtest serverlist');
         }
-        if (!preg_match('/^\d+$/', $serverid)) {
-            return ['error' => sprintf(gettext('%s is not a valid server id'), $serverid)];
+        $provider = strtolower(trim((string)$provider));
+        if (!in_array($provider, ['all', 'ookla', 'librespeed', 'cloudflare'], true)) {
+            return ['error' => sprintf(gettext('%s is not a valid provider'), $provider)];
         }
-        return (new Backend())->configdpRun("speedtest run", [$serverid]);
+        return (new Backend())->configdpRun('speedtest serverlist-provider', [$provider]);
+    }
+
+    public function runAction($provider = null, $server = null)
+    {
+        if ($provider === null) {
+            return (new Backend())->configdpRun('speedtest run', ['0'], false, 300);
+        }
+        $provider = strtolower(trim((string)$provider));
+        $server = $server === null ? 'auto' : trim((string)$server);
+        if (preg_match('/^\d+$/', $provider) && $server === 'auto') {
+            $server = $provider;
+            $provider = 'ookla';
+        }
+        if (!in_array($provider, ['auto', 'ookla', 'librespeed', 'cloudflare'], true)) {
+            return ['error' => sprintf(gettext('%s is not a valid provider'), $provider)];
+        }
+        if ($server === '') {
+            $server = 'auto';
+        }
+        if (!preg_match('/^[0-9a-z_.:-]+$/i', $server)) {
+            return ['error' => gettext('The selected server token is invalid')];
+        }
+        return (new Backend())->configdpRun(
+            'speedtest run-provider',
+            [$provider, $server],
+            false,
+            300
+        );
     }
 
     public function showstatAction()
     {
-        return (new Backend())->configdRun("speedtest showstat");
+        return (new Backend())->configdRun('speedtest showstat');
     }
 
     public function showlogAction()
     {
-        return (new Backend())->configdRun("speedtest showlog");
+        return (new Backend())->configdRun('speedtest showlog');
     }
-	
-	public function showrecentAction()
-	{
-		return (new Backend())->configdRun("speedtest showrecent");
-	}
+
+    public function showrecentAction()
+    {
+        return (new Backend())->configdRun('speedtest showrecent');
+    }
 
     public function deletelogAction()
     {
-        return (new Backend())->configdRun("speedtest deletelog");
-    }    
+        return (new Backend())->configdRun('speedtest deletelog');
+    }
 
     public function installhttpAction()
     {
-        return (new Backend())->configdRun("speedtest install-http");
-    }    
+        return (new Backend())->configdRun('speedtest install-socket', false, 300);
+    }
+
     public function installsocketAction()
     {
-        return (new Backend())->configdRun("speedtest install-socket");
+        return (new Backend())->configdRun('speedtest install-socket', false, 300);
+    }
+
+    public function installrustAction()
+    {
+        return (new Backend())->configdRun('speedtest install-rust', false, 1800);
     }
 }

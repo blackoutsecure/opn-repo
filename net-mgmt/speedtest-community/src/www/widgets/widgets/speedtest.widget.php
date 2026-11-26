@@ -29,7 +29,22 @@ require_once("guiconfig.inc");
 <script>
     $(document).ready(function() {
         ajaxGet("/api/speedtest/service/showrecent", {}, function(l,status) {
-			$('#stat_recent').html("<a href='" + l.url + "' target='_blank'>"+l.date+"</a> <b>Down: "+l.download+" Mbps<\/b><small> (up: "+l.upload+" Mbps, latency: "+l.latency +" ms)</small>");
+            const recent = $('#stat_recent').empty();
+            if (l.error) {
+                recent.text(l.error);
+                return;
+            }
+            if (l.url) {
+                $('<a>').attr('href', l.url).attr('target', '_blank').attr('rel', 'noopener noreferrer')
+                    .text(l.date).appendTo(recent);
+            } else {
+                recent.text(l.date || '');
+            }
+            $('<b>').text(" Down: " + (l.download || 0) + " Mbps").appendTo(recent);
+            $('<small>').text(
+                " (up: " + (l.upload || 0) + " Mbps, latency: " + (l.latency || 0) + " ms" +
+                (l.provider ? ", source: " + l.provider : "") + ")"
+            ).appendTo(recent);
 		});
         ajaxGet("/api/speedtest/service/showstat", {}, function(l,status) {
             $('#stat_samples').html("<b>"+l.samples+"<\/b>");

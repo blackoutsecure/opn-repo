@@ -1,5 +1,6 @@
-An OPNsense wrapper for the speedtest CLI test.
-Plugin allows speedtests to be executed periodically
-through CRON, generates history of past tests, shows
-statistics (avg, min, max) for latency, download and
-upload results in the dashboard widget.
+OPNsense Internet Performance measures WAN throughput and latency using
+multiple interchangeable public or private measurement networks. It
+supports automatic target selection, custom endpoints, public target
+discovery, scheduled measurements, local history, and dashboard reporting.
+LibreSpeed transfers can use an optional native Rust engine, with a
+dependency-free standard-library fallback.

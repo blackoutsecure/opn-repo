@@ -38,7 +38,24 @@ class DownloadController extends ApiControllerBase
         $this->response->setStatusCode(200, "OK");
         $this->response->setContentType('text/csv', 'UTF-8');
         $this->response->setHeader("Content-Disposition", "attachment; filename=\"speedtest.csv\"");
-        $data = file_get_contents(self::DATA_CSV);
+        if (is_file(self::DATA_CSV)) {
+            $data = file_get_contents(self::DATA_CSV);
+        } else {
+            $data = implode(',', [
+                'Timestamp',
+                'ClientIp',
+                'ServerId',
+                'ServerName',
+                'Country',
+                'DlSpeed',
+                'UlSpeed',
+                'Latency',
+                'Link',
+                'Provider',
+                'Jitter',
+                'SelectionMethod'
+            ]) . PHP_EOL;
+        }
         $this->response->setContent($data);
     }
 

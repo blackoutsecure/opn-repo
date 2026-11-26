@@ -1,5 +1,5 @@
 <menu>
   <Reporting>
-    <Speedtest cssClass="fa fa-area-chart" VisibleName="Speedtest" url="/ui/speedtest/"/>
+    <Speedtest cssClass="fa fa-tachometer-alt" VisibleName="Internet Performance" url="/ui/speedtest/"/>
   </Reporting>
 </menu>

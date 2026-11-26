@@ -6,7 +6,7 @@
             <endpoint>/api/speedtest/service/showstat</endpoint>
         </endpoints>
         <translations>
-            <title>Speedtest</title>
+            <title>Internet Performance</title>
             <most_recent>Most Recent</most_recent>
             <avg_latency>Avg. Latency</avg_latency>
             <avg_download>Avg. Download</avg_download>

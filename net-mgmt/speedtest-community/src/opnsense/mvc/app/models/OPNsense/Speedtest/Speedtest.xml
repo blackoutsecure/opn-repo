@@ -1,8 +1,137 @@
 <model>
     <mount>//OPNsense/speedtest</mount>
-    <description>
-        Speedtest plugin
-    </description>
+    <version>1.0.0</version>
+    <description>Multi-provider internet speed testing</description>
     <items>
+        <ooklaEnabled type="BooleanField">
+            <default>1</default>
+            <Required>Y</Required>
+        </ooklaEnabled>
+        <librespeedEnabled type="BooleanField">
+            <default>1</default>
+            <Required>Y</Required>
+        </librespeedEnabled>
+        <cloudflareEnabled type="BooleanField">
+            <default>1</default>
+            <Required>Y</Required>
+        </cloudflareEnabled>
+        <librespeedListUrl type="UrlField">
+            <default>https://librespeed.org/backend-servers/servers.json</default>
+            <Required>N</Required>
+        </librespeedListUrl>
+        <cloudflareBaseUrl type="UrlField">
+            <default>https://speed.cloudflare.com</default>
+            <Required>N</Required>
+        </cloudflareBaseUrl>
+        <autoRefresh type="BooleanField">
+            <default>1</default>
+            <Required>Y</Required>
+        </autoRefresh>
+        <refreshInterval type="IntegerField">
+            <default>1440</default>
+            <MinimumValue>60</MinimumValue>
+            <MaximumValue>525600</MaximumValue>
+            <Required>Y</Required>
+        </refreshInterval>
+        <lastRefresh type="IntegerField">
+            <default>0</default>
+            <Required>N</Required>
+        </lastRefresh>
+        <maxCandidates type="IntegerField">
+            <default>64</default>
+            <MinimumValue>1</MinimumValue>
+            <MaximumValue>100</MaximumValue>
+            <Required>Y</Required>
+        </maxCandidates>
+        <pingSamples type="IntegerField">
+            <default>3</default>
+            <MinimumValue>1</MinimumValue>
+            <MaximumValue>10</MaximumValue>
+            <Required>Y</Required>
+        </pingSamples>
+        <probeTimeout type="IntegerField">
+            <default>3</default>
+            <MinimumValue>1</MinimumValue>
+            <MaximumValue>20</MaximumValue>
+            <Required>Y</Required>
+        </probeTimeout>
+        <probeWorkers type="IntegerField">
+            <default>12</default>
+            <MinimumValue>1</MinimumValue>
+            <MaximumValue>32</MaximumValue>
+            <Required>Y</Required>
+        </probeWorkers>
+        <testDuration type="IntegerField">
+            <default>8</default>
+            <MinimumValue>2</MinimumValue>
+            <MaximumValue>30</MaximumValue>
+            <Required>Y</Required>
+        </testDuration>
+        <transferStreams type="IntegerField">
+            <default>3</default>
+            <MinimumValue>1</MinimumValue>
+            <MaximumValue>8</MaximumValue>
+            <Required>Y</Required>
+        </transferStreams>
+        <servers>
+            <server type="ArrayField">
+                <enabled type="BooleanField">
+                    <default>1</default>
+                    <Required>Y</Required>
+                </enabled>
+                <provider type="OptionField">
+                    <default>librespeed</default>
+                    <Required>Y</Required>
+                    <OptionValues>
+                        <ookla>Public CLI (Ookla)</ookla>
+                        <librespeed>Open HTTP (LibreSpeed)</librespeed>
+                        <cloudflare>Automatic edge (Cloudflare)</cloudflare>
+                    </OptionValues>
+                </provider>
+                <name type="TextField">
+                    <Required>Y</Required>
+                </name>
+                <serverId type="TextField">
+                    <Required>N</Required>
+                </serverId>
+                <location type="TextField">
+                    <Required>N</Required>
+                </location>
+                <country type="TextField">
+                    <Required>N</Required>
+                </country>
+                <baseUrl type="UrlField">
+                    <Required>N</Required>
+                </baseUrl>
+                <host type="TextField">
+                    <Required>N</Required>
+                </host>
+                <port type="IntegerField">
+                    <MinimumValue>1</MinimumValue>
+                    <MaximumValue>65535</MaximumValue>
+                    <Required>N</Required>
+                </port>
+                <downloadPath type="TextField">
+                    <Required>N</Required>
+                </downloadPath>
+                <uploadPath type="TextField">
+                    <Required>N</Required>
+                </uploadPath>
+                <pingPath type="TextField">
+                    <Required>N</Required>
+                </pingPath>
+                <ipPath type="TextField">
+                    <Required>N</Required>
+                </ipPath>
+                <source type="OptionField">
+                    <default>custom</default>
+                    <Required>Y</Required>
+                    <OptionValues>
+                        <custom>Custom</custom>
+                        <public>Public</public>
+                    </OptionValues>
+                </source>
+            </server>
+        </servers>
     </items>
 </model>
