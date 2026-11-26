@@ -2,6 +2,10 @@
 # SPDX-License-Identifier: BSD-2-Clause
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import json
+import os
+import platform
+import ssl
 import time
 from typing import Dict, Iterable, List, Tuple
 
@@ -44,6 +48,73 @@ class SpeedtestOrchestrator:
             if available
             else "No enabled speedtest provider is available",
             "providers": providers,
+        }
+
+    def about(self) -> Dict:
+        version_path = os.environ.get(
+            "OPNSENSE_SPEEDTEST_VERSION",
+            "/usr/local/opnsense/version/speedtest-community",
+        )
+        package_error = ""
+        try:
+            with open(version_path, "r", encoding="utf-8") as stream:
+                package = json.load(stream)
+        except (OSError, ValueError, TypeError) as exc:
+            package = {
+                "product_version": "development",
+                "product_hash": "",
+                "product_abi": "",
+                "product_arch": platform.machine(),
+            }
+            package_error = str(exc)
+
+        components = []
+        for provider_id, adapter in self.adapters.items():
+            status = adapter.status(self.settings)
+            version = status.get("message", "")
+            if provider_id == "ookla" and status.get("available"):
+                version = adapter.client()["version"]
+            elif provider_id == "librespeed":
+                rust = adapter.rust_status()
+                version = rust if rust else "Built-in HTTP transfer engine"
+            components.append(
+                {
+                    "name": status["label"],
+                    "version": version,
+                    "status": "available" if status.get("available") else "unavailable",
+                    "required": False,
+                    "role": "Measurement network adapter",
+                }
+            )
+
+        python = f"{platform.python_version()} ({platform.python_implementation()})"
+        return {
+            "package": package,
+            "packageError": package_error,
+            "runtime": {
+                "python": python,
+                "openssl": ssl.OPENSSL_VERSION,
+                "platform": platform.platform(),
+                "architecture": platform.machine(),
+            },
+            "dependencies": [
+                {
+                    "name": "Python standard library",
+                    "version": python,
+                    "status": "available",
+                    "required": True,
+                    "role": "Configuration, HTTP, history, and orchestration",
+                },
+                {
+                    "name": "Python TLS / OpenSSL",
+                    "version": ssl.OPENSSL_VERSION,
+                    "status": "available",
+                    "required": True,
+                    "role": "Verified HTTPS measurement connections",
+                },
+            ]
+            + components,
+            "thirdPartyPythonDependencies": [],
         }
 
     def legacy_ookla_version(self) -> Dict:

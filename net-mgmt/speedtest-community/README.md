@@ -44,6 +44,7 @@ Supported commands:
 
 | Command | Purpose |
 | --- | --- |
+| `about` | Return package, runtime, engine, and dependency versions. |
 | `version` | Return the legacy native CLI version response. |
 | `providers` | Return enabled/available networks and capabilities. |
 | `list [network]` | List targets. `network` is `all`, `ookla`, `librespeed`, or `cloudflare`. |
@@ -70,6 +71,7 @@ The same commands are exposed through OPNsense `configctl`:
 
 ```sh
 configctl speedtest version
+configctl speedtest about
 configctl speedtest providers
 configctl speedtest serverlist-provider all
 configctl speedtest discover all

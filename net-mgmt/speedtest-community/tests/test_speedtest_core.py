@@ -515,6 +515,30 @@ class SelectionTests(unittest.TestCase):
         result = SpeedtestOrchestrator(Settings(), {"ookla": adapter}).legacy_ookla_version()
         self.assertEqual(result, {"version": "cli", "message": "fake"})
 
+    def test_about_reports_package_runtime_and_no_python_dependencies(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "speedtest-version.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "product_version": "1.0_9",
+                        "product_hash": "abc123",
+                        "product_abi": "26.7",
+                        "product_arch": "amd64",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with mock.patch.dict(
+                os.environ,
+                {"OPNSENSE_SPEEDTEST_VERSION": str(path)},
+            ):
+                about = SpeedtestOrchestrator(Settings()).about()
+        self.assertEqual(about["package"]["product_version"], "1.0_9")
+        self.assertTrue(about["runtime"]["python"])
+        self.assertTrue(about["runtime"]["openssl"])
+        self.assertEqual(about["thirdPartyPythonDependencies"], [])
+
     def test_orchestrator_records_live_progress_for_ui_polling(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "progress.json"

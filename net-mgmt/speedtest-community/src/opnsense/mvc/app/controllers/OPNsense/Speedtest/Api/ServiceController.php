@@ -23,6 +23,11 @@ class ServiceController extends ApiControllerBase
         return (new Backend())->configdRun('speedtest providers');
     }
 
+    public function aboutAction()
+    {
+        return (new Backend())->configdRun('speedtest about', false, 30);
+    }
+
     public function serverlistAction($provider = null)
     {
         if ($provider === null) {

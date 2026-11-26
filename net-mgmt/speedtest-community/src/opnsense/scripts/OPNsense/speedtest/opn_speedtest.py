@@ -41,6 +41,8 @@ def run(argv):
         return read_progress()
 
     orchestrator = SpeedtestOrchestrator(settings)
+    if command == "about":
+        return orchestrator.about()
     if command in ("v", "version"):
         return orchestrator.legacy_ookla_version()
     if command == "providers":

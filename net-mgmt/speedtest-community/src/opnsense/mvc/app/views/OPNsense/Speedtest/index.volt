@@ -323,6 +323,29 @@
         margin: 0;
         overflow-wrap: anywhere;
     }
+    .opn-about-summary {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0;
+        margin-bottom: 1rem;
+        border-top: 1px solid var(--opn-speedtest-rule);
+        border-bottom: 1px solid var(--opn-speedtest-rule);
+    }
+    .opn-about-summary > div {
+        padding: 0.8rem 1rem;
+        border-right: 1px solid var(--opn-speedtest-rule);
+    }
+    .opn-about-summary > div:last-child {
+        border-right: 0;
+    }
+    .opn-about-summary strong,
+    .opn-about-summary span {
+        display: block;
+    }
+    .opn-about-dependencies td {
+        vertical-align: middle;
+        overflow-wrap: anywhere;
+    }
     @media (max-width: 767px) {
         .opn-speedtest-header {
             align-items: flex-start;
@@ -370,6 +393,16 @@
         }
         .opn-result-field {
             grid-template-columns: 8rem minmax(0, 1fr);
+        }
+        .opn-about-summary {
+            grid-template-columns: 1fr;
+        }
+        .opn-about-summary > div {
+            border-right: 0;
+            border-bottom: 1px solid var(--opn-speedtest-rule);
+        }
+        .opn-about-summary > div:last-child {
+            border-bottom: 0;
         }
     }
 </style>
@@ -675,7 +708,8 @@
                         <p class="help-block">
                             {{ lang._('The plugin exposes the same network selection, progress, and saved-results functions to OPNsense automation.') }}
                         </p>
-                        <pre>configctl speedtest version
+                        <pre>configctl speedtest about
+configctl speedtest version
 configctl speedtest providers
 configctl speedtest serverlist-provider all
 configctl speedtest discover all
@@ -710,6 +744,44 @@ configctl speedtest serverlist</pre>
             </div>
             <div class="content-box">
                 {{ partial('layout_partials/base_bootgrid_table', serverGrid) }}
+            </div>
+
+            <h2>{{ lang._('About Speedtest') }}</h2>
+            <div class="content-box" style="padding:1rem">
+                <div id="speedtest-about-loading" class="text-muted">
+                    {{ lang._('Loading installed package and runtime information...') }}
+                </div>
+                <div id="speedtest-about-content" style="display:none">
+                    <div class="opn-about-summary">
+                        <div>
+                            <strong id="speedtest-about-version"></strong>
+                            <span class="text-muted">{{ lang._('Installed package') }}</span>
+                        </div>
+                        <div>
+                            <strong id="speedtest-about-abi"></strong>
+                            <span class="text-muted">{{ lang._('OPNsense ABI / architecture') }}</span>
+                        </div>
+                        <div>
+                            <strong id="speedtest-about-hash"></strong>
+                            <span class="text-muted">{{ lang._('Build hash') }}</span>
+                        </div>
+                    </div>
+                    <table class="table table-condensed opn-about-dependencies">
+                        <thead>
+                            <tr>
+                                <th>{{ lang._('Runtime component') }}</th>
+                                <th>{{ lang._('Version') }}</th>
+                                <th>{{ lang._('Use') }}</th>
+                                <th>{{ lang._('Status') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody id="speedtest-about-dependencies"></tbody>
+                    </table>
+                    <div class="help-block">
+                        {{ lang._('Third-party Python dependencies') }}:
+                        <strong id="speedtest-about-python-deps">{{ lang._('none') }}</strong>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -1167,6 +1239,50 @@ configctl speedtest serverlist</pre>
         });
     }
 
+    function speedtestAboutReload() {
+        ajaxCall(url = "/api/speedtest/service/about", sendData = {}, callback = function(data, status) {
+            if (!data || data.error) {
+                $('#speedtest-about-loading').text(
+                    data && data.error ? data.error : "{{ lang._('Package information is unavailable.') }}"
+                );
+                return;
+            }
+            const packageInfo = data.package || {};
+            const runtime = data.runtime || {};
+            $('#speedtest-about-version').text(packageInfo.product_version || "{{ lang._('development') }}");
+            $('#speedtest-about-abi').text(
+                [packageInfo.product_abi, packageInfo.product_arch || runtime.architecture]
+                    .filter(function(value) { return value; })
+                    .join(" / ")
+            );
+            $('#speedtest-about-hash').text(
+                packageInfo.product_hash || "{{ lang._('not packaged') }}"
+            );
+            const body = $('#speedtest-about-dependencies').empty();
+            (data.dependencies || []).forEach(function(dependency) {
+                const available = dependency.status === "available";
+                $('<tr>')
+                    .append($('<td>').text(dependency.name))
+                    .append($('<td>').text(dependency.version || "\u2014"))
+                    .append($('<td>').text(dependency.role || ""))
+                    .append(
+                        $('<td>').append(
+                            $('<span>')
+                                .addClass('label ' + (available ? 'label-success' : 'label-danger'))
+                                .text(dependency.status)
+                        )
+                    )
+                    .appendTo(body);
+            });
+            const externalPython = data.thirdPartyPythonDependencies || [];
+            $('#speedtest-about-python-deps').text(
+                externalPython.length ? externalPython.join(", ") : "{{ lang._('none') }}"
+            );
+            $('#speedtest-about-loading').hide();
+            $('#speedtest-about-content').show();
+        });
+    }
+
     function speedtestRenderProviderStatus(data) {
         speedtestProviders = data && Array.isArray(data.providers) ? data.providers : [];
         const select = $('#speedtest-provider');
@@ -1422,6 +1538,7 @@ configctl speedtest serverlist</pre>
         speedtestRefreshServers(true);
         speedtestStatReload();
         speedtestLogReload();
+        speedtestAboutReload();
         $('#{{serverGrid['edit_dialog_id']}}')
             .on('shown.bs.modal change', function() {
                 setTimeout(speedtestUpdateManagedTargetId, 0);
