@@ -5,68 +5,68 @@
 #}
 
 <style>
-    .opn-performance {
-        --opn-performance-orange: #C03E14;
-        --opn-performance-green: #9BD275;
-        --opn-performance-blue: #31708f;
-        --opn-performance-track: rgba(80, 80, 80, 0.22);
-        --opn-performance-rule: rgba(110, 110, 110, 0.28);
+    .opn-speedtest {
+        --opn-speedtest-orange: #C03E14;
+        --opn-speedtest-green: #9BD275;
+        --opn-speedtest-blue: #31708f;
+        --opn-speedtest-track: rgba(80, 80, 80, 0.22);
+        --opn-speedtest-rule: rgba(110, 110, 110, 0.28);
     }
-    .opn-performance-header {
+    .opn-speedtest-header {
         display: flex;
         align-items: center;
         gap: 1.25rem;
         padding: 0.5rem 0 1.25rem;
     }
-    .opn-performance-mark {
+    .opn-speedtest-mark {
         flex: 0 0 4.75rem;
         width: 4.75rem;
         height: 4.75rem;
     }
-    .opn-performance-heading h2 {
+    .opn-speedtest-heading h2 {
         margin: 0 0 0.25rem;
     }
-    .opn-performance-heading p {
+    .opn-speedtest-heading p {
         max-width: 70ch;
         margin: 0;
         color: inherit;
         opacity: 0.78;
     }
-    .opn-performance-stats {
+    .opn-speedtest-stats {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
         margin-bottom: 1.25rem;
-        border-top: 1px solid var(--opn-performance-rule);
-        border-bottom: 1px solid var(--opn-performance-rule);
+        border-top: 1px solid var(--opn-speedtest-rule);
+        border-bottom: 1px solid var(--opn-speedtest-rule);
     }
-    .opn-performance-stat {
+    .opn-speedtest-stat {
         min-width: 0;
         padding: 1rem 1.25rem;
-        border-right: 1px solid var(--opn-performance-rule);
+        border-right: 1px solid var(--opn-speedtest-rule);
     }
-    .opn-performance-stat:last-child {
+    .opn-speedtest-stat:last-child {
         border-right: 0;
     }
-    .opn-performance-stat strong {
+    .opn-speedtest-stat strong {
         display: block;
         overflow-wrap: anywhere;
         font-size: 1.35rem;
         font-variant-numeric: tabular-nums;
     }
-    .opn-performance-stat span,
-    .opn-performance-stat small {
+    .opn-speedtest-stat span,
+    .opn-speedtest-stat small {
         display: block;
         opacity: 0.72;
     }
-    .opn-performance-stat span {
+    .opn-speedtest-stat span {
         margin-top: 0.2rem;
         font-weight: 600;
     }
-    .opn-performance-controls {
+    .opn-speedtest-controls {
         padding: 1.15rem;
     }
-    .opn-performance-controls .form-control,
-    .opn-performance-controls .btn {
+    .opn-speedtest-controls .form-control,
+    .opn-speedtest-controls .btn {
         min-height: 34px;
     }
     .opn-source-badges {
@@ -79,8 +79,8 @@
     }
     .opn-gauge-panel {
         padding: 1.35rem 0.75rem 0.9rem;
-        border-top: 1px solid var(--opn-performance-rule);
-        border-bottom: 1px solid var(--opn-performance-rule);
+        border-top: 1px solid var(--opn-speedtest-rule);
+        border-bottom: 1px solid var(--opn-speedtest-rule);
     }
     .opn-gauge-grid {
         display: grid;
@@ -90,7 +90,7 @@
         min-width: 0;
         padding: 0 1.1rem;
         text-align: center;
-        border-right: 1px solid var(--opn-performance-rule);
+        border-right: 1px solid var(--opn-speedtest-rule);
     }
     .opn-gauge:last-child {
         border-right: 0;
@@ -110,18 +110,18 @@
         stroke-linecap: round;
     }
     .opn-gauge-track {
-        stroke: var(--opn-performance-track);
+        stroke: var(--opn-speedtest-track);
     }
     .opn-gauge-arc {
-        stroke: var(--opn-performance-orange);
+        stroke: var(--opn-speedtest-orange);
         stroke-dasharray: 0 100;
         transition: stroke-dasharray 320ms ease-out;
     }
     .opn-gauge[data-gauge="upload"] .opn-gauge-arc {
-        stroke: var(--opn-performance-green);
+        stroke: var(--opn-speedtest-green);
     }
     .opn-gauge[data-gauge="latency"] .opn-gauge-arc {
-        stroke: var(--opn-performance-blue);
+        stroke: var(--opn-speedtest-blue);
     }
     .opn-gauge-value {
         fill: currentColor;
@@ -143,15 +143,15 @@
         margin-top: 0.2rem;
         opacity: 0.7;
     }
-    .opn-performance-running .opn-gauge-arc {
-        animation: opn-performance-pulse 900ms ease-in-out infinite alternate;
+    .opn-speedtest-running .opn-gauge-arc {
+        animation: opn-speedtest-pulse 900ms ease-in-out infinite alternate;
     }
-    @keyframes opn-performance-pulse {
+    @keyframes opn-speedtest-pulse {
         from { opacity: 0.35; }
         to { opacity: 1; }
     }
     @media (prefers-reduced-motion: reduce) {
-        .opn-performance-running .opn-gauge-arc {
+        .opn-speedtest-running .opn-gauge-arc {
             animation: none;
         }
         .opn-gauge-arc {
@@ -194,7 +194,7 @@
         height: 11rem;
     }
     .opn-history-grid {
-        stroke: var(--opn-performance-rule);
+        stroke: var(--opn-speedtest-rule);
         stroke-width: 1;
     }
     .opn-history-line {
@@ -204,10 +204,10 @@
         stroke-linejoin: round;
     }
     #opn-history-download {
-        stroke: var(--opn-performance-orange);
+        stroke: var(--opn-speedtest-orange);
     }
     #opn-history-upload {
-        stroke: var(--opn-performance-green);
+        stroke: var(--opn-speedtest-green);
     }
     .opn-history-label {
         fill: currentColor;
@@ -223,17 +223,17 @@
         width: 1.5rem;
         height: 0.22rem;
         margin-right: 0.4rem;
-        background: var(--opn-performance-orange);
+        background: var(--opn-speedtest-orange);
     }
     .opn-history-legend .upload {
-        background: var(--opn-performance-green);
+        background: var(--opn-speedtest-green);
     }
     .opn-engine-status {
         display: grid;
         grid-template-columns: 13rem minmax(0, 1fr);
         gap: 0.65rem 1rem;
         padding: 0.8rem 0;
-        border-top: 1px solid var(--opn-performance-rule);
+        border-top: 1px solid var(--opn-speedtest-rule);
     }
     .opn-engine-status:first-of-type {
         border-top: 0;
@@ -245,22 +245,22 @@
         margin-top: 0.9rem;
     }
     @media (max-width: 767px) {
-        .opn-performance-header {
+        .opn-speedtest-header {
             align-items: flex-start;
         }
-        .opn-performance-mark {
+        .opn-speedtest-mark {
             flex-basis: 3.8rem;
             width: 3.8rem;
             height: 3.8rem;
         }
-        .opn-performance-stats {
+        .opn-speedtest-stats {
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
-        .opn-performance-stat:nth-child(2) {
+        .opn-speedtest-stat:nth-child(2) {
             border-right: 0;
         }
-        .opn-performance-stat:nth-child(-n+2) {
-            border-bottom: 1px solid var(--opn-performance-rule);
+        .opn-speedtest-stat:nth-child(-n+2) {
+            border-bottom: 1px solid var(--opn-speedtest-rule);
         }
         .opn-gauge-grid {
             grid-template-columns: 1fr;
@@ -268,7 +268,7 @@
         .opn-gauge {
             padding: 0.5rem 0;
             border-right: 0;
-            border-bottom: 1px solid var(--opn-performance-rule);
+            border-bottom: 1px solid var(--opn-speedtest-rule);
         }
         .opn-gauge:last-child {
             border-bottom: 0;
@@ -283,10 +283,10 @@
     }
 </style>
 
-<div class="opn-performance">
-    <div class="opn-performance-header">
-        <svg class="opn-performance-mark" viewBox="0 0 96 96" role="img"
-             aria-label="{{ lang._('OPNsense network performance mark') }}">
+<div class="opn-speedtest">
+    <div class="opn-speedtest-header">
+        <svg class="opn-speedtest-mark" viewBox="0 0 96 96" role="img"
+             aria-label="{{ lang._('Speedtest measurement mark') }}">
             <path d="M48 6 82 19v27c0 21-13 35-34 44C27 81 14 67 14 46V19L48 6Z"
                   fill="none" stroke="#C03E14" stroke-width="6" stroke-linejoin="round"/>
             <path d="M25 54h12l7-15 9 27 7-15h11"
@@ -295,8 +295,8 @@
             <path d="M28 34h40" stroke="currentColor" stroke-opacity=".28"
                   stroke-width="3" stroke-linecap="round"/>
         </svg>
-        <div class="opn-performance-heading">
-            <h2>{{ lang._('OPNsense Internet Performance') }}</h2>
+        <div class="opn-speedtest-heading">
+            <h2>{{ lang._('Speedtest') }}</h2>
             <p>
                 {{ lang._('Measure WAN throughput, latency, and target health using the enabled measurement networks and your own custom targets.') }}
             </p>
@@ -310,31 +310,31 @@
 
     <div class="tab-content content-box">
         <div class="tab-pane fade in active" id="speedtest-run">
-            <div class="opn-performance-stats" role="list"
-                 aria-label="{{ lang._('Internet performance history') }}">
-                <div class="opn-performance-stat" role="listitem">
+            <div class="opn-speedtest-stats" role="list"
+                 aria-label="{{ lang._('Speedtest history') }}">
+                <div class="opn-speedtest-stat" role="listitem">
                     <strong id="stat_samples">0</strong>
                     <span>{{ lang._('Measurements') }}</span>
                     <small>{{ lang._('saved in local history') }}</small>
                 </div>
-                <div class="opn-performance-stat" role="listitem">
+                <div class="opn-speedtest-stat" role="listitem">
                     <strong id="stat_download">0 Mbps</strong>
                     <span>{{ lang._('Average download') }}</span>
                     <small id="stat_download_range">min 0 / max 0 Mbps</small>
                 </div>
-                <div class="opn-performance-stat" role="listitem">
+                <div class="opn-speedtest-stat" role="listitem">
                     <strong id="stat_upload">0 Mbps</strong>
                     <span>{{ lang._('Average upload') }}</span>
                     <small id="stat_upload_range">min 0 / max 0 Mbps</small>
                 </div>
-                <div class="opn-performance-stat" role="listitem">
+                <div class="opn-speedtest-stat" role="listitem">
                     <strong id="stat_latency">0 ms</strong>
                     <span>{{ lang._('Average latency') }}</span>
                     <small id="stat_latency_range">min 0 / max 0 ms</small>
                 </div>
             </div>
 
-            <div class="content-box opn-performance-controls" id="speedtest-results">
+            <div class="content-box opn-speedtest-controls" id="speedtest-results">
                 <div class="alert alert-info" id="speedtest-provider-loading">
                     {{ lang._('Loading enabled measurement sources...') }}
                 </div>
@@ -818,7 +818,7 @@
 
     function speedtestRenderResult(result) {
         $('#speedtest-error').hide();
-        $('#test_results').removeClass('opn-performance-running').show();
+        $('#test_results').removeClass('opn-speedtest-running').show();
         const download = parseFloat(result.download) || 0;
         const upload = parseFloat(result.upload) || 0;
         const latency = parseFloat(result.latency) || 0;
@@ -948,7 +948,7 @@
                 ? providerSelection
                 : selectedServer.attr('data-provider') || providerSelection;
             $('#speedtest-error').hide();
-            $('#test_results').addClass('opn-performance-running').show();
+            $('#test_results').addClass('opn-speedtest-running').show();
             $('#reportAct_progress').addClass("fa fa-spinner fa-pulse");
             $('#reportAct').prop('disabled', true);
             $('#result_provider,#result_engine,#result_server,#result_selection,#speedtest-selection-probes').text('');
@@ -963,12 +963,12 @@
                     $('#reportAct_progress').removeClass("fa fa-spinner fa-pulse");
                     $('#reportAct').prop('disabled', false);
                     if (result && result.error) {
-                        $('#test_results').hide().removeClass('opn-performance-running');
+                        $('#test_results').hide().removeClass('opn-speedtest-running');
                         $('#speedtest-error').text(result.error).show();
                     } else if (result) {
                         speedtestRenderResult(result);
                     } else {
-                        $('#test_results').hide().removeClass('opn-performance-running');
+                        $('#test_results').hide().removeClass('opn-speedtest-running');
                         $('#speedtest-error').text("{{ lang._('The measurement backend returned no result.') }}").show();
                     }
                     speedtestStatReload();
