@@ -823,6 +823,9 @@ configctl speedtest serverlist</pre>
     let speedtestProgressRequest = false;
     let speedtestRunRequestActive = false;
     let speedtestLiveGaugeMaximums = {};
+    let speedtestLiveGaugeValues = {};
+    let speedtestLiveGaugeFrames = {};
+    let speedtestCurrentRunSeen = false;
 
     function speedtestFormat(value) {
         return value === null || value === undefined ? '' : String(value);
@@ -861,6 +864,62 @@ configctl speedtest serverlist</pre>
     function speedtestAnimateGauge(kind, elapsed, offset) {
         const wave = (Math.sin(Number(elapsed) * 2.2 + offset) + 1) / 2;
         speedtestSetGaugeAmount(kind, 12 + wave * 38);
+    }
+
+    function speedtestSetGaugeNumber(kind, value, precision, animate = true) {
+        const numeric = Math.max(Number(value) || 0, 0);
+        const selector = {
+            download: '#dlspeed',
+            upload: '#ulspeed',
+            latency: '#latency'
+        }[kind];
+        if (!selector) {
+            return numeric;
+        }
+        const element = $(selector);
+        const previous = Number(speedtestLiveGaugeValues[kind]);
+        const start = Number.isFinite(previous) ? previous : numeric;
+        if (speedtestLiveGaugeFrames[kind]) {
+            cancelAnimationFrame(speedtestLiveGaugeFrames[kind]);
+            delete speedtestLiveGaugeFrames[kind];
+        }
+        const render = function(next) {
+            speedtestLiveGaugeValues[kind] = next;
+            element.text(next.toFixed(precision));
+        };
+        if (
+            !animate ||
+            window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
+            Math.abs(numeric - start) < 0.005
+        ) {
+            render(numeric);
+            return numeric;
+        }
+        const started = performance.now();
+        const duration = 420;
+        const tick = function(timestamp) {
+            const progress = Math.min(1, (timestamp - started) / duration);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            render(start + (numeric - start) * eased);
+            if (progress < 1) {
+                speedtestLiveGaugeFrames[kind] = requestAnimationFrame(tick);
+            } else {
+                delete speedtestLiveGaugeFrames[kind];
+            }
+        };
+        speedtestLiveGaugeFrames[kind] = requestAnimationFrame(tick);
+        return numeric;
+    }
+
+    function speedtestResetGaugeNumbers() {
+        Object.keys(speedtestLiveGaugeFrames).forEach(function(kind) {
+            cancelAnimationFrame(speedtestLiveGaugeFrames[kind]);
+        });
+        speedtestLiveGaugeFrames = {};
+        speedtestLiveGaugeValues = {};
+        speedtestSetGaugeNumber("download", 0, 1, false);
+        speedtestSetGaugeNumber("upload", 0, 1, false);
+        speedtestSetGaugeNumber("latency", 0, 2, false);
     }
 
     function speedtestRenderHistory(rows) {
@@ -969,6 +1028,12 @@ configctl speedtest serverlist</pre>
             .css('width', percent + '%')
             .attr('aria-valuenow', percent.toFixed(0));
         const phase = data.phase || "";
+        if (data.provider && data.provider !== "auto") {
+            $('#result_provider').text(speedtestProviderName(data.provider));
+        }
+        if (data.target && data.target !== "auto") {
+            $('#result_server').text(data.target);
+        }
         if (phase === "preparing" || phase === "selecting-target") {
             $('#download-gauge-detail,#upload-gauge-detail,#latency-gauge-detail')
                 .text("{{ lang._('Selecting target') }}");
@@ -1001,7 +1066,7 @@ configctl speedtest serverlist</pre>
         const hasLiveLatency = data.latency !== undefined && data.latency !== null;
         if (data.latency !== undefined && data.latency !== null) {
             const selectedLatency = Number(data.latency) || 0;
-            $('#latency').text(selectedLatency.toFixed(2));
+            speedtestSetGaugeNumber("latency", selectedLatency, 2, active);
             speedtestSetGauge(
                 "latency",
                 selectedLatency,
@@ -1031,7 +1096,7 @@ configctl speedtest serverlist</pre>
             }).concat([0])
         ));
         if (latestDownload) {
-            $('#dlspeed').text(latestDownload.value.toFixed(1));
+            speedtestSetGaugeNumber("download", latestDownload.value, 1, active);
             speedtestSetGauge("download", latestDownload.value, downloadMaximum, active);
             $('#download-gauge-detail').text(
                 phase === "measuring-download"
@@ -1040,7 +1105,7 @@ configctl speedtest serverlist</pre>
             );
         }
         if (latestUpload) {
-            $('#ulspeed').text(latestUpload.value.toFixed(1));
+            speedtestSetGaugeNumber("upload", latestUpload.value, 1, active);
             speedtestSetGauge("upload", latestUpload.value, uploadMaximum, active);
             $('#upload-gauge-detail').text(
                 phase === "measuring-upload"
@@ -1103,7 +1168,27 @@ configctl speedtest serverlist</pre>
         speedtestProgressRequest = true;
         ajaxCall(url = "/api/speedtest/service/progress", sendData = {}, callback = function(data, status) {
             speedtestProgressRequest = false;
+            if (
+                data &&
+                speedtestRunRequestActive &&
+                !speedtestCurrentRunSeen
+            ) {
+                if (data.active) {
+                    speedtestCurrentRunSeen = true;
+                } else {
+                    return;
+                }
+            }
             speedtestRenderProgress(data);
+            if (
+                data &&
+                data.active === false &&
+                data.phase === 'complete' &&
+                data.result
+            ) {
+                speedtestRenderResult(data.result);
+                return;
+            }
             if (
                 data &&
                 data.active === false &&
@@ -1116,7 +1201,9 @@ configctl speedtest serverlist</pre>
 
     function speedtestStartProgressPolling() {
         speedtestRunRequestActive = true;
+        speedtestCurrentRunSeen = false;
         speedtestLiveGaugeMaximums = {};
+        speedtestResetGaugeNumbers();
         speedtestStopProgressPolling();
         $('#test_results').addClass('opn-speedtest-running').show();
         $('#speedtest-live-status')
@@ -1135,7 +1222,7 @@ configctl speedtest serverlist</pre>
         speedtestSetGauge('upload', 8, 100);
         speedtestSetGauge('latency', 8, 100);
         speedtestPollProgress();
-        speedtestProgressTimer = setInterval(speedtestPollProgress, 750);
+        speedtestProgressTimer = setInterval(speedtestPollProgress, 300);
     }
 
     function speedtestStatReload() {
@@ -1565,9 +1652,9 @@ configctl speedtest serverlist</pre>
         const latency = parseFloat(result.latency) || 0;
         const downloadMaximum = speedtestNiceMaximum(download);
         const uploadMaximum = speedtestNiceMaximum(upload);
-        $('#dlspeed').text(download.toFixed(2));
-        $('#ulspeed').text(upload.toFixed(2));
-        $('#latency').text(latency.toFixed(2));
+        speedtestSetGaugeNumber('download', download, 2, false);
+        speedtestSetGaugeNumber('upload', upload, 2, false);
+        speedtestSetGaugeNumber('latency', latency, 2, false);
         speedtestSetGauge('download', download, downloadMaximum);
         speedtestSetGauge('upload', upload, uploadMaximum);
         speedtestSetGauge('latency', latency, speedtestNiceMaximum(latency * 1.05, 10));
@@ -1740,7 +1827,7 @@ configctl speedtest serverlist</pre>
             $('#reportAct').prop('disabled', true);
             $('#result_provider,#result_server,#result_selection,#speedtest-selection-probes').text('');
             $('#result_packet_loss').text("{{ lang._('Waiting for the provider result') }}");
-            $('#dlspeed,#ulspeed,#latency').text('...');
+            speedtestResetGaugeNumbers();
             speedtestSetGauge('download', 8, 100);
             speedtestSetGauge('upload', 8, 100);
             speedtestSetGauge('latency', 8, 100);

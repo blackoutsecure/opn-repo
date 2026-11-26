@@ -37,6 +37,17 @@ class InterfaceRenderingTests(unittest.TestCase):
         self.assertIn(".css(\n            'stroke-dasharray',", view)
         self.assertNotIn(".attr('stroke-dasharray'", view)
 
+    def test_live_progress_animates_numbers_and_renders_streamed_result(self):
+        view = (
+            PLUGIN_ROOT
+            / "src/opnsense/mvc/app/views/OPNsense/Speedtest/index.volt"
+        ).read_text(encoding="utf-8")
+        self.assertIn("requestAnimationFrame(tick)", view)
+        self.assertIn('speedtestSetGaugeNumber("download"', view)
+        self.assertIn('speedtestSetGaugeNumber("upload"', view)
+        self.assertIn('speedtestSetGaugeNumber("latency"', view)
+        self.assertIn("speedtestRenderResult(data.result)", view)
+
 
 class ConfigTests(unittest.TestCase):
     def test_config_reads_provider_flags_and_server_rows(self):
