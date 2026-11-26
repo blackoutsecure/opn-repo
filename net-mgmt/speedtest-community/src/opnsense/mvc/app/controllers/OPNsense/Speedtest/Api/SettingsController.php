@@ -21,14 +21,10 @@ class SettingsController extends ApiMutableModelControllerBase
     {
         $result = $this->searchBase('servers.server', null, 'provider');
         foreach ($result['rows'] ?? [] as &$record) {
-            $node = $this->getModel()->getNodeByReference(
-                'servers.server.' . ($record['uuid'] ?? '')
-            );
             if (
-                $node !== null &&
-                (string)$node->provider === 'cloudflare' &&
-                (string)$node->source === 'public' &&
-                (string)$node->serverId === 'edge'
+                strtolower((string)($record['provider'] ?? '')) === 'cloudflare' &&
+                strtolower((string)($record['source'] ?? '')) === 'public' &&
+                (string)($record['serverId'] ?? '') === 'edge'
             ) {
                 $record['serverId'] = '';
             }
@@ -69,18 +65,18 @@ class SettingsController extends ApiMutableModelControllerBase
         $serverId = trim((string)$node->serverId);
         $baseUrl = trim((string)$node->baseUrl);
 
-        if ($source !== 'custom') {
-            return;
-        }
-        if ($provider === 'ookla' && $serverId === '') {
-            throw new UserException(gettext('A custom native-CLI target requires a network target id.'));
-        }
         if (
             $provider === 'cloudflare' &&
             $source === 'public' &&
             $serverId !== 'edge'
         ) {
             throw new UserException(gettext('The automatic edge target id is managed automatically.'));
+        }
+        if ($source !== 'custom') {
+            return;
+        }
+        if ($provider === 'ookla' && $serverId === '') {
+            throw new UserException(gettext('A custom native-CLI target requires a network target id.'));
         }
         if (in_array($provider, ['librespeed', 'cloudflare'], true) && $baseUrl === '') {
             throw new UserException(gettext('A custom HTTP server requires a base URL.'));

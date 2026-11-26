@@ -1002,6 +1002,15 @@ configctl speedtest serverlist</pre>
         }
     }
 
+    function speedtestResultTarget(row, details) {
+        const server = (details && details.server) || {};
+        if (server.name) {
+            return server.name;
+        }
+        const serverId = row[9] === "cloudflare" && row[2] === "edge" ? "" : row[2];
+        return [serverId, row[3]].filter(function(value) { return value; }).join(" ");
+    }
+
     function speedtestProviderName(provider) {
         const match = speedtestProviders.find(function(item) {
             return item.id === provider;
@@ -1066,7 +1075,7 @@ configctl speedtest serverlist</pre>
         addField("{{ lang._('Network') }}", speedtestProviderName(row[9]));
         addField(
             "{{ lang._('Target') }}",
-            server.name || [row[2], row[3]].filter(function(value) { return value; }).join(" ")
+            speedtestResultTarget(row, details)
         );
         addField("{{ lang._('External IP') }}", client.ip || row[1]);
         addField("{{ lang._('Location') }}", speedtestClientLocation(client));
@@ -1130,7 +1139,7 @@ configctl speedtest serverlist</pre>
             $('<tr>')
                 .append($('<td>').text(speedtestFormat(row[0])))
                 .append($('<td>').text(speedtestProviderName(row[9])))
-                .append($('<td>').text((speedtestFormat(row[2]) + " " + speedtestFormat(row[3])).trim()))
+                .append($('<td>').text(speedtestResultTarget(row, details)))
                 .append($('<td>').text(
                     [client.ip || row[1], location].filter(function(value) { return value; }).join(" \u2014 ")
                 ))

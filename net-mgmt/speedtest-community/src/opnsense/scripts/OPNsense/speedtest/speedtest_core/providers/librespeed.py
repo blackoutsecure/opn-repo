@@ -274,7 +274,7 @@ class LibreSpeedAdapter(ProviderAdapter):
                             direction=phase,
                         )
                 elif isinstance(event, dict) and event.get("event") == "result":
-                    reports = [event]
+                    reports = event.get("reports") or []
                 elif isinstance(event, list):
                     reports = event
                 elif isinstance(event, dict) and "download" in event and "upload" in event:

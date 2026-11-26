@@ -233,7 +233,10 @@ class ProviderParsingTests(unittest.TestCase):
         ]
         process = mock.Mock()
         process.stdin = io.StringIO()
-        process.stdout = [json.dumps(report) + "\n"]
+        process.stdout = [
+            json.dumps({"event": "progress", "phase": "download", "mbps": 500, "seconds": 1, "progress": 50}) + "\n",
+            json.dumps({"event": "result", "reports": report}) + "\n",
+        ]
         process.stderr = io.StringIO("")
         process.wait.return_value = 0
         with mock.patch(
