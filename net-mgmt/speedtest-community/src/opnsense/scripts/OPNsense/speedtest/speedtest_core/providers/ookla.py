@@ -3,7 +3,9 @@
 
 import datetime
 import json
+import math
 import os
+import queue
 import re
 import socket
 import statistics
@@ -53,6 +55,149 @@ class OoklaAdapter(ProviderAdapter):
             ]
             detail = messages[-1] if messages else f"exit code {exc.returncode}"
             raise ProviderUnavailableError(f"The native measurement CLI failed: {detail}") from exc
+
+    @staticmethod
+    def _finite_float(value) -> Optional[float]:
+        try:
+            result = float(value)
+        except (TypeError, ValueError):
+            return None
+        return result if math.isfinite(result) else None
+
+    def _report_live_event(self, event: Dict, server: Server, progress) -> None:
+        event_type = str(event.get("type", "")).lower()
+        if event_type == "ping":
+            ping = event.get("ping") or {}
+            if not isinstance(ping, dict):
+                return
+            latency = self._finite_float(ping.get("latency")) or 0.0
+            jitter = self._finite_float(ping.get("jitter")) or 0.0
+            fraction = max(
+                0.0,
+                min(1.0, self._finite_float(ping.get("progress")) or 0.0),
+            )
+            progress.update(
+                "measuring-latency",
+                f"Measuring latency at {latency:.1f} ms",
+                44 + fraction * 4,
+                provider=self.provider_id,
+                target=server.selection_name,
+                direction="latency",
+                latency=round(latency, 2),
+                jitter=round(jitter, 2),
+            )
+            return
+
+        if event_type not in ("download", "upload"):
+            return
+        transfer = event.get(event_type) or {}
+        if not isinstance(transfer, dict):
+            return
+        mbps = (self._finite_float(transfer.get("bandwidth")) or 0.0) / 125000.0
+        elapsed = (self._finite_float(transfer.get("elapsed")) or 0.0) / 1000.0
+        fraction = max(
+            0.0,
+            min(1.0, self._finite_float(transfer.get("progress")) or 0.0),
+        )
+        progress.sample(event_type, mbps, elapsed, fraction * 100.0)
+        details = {
+            "provider": self.provider_id,
+            "target": server.selection_name,
+            "direction": event_type,
+            "currentMbps": round(mbps, 2),
+        }
+        transfer_latency = transfer.get("latency") or {}
+        if isinstance(transfer_latency, dict):
+            loaded_latency = self._finite_float(transfer_latency.get("iqm"))
+            if loaded_latency is not None:
+                details["latency"] = round(loaded_latency, 2)
+        progress.update(
+            f"measuring-{event_type}",
+            f"Measuring {event_type} at {mbps:.1f} Mbps",
+            (48 + fraction * 24) if event_type == "download" else (72 + fraction * 20),
+            **details,
+        )
+
+    def _stream_official_result(
+        self, arguments, timeout: int, server: Server, progress
+    ) -> Dict:
+        try:
+            process = subprocess.Popen(
+                [self.binary] + arguments,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+            )
+        except FileNotFoundError as exc:
+            raise ProviderUnavailableError(
+                "The native measurement CLI is not installed. Install it in Sources and targets."
+            ) from exc
+        assert process.stdout is not None
+        assert process.stderr is not None
+
+        output = queue.Queue()
+        errors = []
+        invalid = []
+
+        def read_stdout() -> None:
+            try:
+                for line in process.stdout:
+                    output.put(line)
+            finally:
+                output.put(None)
+
+        def read_stderr() -> None:
+            for line in process.stderr:
+                message = line.strip()
+                if message:
+                    errors.append(message)
+
+        stdout_thread = threading.Thread(target=read_stdout, daemon=True)
+        stderr_thread = threading.Thread(target=read_stderr, daemon=True)
+        stdout_thread.start()
+        stderr_thread.start()
+        deadline = time.monotonic() + timeout
+        result = None
+        try:
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise subprocess.TimeoutExpired(process.args, timeout)
+                try:
+                    line = output.get(timeout=min(0.25, remaining))
+                except queue.Empty:
+                    continue
+                if line is None:
+                    break
+                try:
+                    event = json.loads(line)
+                except (TypeError, json.JSONDecodeError):
+                    invalid.append(line.strip())
+                    continue
+                if not isinstance(event, dict):
+                    continue
+                self._report_live_event(event, server, progress)
+                if event.get("type") == "result":
+                    result = event
+
+            remaining = max(0.1, deadline - time.monotonic())
+            returncode = process.wait(timeout=remaining)
+        except subprocess.TimeoutExpired as exc:
+            process.kill()
+            process.wait(timeout=5)
+            raise ProviderUnavailableError("The native measurement CLI timed out") from exc
+        finally:
+            stdout_thread.join(timeout=1)
+            stderr_thread.join(timeout=1)
+
+        if returncode != 0:
+            detail = errors[-1] if errors else f"exit code {returncode}"
+            raise ProviderUnavailableError(f"The native measurement CLI failed: {detail}")
+        if result is None:
+            detail = errors[-1] if errors else invalid[-1] if invalid else "no final result"
+            raise ProviderUnavailableError(f"The native measurement CLI returned invalid JSON: {detail}")
+        return result
 
     def client(self) -> Optional[Dict]:
         if self._client_cache is not None:
@@ -237,8 +382,16 @@ class OoklaAdapter(ProviderAdapter):
         client = self.client()
         if client is None:
             raise ProviderUnavailableError("The native measurement CLI is unavailable")
+        stream_progress = bool(client["official"] and progress is not None)
         if client["official"]:
-            arguments = ["--accept-license", "--accept-gdpr", "-f", "json"]
+            arguments = [
+                "--accept-license",
+                "--accept-gdpr",
+                "-f",
+                "jsonl" if stream_progress else "json",
+            ]
+            if stream_progress:
+                arguments += ["--progress=yes", "--progress-update-interval=250"]
             if server.server_id and server.server_id != "auto":
                 arguments += ["-s", server.server_id]
         else:
@@ -250,9 +403,10 @@ class OoklaAdapter(ProviderAdapter):
         heartbeat = None
         if progress is not None:
             progress.update(
-                "measuring-throughput",
-                "Measuring download and upload throughput",
-                55,
+                "measuring-latency" if stream_progress else "measuring-throughput",
+                "Measuring native CLI latency" if stream_progress
+                else "Measuring download and upload throughput",
+                44 if stream_progress else 55,
                 provider=self.provider_id,
                 target=server.selection_name,
             )
@@ -268,18 +422,26 @@ class OoklaAdapter(ProviderAdapter):
                         target=server.selection_name,
                     )
 
-            heartbeat = threading.Thread(target=report_elapsed, daemon=True)
-            heartbeat.start()
+            if not stream_progress:
+                heartbeat = threading.Thread(target=report_elapsed, daemon=True)
+                heartbeat.start()
         try:
-            completed = self._command(arguments, timeout=max(120, settings.test_duration * 8))
+            timeout = max(120, settings.test_duration * 8)
+            if stream_progress:
+                payload = self._stream_official_result(arguments, timeout, server, progress)
+            else:
+                completed = self._command(arguments, timeout=timeout)
         finally:
             stop_heartbeat.set()
             if heartbeat is not None:
                 heartbeat.join(timeout=1)
-        try:
-            payload = json.loads(completed.stdout.strip())
-        except json.JSONDecodeError as exc:
-            raise ProviderUnavailableError("The native measurement CLI returned invalid JSON") from exc
+        if not stream_progress:
+            try:
+                payload = json.loads(completed.stdout.strip())
+            except json.JSONDecodeError as exc:
+                raise ProviderUnavailableError(
+                    "The native measurement CLI returned invalid JSON"
+                ) from exc
 
         if client["official"]:
             download = float(payload["download"]["bandwidth"]) / 125000.0

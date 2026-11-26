@@ -822,14 +822,15 @@ configctl speedtest serverlist</pre>
     let speedtestProgressTimer = null;
     let speedtestProgressRequest = false;
     let speedtestRunRequestActive = false;
+    let speedtestLiveGaugeMaximums = {};
 
     function speedtestFormat(value) {
         return value === null || value === undefined ? '' : String(value);
     }
 
-    function speedtestNiceMaximum(value) {
+    function speedtestNiceMaximum(value, minimum = 100) {
         const numeric = Math.max(Number(value) || 0, 0);
-        const minimum = 100;
+        minimum = Math.max(Number(minimum) || 1, 1);
         if (numeric <= minimum) {
             return minimum;
         }
@@ -837,12 +838,26 @@ configctl speedtest serverlist</pre>
         return Math.ceil((numeric * 1.12) / (magnitude / 2)) * (magnitude / 2);
     }
 
-    function speedtestSetGauge(kind, value, maximum) {
+    function speedtestSetGaugeAmount(kind, amount) {
+        const clamped = Math.max(0, Math.min(100, Number(amount) || 0));
+        $('#' + kind + '-gauge-arc').attr('stroke-dasharray', clamped.toFixed(2) + ' 100');
+        return clamped;
+    }
+
+    function speedtestSetGauge(kind, value, maximum, retainMaximum = false) {
         const numeric = Math.max(Number(value) || 0, 0);
-        const ceiling = Math.max(Number(maximum) || 1, 1);
+        let ceiling = Math.max(Number(maximum) || 1, 1);
+        if (retainMaximum) {
+            ceiling = Math.max(ceiling, speedtestLiveGaugeMaximums[kind] || 0);
+            speedtestLiveGaugeMaximums[kind] = ceiling;
+        }
         const amount = Math.min(100, numeric / ceiling * 100);
-        $('#' + kind + '-gauge-arc').attr('stroke-dasharray', amount.toFixed(2) + ' 100');
-        return amount;
+        return speedtestSetGaugeAmount(kind, amount);
+    }
+
+    function speedtestAnimateGauge(kind, elapsed, offset) {
+        const wave = (Math.sin(Number(elapsed) * 2.2 + offset) + 1) / 2;
+        speedtestSetGaugeAmount(kind, 12 + wave * 38);
     }
 
     function speedtestRenderHistory(rows) {
@@ -961,6 +976,9 @@ configctl speedtest serverlist</pre>
                     ? data.latency + " ms {{ lang._('selected') }}"
                     : "{{ lang._('Target selected') }}"
             );
+        } else if (phase === "measuring-latency" || phase === "measuring-ping") {
+            $('#download-gauge-detail,#upload-gauge-detail').text("{{ lang._('Waiting') }}");
+            $('#latency-gauge-detail').text("{{ lang._('Measuring live') }}");
         } else if (phase === "measuring-download") {
             $('#download-gauge-detail').text("{{ lang._('Measuring') }}");
             $('#upload-gauge-detail').text("{{ lang._('Waiting') }}");
@@ -977,10 +995,16 @@ configctl speedtest serverlist</pre>
             $('#latency-gauge-detail').text("{{ lang._('Measuring') }}");
         }
         const samples = Array.isArray(data.samples) ? data.samples : [];
+        const hasLiveLatency = data.latency !== undefined && data.latency !== null;
         if (data.latency !== undefined && data.latency !== null) {
             const selectedLatency = Number(data.latency) || 0;
             $('#latency').text(selectedLatency.toFixed(2));
-            speedtestSetGauge("latency", selectedLatency, Math.max(100, selectedLatency * 1.15));
+            speedtestSetGauge(
+                "latency",
+                selectedLatency,
+                speedtestNiceMaximum(selectedLatency * 1.05, 10),
+                active
+            );
         }
         const hasSamples = speedtestRenderActivityChart(
             samples,
@@ -991,10 +1015,21 @@ configctl speedtest serverlist</pre>
         $('#speedtest-live-progress').toggleClass('active progress-bar-striped', !hasSamples && active);
         const latestDownload = speedtestSamplesByDirection(samples, "download").slice(-1)[0];
         const latestUpload = speedtestSamplesByDirection(samples, "upload").slice(-1)[0];
+        const downloadMaximum = speedtestNiceMaximum(Math.max.apply(
+            Math,
+            speedtestSamplesByDirection(samples, "download").map(function(sample) {
+                return sample.value;
+            }).concat([0])
+        ));
+        const uploadMaximum = speedtestNiceMaximum(Math.max.apply(
+            Math,
+            speedtestSamplesByDirection(samples, "upload").map(function(sample) {
+                return sample.value;
+            }).concat([0])
+        ));
         if (latestDownload) {
-            const maximum = speedtestNiceMaximum(latestDownload.value);
             $('#dlspeed').text(latestDownload.value.toFixed(1));
-            speedtestSetGauge("download", latestDownload.value, maximum);
+            speedtestSetGauge("download", latestDownload.value, downloadMaximum, active);
             $('#download-gauge-detail').text(
                 phase === "measuring-download"
                     ? "{{ lang._('Measuring live') }}"
@@ -1002,14 +1037,43 @@ configctl speedtest serverlist</pre>
             );
         }
         if (latestUpload) {
-            const maximum = speedtestNiceMaximum(latestUpload.value);
             $('#ulspeed').text(latestUpload.value.toFixed(1));
-            speedtestSetGauge("upload", latestUpload.value, maximum);
+            speedtestSetGauge("upload", latestUpload.value, uploadMaximum, active);
             $('#upload-gauge-detail').text(
                 phase === "measuring-upload"
                     ? "{{ lang._('Measuring live') }}"
                     : "{{ lang._('Complete') }}"
             );
+        }
+        if (active) {
+            const elapsed = Math.max(0, Number(data.elapsed) || 0);
+            if (
+                phase === "selecting-target" &&
+                !hasLiveLatency
+            ) {
+                speedtestAnimateGauge("latency", elapsed, 3.2);
+            } else if (
+                (phase === "measuring-latency" || phase === "measuring-ping") &&
+                !hasLiveLatency
+            ) {
+                speedtestAnimateGauge("latency", elapsed, 2.4);
+            } else if (phase === "measuring-download" && !latestDownload) {
+                speedtestAnimateGauge("download", elapsed, 0);
+            } else if (phase === "measuring-upload" && !latestUpload) {
+                speedtestAnimateGauge("upload", elapsed, 1.8);
+            } else if (phase === "measuring-throughput") {
+                if (!latestDownload) {
+                    speedtestAnimateGauge("download", elapsed, 0);
+                }
+                if (!latestUpload) {
+                    speedtestAnimateGauge("upload", elapsed, 1.8);
+                }
+                if (!hasLiveLatency) {
+                    speedtestAnimateGauge("latency", elapsed, 3.2);
+                }
+            } else if (phase === "checking-udp-quality" && !hasLiveLatency) {
+                speedtestAnimateGauge("latency", elapsed, 3.2);
+            }
         }
         if (phase === "complete") {
             $('#speedtest-live-title').text("{{ lang._('Complete') }}");
@@ -1049,6 +1113,7 @@ configctl speedtest serverlist</pre>
 
     function speedtestStartProgressPolling() {
         speedtestRunRequestActive = true;
+        speedtestLiveGaugeMaximums = {};
         speedtestStopProgressPolling();
         $('#test_results').addClass('opn-speedtest-running').show();
         $('#speedtest-live-status')
@@ -1063,6 +1128,9 @@ configctl speedtest serverlist</pre>
             .addClass('progress-bar-warning progress-bar-striped active');
         speedtestRenderActivityChart([], '#opn-live-download', '#opn-live-upload');
         $('#speedtest-live-chart').hide();
+        speedtestSetGauge('download', 8, 100);
+        speedtestSetGauge('upload', 8, 100);
+        speedtestSetGauge('latency', 8, 100);
         speedtestPollProgress();
         speedtestProgressTimer = setInterval(speedtestPollProgress, 750);
     }
@@ -1499,7 +1567,7 @@ configctl speedtest serverlist</pre>
         $('#latency').text(latency.toFixed(2));
         speedtestSetGauge('download', download, downloadMaximum);
         speedtestSetGauge('upload', upload, uploadMaximum);
-        speedtestSetGauge('latency', latency, Math.max(100, latency * 1.15));
+        speedtestSetGauge('latency', latency, speedtestNiceMaximum(latency * 1.05, 10));
         $('.opn-gauge[data-gauge="download"]').attr(
             'aria-label', "{{ lang._('Download') }} " + download.toFixed(2) + " Mbps"
         );

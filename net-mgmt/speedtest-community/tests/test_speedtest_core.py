@@ -150,6 +150,71 @@ class ProviderParsingTests(unittest.TestCase):
         self.assertEqual(output["packetLoss"], 1.5)
         self.assertTrue(output["packetLossMeasured"])
 
+    def test_official_ookla_streams_live_latency_and_throughput(self):
+        adapter = OoklaAdapter()
+        adapter._client_cache = {
+            "id": "official",
+            "version": "Speedtest by Ookla 1.2.0",
+            "official": True,
+        }
+        events = [
+            {
+                "type": "ping",
+                "ping": {"latency": 4.2, "jitter": 0.5, "progress": 0.5},
+            },
+            {
+                "type": "download",
+                "download": {
+                    "bandwidth": 12500000,
+                    "elapsed": 1000,
+                    "progress": 0.5,
+                    "latency": {"iqm": 7.5},
+                },
+            },
+            {
+                "type": "upload",
+                "upload": {
+                    "bandwidth": 2500000,
+                    "elapsed": 2000,
+                    "progress": 0.75,
+                    "latency": {"iqm": 8.5},
+                },
+            },
+            {
+                "type": "result",
+                "timestamp": "2026-11-26T10:00:00Z",
+                "interface": {"externalIp": "192.0.2.10"},
+                "server": {"id": 10, "name": "Example", "location": "Test"},
+                "ping": {"latency": 4.0, "jitter": 0.4},
+                "download": {"bandwidth": 12500000},
+                "upload": {"bandwidth": 2500000},
+                "result": {"url": "https://www.speedtest.net/result/example"},
+            },
+        ]
+        process = mock.Mock()
+        process.stdout = io.StringIO("".join(json.dumps(event) + "\n" for event in events))
+        process.stderr = io.StringIO()
+        process.args = ["speedtest"]
+        process.wait.return_value = 0
+        progress = mock.Mock()
+        with mock.patch("speedtest_core.providers.ookla.subprocess.Popen", return_value=process) as popen:
+            result = adapter.run(
+                Server(provider="ookla", name="Example", server_id="10"),
+                Settings(),
+                progress,
+            )
+        self.assertEqual(result.download, 100.0)
+        self.assertEqual(result.upload, 20.0)
+        progress.sample.assert_any_call("download", 100.0, 1.0, 50.0)
+        progress.sample.assert_any_call("upload", 20.0, 2.0, 75.0)
+        phases = [call.args[0] for call in progress.update.call_args_list]
+        self.assertIn("measuring-latency", phases)
+        self.assertIn("measuring-download", phases)
+        self.assertIn("measuring-upload", phases)
+        arguments = popen.call_args.args[0]
+        self.assertIn("jsonl", arguments)
+        self.assertIn("--progress=yes", arguments)
+
     def test_http_providers_probe_their_configured_ping_endpoints(self):
         settings = Settings(ping_samples=2)
         libre = Server(
