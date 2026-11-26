@@ -90,6 +90,10 @@ class SpeedResult:
     loaded_latency: float = 0.0
     engine: str = ""
     warnings: List[str] = field(default_factory=list)
+    client_metadata: Dict[str, Any] = field(default_factory=dict)
+    server_metadata: Dict[str, Any] = field(default_factory=dict)
+    network_metadata: Dict[str, Any] = field(default_factory=dict)
+    samples: List[Dict[str, Any]] = field(default_factory=list)
 
     def as_dict(self) -> Dict[str, Any]:
         return {
@@ -97,6 +101,7 @@ class SpeedResult:
             "provider": self.provider,
             "providerLabel": PROVIDER_LABELS.get(self.provider, self.provider),
             "clientip": self.client_ip,
+            "client": dict(self.client_metadata, ip=self.client_ip or self.client_metadata.get("ip", "")),
             "serverid": (
                 self.server.server_id if self.server_id_output is None else self.server_id_output
             ),
@@ -112,4 +117,13 @@ class SpeedResult:
             "link": self.link,
             "engine": self.engine,
             "warnings": self.warnings,
+            "serverDetails": self.server_metadata
+            or {
+                "id": self.server.server_id,
+                "name": self.server.selection_name,
+                "location": self.server.location,
+                "country": self.server.country,
+            },
+            "network": self.network_metadata,
+            "samples": self.samples,
         }

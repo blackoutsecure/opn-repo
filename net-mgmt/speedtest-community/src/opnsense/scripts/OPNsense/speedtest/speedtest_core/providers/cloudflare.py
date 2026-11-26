@@ -62,7 +62,7 @@ class CloudflareAdapter(ProviderAdapter):
         server.ping_path = server.ping_path or "__down"
         return server
 
-    def probe(self, server: Server, settings: Settings) -> ProbeResult:
+    def probe(self, server: Server, settings: Settings, progress=None) -> ProbeResult:
         try:
             server = self._prepare(server, settings)
             latency, jitter, samples = measure_http_latency(
@@ -90,17 +90,32 @@ class CloudflareAdapter(ProviderAdapter):
                 if "=" in line:
                     key, value = line.split("=", 1)
                     values[key] = value
-            return values.get("ip", ""), values.get("colo", ""), []
+            return values, []
         except Exception as exc:
-            return "", "", [f"Edge client metadata lookup failed: {exc}"]
+            return {}, [f"Edge client metadata lookup failed: {exc}"]
 
-    def run(self, server: Server, settings: Settings) -> SpeedResult:
+    def run(self, server: Server, settings: Settings, progress=None) -> SpeedResult:
         server = self._prepare(server, settings)
         probe = self.probe(server, settings)
         if probe.error:
             raise ProviderUnavailableError(f"Edge latency probe failed: {probe.error}")
         download_url = endpoint(server.base_url, server.download_path)
         upload_url = endpoint(server.base_url, server.upload_path)
+        def report_transfer(direction, mbps, elapsed, percent):
+            if progress is not None:
+                progress.sample(direction, mbps, elapsed, percent)
+                progress.update(
+                    f"measuring-{direction}",
+                    f"Measuring {direction} at {mbps:.1f} Mbps",
+                    (48 + percent * 0.24)
+                    if direction == "download"
+                    else (72 + percent * 0.2),
+                    provider=self.provider_id,
+                    target=server.selection_name,
+                    direction=direction,
+                    currentMbps=round(mbps, 2),
+                )
+
         download, download_warnings = timed_download(
             lambda stream: with_query(
                 download_url, bytes=25_000_000, r=f"{time.time_ns()}-{stream}"
@@ -108,14 +123,18 @@ class CloudflareAdapter(ProviderAdapter):
             settings.test_duration,
             settings.transfer_streams,
             settings.probe_timeout,
+            report_transfer,
         )
         upload, upload_warnings = timed_upload(
             lambda stream: with_query(upload_url, r=f"{time.time_ns()}-{stream}"),
             settings.test_duration,
             settings.transfer_streams,
             settings.probe_timeout,
+            report_transfer,
         )
-        client_ip, colo, client_warnings = self._client_info(server, settings)
+        client_metadata, client_warnings = self._client_info(server, settings)
+        client_ip = str(client_metadata.get("ip", ""))
+        colo = str(client_metadata.get("colo", ""))
         if colo and "DNS-routed" in server.location:
             server.location = f"Global / edge {colo}"
         return SpeedResult(
@@ -129,4 +148,17 @@ class CloudflareAdapter(ProviderAdapter):
             upload=upload,
             engine="standard-library",
             warnings=download_warnings + upload_warnings + client_warnings,
+            client_metadata=client_metadata,
+            server_metadata={
+                "id": server.server_id,
+                "name": server.selection_name,
+                "baseUrl": server.base_url,
+                "location": server.location,
+                "colo": colo,
+            },
+            network_metadata={
+                "protocol": "HTTP",
+                "transferEngine": "standard-library",
+                "edge": dict(client_metadata),
+            },
         )

@@ -73,6 +73,20 @@ class ServiceController extends ApiControllerBase
         return (new Backend())->configdRun('speedtest showlog');
     }
 
+    public function resultsAction($limit = 1000)
+    {
+        $limit = (int)$limit;
+        if ($limit < 1 || $limit > 10000) {
+            return ['error' => gettext('Result limit must be between 1 and 10000')];
+        }
+        return (new Backend())->configdpRun('speedtest results', [$limit], false, 30);
+    }
+
+    public function progressAction()
+    {
+        return (new Backend())->configdRun('speedtest progress', false, 10);
+    }
+
     public function showrecentAction()
     {
         return (new Backend())->configdRun('speedtest showrecent');

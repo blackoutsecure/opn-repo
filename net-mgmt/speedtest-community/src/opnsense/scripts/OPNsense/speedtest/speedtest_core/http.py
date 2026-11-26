@@ -77,17 +77,21 @@ def measure_http_latency(
 
 
 def timed_download(
-    url_factory: Callable[[int], str], duration: int, streams: int, timeout: float
+    url_factory: Callable[[int], str],
+    duration: int,
+    streams: int,
+    timeout: float,
+    progress_callback=None,
 ) -> Tuple[float, List[str]]:
     deadline = time.perf_counter() + duration
     started = time.perf_counter()
     total_bytes = 0
     byte_lock = threading.Lock()
     failures = []
+    last_sample = [0.0]
 
     def worker(stream_id: int) -> None:
         nonlocal total_bytes
-        local_bytes = 0
         try:
             while time.perf_counter() < deadline:
                 remaining = max(0.1, deadline - time.perf_counter())
@@ -98,12 +102,24 @@ def timed_download(
                         chunk = response.read(65536)
                         if not chunk:
                             break
-                        local_bytes += len(chunk)
+                        now = time.perf_counter()
+                        report = None
+                        with byte_lock:
+                            total_bytes += len(chunk)
+                            elapsed = max(now - started, 0.001)
+                            if progress_callback and now - last_sample[0] >= 0.2:
+                                last_sample[0] = now
+                                mbps = total_bytes * 8.0 / elapsed / 1_000_000.0
+                                report = (
+                                    "download",
+                                    mbps,
+                                    elapsed,
+                                    min(100.0, elapsed / duration * 100.0),
+                                )
+                        if report is not None:
+                            progress_callback(*report)
         except Exception as exc:
             failures.append(f"download stream {stream_id}: {exc}")
-        finally:
-            with byte_lock:
-                total_bytes += local_bytes
 
     with ThreadPoolExecutor(max_workers=streams) as executor:
         list(executor.map(worker, range(streams)))
@@ -115,7 +131,11 @@ def timed_download(
 
 
 def timed_upload(
-    url_factory: Callable[[int], str], duration: int, streams: int, timeout: float
+    url_factory: Callable[[int], str],
+    duration: int,
+    streams: int,
+    timeout: float,
+    progress_callback=None,
 ) -> Tuple[float, List[str]]:
     deadline = time.perf_counter() + duration
     started = time.perf_counter()
@@ -123,10 +143,10 @@ def timed_upload(
     byte_lock = threading.Lock()
     failures = []
     payload = os.urandom(1024 * 1024)
+    last_sample = [0.0]
 
     def worker(stream_id: int) -> None:
         nonlocal total_bytes
-        local_bytes = 0
         try:
             while time.perf_counter() < deadline:
                 remaining = max(0.1, deadline - time.perf_counter())
@@ -137,12 +157,24 @@ def timed_upload(
                     method="POST",
                 ) as response:
                     response.read(4096)
-                local_bytes += len(payload)
+                now = time.perf_counter()
+                report = None
+                with byte_lock:
+                    total_bytes += len(payload)
+                    elapsed = max(now - started, 0.001)
+                    if progress_callback and now - last_sample[0] >= 0.2:
+                        last_sample[0] = now
+                        mbps = total_bytes * 8.0 / elapsed / 1_000_000.0
+                        report = (
+                            "upload",
+                            mbps,
+                            elapsed,
+                            min(100.0, elapsed / duration * 100.0),
+                        )
+                if report is not None:
+                    progress_callback(*report)
         except Exception as exc:
             failures.append(f"upload stream {stream_id}: {exc}")
-        finally:
-            with byte_lock:
-                total_bytes += local_bytes
 
     with ThreadPoolExecutor(max_workers=streams) as executor:
         list(executor.map(worker, range(streams)))

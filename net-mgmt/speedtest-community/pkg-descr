@@ -3,3 +3,5 @@ multiple interchangeable public or private measurement networks. It
 supports automatic target selection, custom endpoints, public target
 discovery, scheduled measurements, local history, and dashboard reporting.
 Transfer engines are managed internally with no operator setup required.
+Live status and transfer activity are displayed during a run, and the Results
+view retains target, client, geo, network, and timeline details.

@@ -128,7 +128,7 @@ class LibreSpeedAdapter(ProviderAdapter):
         server.ip_path = server.ip_path or "backend/getIP.php"
         return server
 
-    def probe(self, server: Server, settings: Settings) -> ProbeResult:
+    def probe(self, server: Server, settings: Settings, progress=None) -> ProbeResult:
         try:
             server = self._prepare(server)
             latency, jitter, samples = measure_http_latency(
@@ -146,9 +146,9 @@ class LibreSpeedAdapter(ProviderAdapter):
         except Exception as exc:
             return ProbeResult(server=server, error=str(exc))
 
-    def _client_ip(self, server: Server, settings: Settings):
+    def _client_info(self, server: Server, settings: Settings):
         if not server.ip_path:
-            return "", []
+            return "", {}, []
         try:
             url = with_query(endpoint(server.base_url, server.ip_path), isp="true", r=time.time_ns())
             with open_request(url, settings.probe_timeout) as response:
@@ -157,12 +157,21 @@ class LibreSpeedAdapter(ProviderAdapter):
                 payload = json.loads(text)
                 if isinstance(payload, dict):
                     client_ip = str(payload.get("processedString") or payload.get("ip") or "")
-                    return client_ip.split(" - ", 1)[0].strip(), []
+                    raw = payload.get("rawIspInfo")
+                    metadata = dict(raw) if isinstance(raw, dict) else {}
+                    processed = str(payload.get("processedString") or "")
+                    parsed_ip = client_ip.split(" - ", 1)[0].strip()
+                    if parsed_ip:
+                        metadata["ip"] = parsed_ip
+                    if processed:
+                        metadata["processedString"] = processed
+                    return parsed_ip, metadata, []
             except json.JSONDecodeError:
                 pass
-            return text.strip().split(" - ", 1)[0][:128], []
+            parsed_ip = text.strip().split(" - ", 1)[0][:128]
+            return parsed_ip, {"ip": parsed_ip, "processedString": text.strip()}, []
         except Exception as exc:
-            return "", [f"Client IP lookup failed: {exc}"]
+            return "", {}, [f"Client IP lookup failed: {exc}"]
 
     def _rust_server_payload(self, server: Server):
         try:
@@ -179,56 +188,117 @@ class LibreSpeedAdapter(ProviderAdapter):
             "getIpURL": server.ip_path,
         }
 
-    def _run_rust(self, server: Server, settings: Settings, probe: ProbeResult) -> SpeedResult:
+    def _run_rust(
+        self,
+        server: Server,
+        settings: Settings,
+        probe: ProbeResult,
+        progress=None,
+    ) -> SpeedResult:
         server_payload = self._rust_server_payload(server)
         payload = json.dumps([server_payload], separators=(",", ":"))
+        arguments = [
+            self.rust_binary,
+            "--local-json",
+            "-",
+            "--server",
+            str(server_payload["id"]),
+            "--json-stream",
+            "--telemetry-level",
+            "disabled",
+            "--duration",
+            str(settings.test_duration),
+            "--concurrent",
+            str(settings.transfer_streams),
+            "--timeout",
+            str(max(15, settings.probe_timeout)),
+            "--no-icmp",
+        ]
+        process = None
         try:
-            completed = subprocess.run(
-                [
-                    self.rust_binary,
-                    "--local-json",
-                    "-",
-                    "--server",
-                    str(server_payload["id"]),
-                    "--json",
-                    "--telemetry-level",
-                    "disabled",
-                    "--duration",
-                    str(settings.test_duration),
-                    "--concurrent",
-                    str(settings.transfer_streams),
-                    "--timeout",
-                    str(max(15, settings.probe_timeout)),
-                    "--no-icmp",
-                ],
-                input=payload,
+            process = subprocess.Popen(
+                arguments,
+                stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                check=True,
-                timeout=max(120, settings.test_duration * 12),
                 text=True,
             )
+            assert process.stdin is not None
+            assert process.stdout is not None
+            process.stdin.write(payload)
+            process.stdin.close()
+            reports = None
+            for line in process.stdout:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(event, dict) and event.get("event") == "progress":
+                    direction = str(event.get("phase", "latency")).lower()
+                    mbps = float(event.get("mbps", 0))
+                    elapsed = float(event.get("seconds", 0))
+                    phase_progress = float(event.get("progress", 0))
+                    if progress is not None:
+                        progress.sample(direction, mbps, elapsed, phase_progress)
+                        progress.update(
+                            f"measuring-{direction}",
+                            f"Measuring {direction} at {mbps:.1f} Mbps",
+                            (
+                                48 + min(phase_progress, 100) * 0.24
+                                if direction == "download"
+                                else 72 + min(phase_progress, 100) * 0.2
+                                if direction == "upload"
+                                else 45
+                            ),
+                            provider=self.provider_id,
+                            target=server.selection_name,
+                            direction=direction,
+                            currentMbps=round(mbps, 2),
+                        )
+                elif isinstance(event, dict) and event.get("event") == "phase":
+                    phase = str(event.get("phase", "latency")).lower()
+                    if progress is not None:
+                        progress.update(
+                            f"measuring-{phase}",
+                            (
+                                "Checking target latency"
+                                if phase == "ping"
+                                else f"Measuring {phase}"
+                            ),
+                            45 if phase in ("ping", "latency") else 50,
+                            provider=self.provider_id,
+                            target=server.selection_name,
+                            direction=phase,
+                        )
+                elif isinstance(event, dict) and event.get("event") == "result":
+                    reports = [event]
+                elif isinstance(event, list):
+                    reports = event
+                elif isinstance(event, dict) and "download" in event and "upload" in event:
+                    reports = [event]
+            returncode = process.wait(timeout=max(120, settings.test_duration * 12))
+            stderr = process.stderr.read() if process.stderr else ""
+            if returncode != 0:
+                detail = next(
+                    (line.strip() for line in stderr.splitlines() if line.strip()),
+                    f"exit code {returncode}",
+                )
+                raise ProviderUnavailableError(f"The native Rust engine failed: {detail}")
+            if reports is None:
+                raise ProviderUnavailableError("The native Rust engine returned no result")
         except FileNotFoundError as exc:
             raise ProviderUnavailableError("The native Rust engine is not installed") from exc
         except subprocess.TimeoutExpired as exc:
+            if process is not None:
+                process.kill()
             raise ProviderUnavailableError("The native Rust engine timed out") from exc
-        except subprocess.CalledProcessError as exc:
-            detail = next(
-                (
-                    line.strip()
-                    for line in exc.stderr.splitlines()
-                    if line.strip()
-                ),
-                f"exit code {exc.returncode}",
-            )
-            raise ProviderUnavailableError(f"The native Rust engine failed: {detail}") from exc
 
         try:
-            reports = json.loads(completed.stdout)
-            if isinstance(reports, dict):
-                reports = [reports]
             report = reports[0]
-        except (IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        except (IndexError, TypeError) as exc:
             raise ProviderUnavailableError("The native Rust engine returned invalid JSON") from exc
         report_server = report.get("server") or {}
         client = report.get("client") or {}
@@ -259,9 +329,25 @@ class LibreSpeedAdapter(ProviderAdapter):
             upload=float(report["upload"]),
             link=str(report.get("share") or ""),
             engine="rust",
+            client_metadata=client,
+            server_metadata={
+                "id": server.server_id,
+                "name": resolved.name,
+                "url": report_server.get("url", server.base_url),
+                "location": server.location,
+                "country": server.country,
+                "sponsor": server.metadata.get("sponsor", ""),
+            },
+            network_metadata={
+                "protocol": "HTTP",
+                "transferEngine": "native-rust",
+                "bytesSent": report.get("bytes_sent"),
+                "bytesReceived": report.get("bytes_received"),
+                "tls": report.get("tls"),
+            },
         )
 
-    def run(self, server: Server, settings: Settings) -> SpeedResult:
+    def run(self, server: Server, settings: Settings, progress=None) -> SpeedResult:
         server = self._prepare(server)
         probe = self.probe(server, settings)
         if probe.error:
@@ -270,7 +356,7 @@ class LibreSpeedAdapter(ProviderAdapter):
         fallback_warnings = []
         if self.rust_status():
             try:
-                return self._run_rust(server, settings, probe)
+                return self._run_rust(server, settings, probe, progress)
             except ProviderUnavailableError as exc:
                 fallback_warnings.append(
                     f"Native Rust transfer unavailable; using standard-library fallback: {exc}"
@@ -278,6 +364,21 @@ class LibreSpeedAdapter(ProviderAdapter):
 
         download_url = endpoint(server.base_url, server.download_path)
         upload_url = endpoint(server.base_url, server.upload_path)
+        def report_transfer(direction, mbps, elapsed, percent):
+            if progress is not None:
+                progress.sample(direction, mbps, elapsed, percent)
+                progress.update(
+                    f"measuring-{direction}",
+                    f"Measuring {direction} at {mbps:.1f} Mbps",
+                    (48 + percent * 0.24)
+                    if direction == "download"
+                    else (72 + percent * 0.2),
+                    provider=self.provider_id,
+                    target=server.selection_name,
+                    direction=direction,
+                    currentMbps=round(mbps, 2),
+                )
+
         download, download_warnings = timed_download(
             lambda stream: with_query(
                 download_url, ckSize=32, r=f"{time.time_ns()}-{stream}"
@@ -285,14 +386,16 @@ class LibreSpeedAdapter(ProviderAdapter):
             settings.test_duration,
             settings.transfer_streams,
             settings.probe_timeout,
+            report_transfer,
         )
         upload, upload_warnings = timed_upload(
             lambda stream: with_query(upload_url, r=f"{time.time_ns()}-{stream}"),
             settings.test_duration,
             settings.transfer_streams,
             settings.probe_timeout,
+            report_transfer,
         )
-        client_ip, client_warnings = self._client_ip(server, settings)
+        client_ip, client_metadata, client_warnings = self._client_info(server, settings)
         return SpeedResult(
             provider="librespeed",
             timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -304,4 +407,17 @@ class LibreSpeedAdapter(ProviderAdapter):
             upload=upload,
             engine="standard-library",
             warnings=fallback_warnings + download_warnings + upload_warnings + client_warnings,
+            client_metadata=client_metadata,
+            server_metadata={
+                "id": server.server_id,
+                "name": server.selection_name,
+                "baseUrl": server.base_url,
+                "location": server.location,
+                "country": server.country,
+                "sponsor": server.metadata.get("sponsor", ""),
+            },
+            network_metadata={
+                "protocol": "HTTP",
+                "transferEngine": "standard-library",
+            },
         )

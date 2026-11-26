@@ -8,6 +8,7 @@ import re
 import socket
 import statistics
 import subprocess
+import threading
 import time
 from typing import Dict, List, Optional
 from urllib.parse import urlsplit
@@ -181,7 +182,7 @@ class OoklaAdapter(ProviderAdapter):
             return "", 0
         return host, port or 8080
 
-    def probe(self, server: Server, settings: Settings) -> ProbeResult:
+    def probe(self, server: Server, settings: Settings, progress=None) -> ProbeResult:
         host, port = self._endpoint_host(server)
         if not host:
             return ProbeResult(
@@ -228,7 +229,7 @@ class OoklaAdapter(ProviderAdapter):
             parsed = parsed.replace(tzinfo=datetime.timezone.utc)
         return parsed.astimezone(datetime.timezone.utc).isoformat()
 
-    def run(self, server: Server, settings: Settings) -> SpeedResult:
+    def run(self, server: Server, settings: Settings, progress=None) -> SpeedResult:
         client = self.client()
         if client is None:
             raise ProviderUnavailableError("The native measurement CLI is unavailable")
@@ -241,7 +242,36 @@ class OoklaAdapter(ProviderAdapter):
             if server.server_id and server.server_id != "auto":
                 arguments += ["--server", server.server_id]
 
-        completed = self._command(arguments, timeout=max(120, settings.test_duration * 8))
+        stop_heartbeat = threading.Event()
+        heartbeat = None
+        if progress is not None:
+            progress.update(
+                "measuring-throughput",
+                "Measuring download and upload throughput",
+                55,
+                provider=self.provider_id,
+                target=server.selection_name,
+            )
+
+            def report_elapsed():
+                started = time.monotonic()
+                while not stop_heartbeat.wait(1):
+                    progress.update(
+                        "measuring-throughput",
+                        f"Measuring download and upload ({time.monotonic() - started:.0f}s)",
+                        None,
+                        provider=self.provider_id,
+                        target=server.selection_name,
+                    )
+
+            heartbeat = threading.Thread(target=report_elapsed, daemon=True)
+            heartbeat.start()
+        try:
+            completed = self._command(arguments, timeout=max(120, settings.test_duration * 8))
+        finally:
+            stop_heartbeat.set()
+            if heartbeat is not None:
+                heartbeat.join(timeout=1)
         try:
             payload = json.loads(completed.stdout.strip())
         except json.JSONDecodeError as exc:
@@ -254,6 +284,21 @@ class OoklaAdapter(ProviderAdapter):
             result_data = payload.get("result", {})
             interface = payload.get("interface", {})
             server_payload = payload.get("server", {})
+            client_metadata = {
+                "ip": interface.get("externalIp", ""),
+                "isp": payload.get("isp", ""),
+                "interfaceName": interface.get("name", ""),
+                "isVpn": interface.get("isVpn"),
+            }
+            server_metadata = {
+                "id": server_payload.get("id", server.server_id),
+                "name": server_payload.get("name", server.name),
+                "location": server_payload.get("location", server.location),
+                "country": server_payload.get("country", server.country),
+                "host": server_payload.get("host", server.host),
+                "port": server_payload.get("port", server.port),
+                "ip": server_payload.get("ip", ""),
+            }
             resolved = Server(
                 provider="ookla",
                 name=server_payload.get("name", server.name),
@@ -282,9 +327,21 @@ class OoklaAdapter(ProviderAdapter):
                 link=str(result_data.get("url", "")),
                 server_id_output=server_payload.get("id", server.server_id),
                 engine="native-cli",
+                client_metadata={key: value for key, value in client_metadata.items() if value not in (None, "")},
+                server_metadata=server_metadata,
+                network_metadata={
+                    "protocol": "native-cli",
+                    "packetLoss": payload.get("packetLoss"),
+                    "downloadBytes": payload.get("download", {}).get("bytes"),
+                    "downloadElapsed": payload.get("download", {}).get("elapsed"),
+                    "uploadBytes": payload.get("upload", {}).get("bytes"),
+                    "uploadElapsed": payload.get("upload", {}).get("elapsed"),
+                    "resultId": result_data.get("id"),
+                },
             )
 
         legacy_server = payload.get("server", {})
+        legacy_client = payload.get("client", {})
         resolved = Server(
             provider="ookla",
             name=legacy_server.get("sponsor", server.name),
@@ -309,4 +366,28 @@ class OoklaAdapter(ProviderAdapter):
             link=str(payload.get("share") or "").removesuffix(".png"),
             server_id_output=legacy_server.get("id", server.server_id),
             engine="native-cli",
+            client_metadata={
+                key: value
+                for key, value in legacy_client.items()
+                if key not in ("internal_ip", "mac", "internalIp") and value not in (None, "")
+            },
+            server_metadata={
+                "id": legacy_server.get("id", server.server_id),
+                "name": legacy_server.get("name", server.location),
+                "sponsor": legacy_server.get("sponsor", server.name),
+                "country": legacy_server.get("country", server.country),
+                "host": legacy_server.get("host", ""),
+                "url": legacy_server.get("url", ""),
+                "distance": legacy_server.get("d"),
+                "latency": legacy_server.get("latency"),
+                "coordinates": legacy_server.get("latlon") or {
+                    "latitude": legacy_server.get("lat"),
+                    "longitude": legacy_server.get("lon"),
+                },
+            },
+            network_metadata={
+                "protocol": "native-cli",
+                "bytesSent": payload.get("bytes_sent"),
+                "bytesReceived": payload.get("bytes_received"),
+            },
         )

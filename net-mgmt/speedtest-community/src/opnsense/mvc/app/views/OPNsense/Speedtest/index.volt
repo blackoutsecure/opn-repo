@@ -73,6 +73,50 @@
         min-height: 1.9rem;
         margin-bottom: 0.75rem;
     }
+    .opn-run-status {
+        margin: 0 0 1rem;
+        padding: 0.85rem 1rem 0.65rem;
+        border-top: 1px solid var(--opn-speedtest-rule);
+        border-bottom: 1px solid var(--opn-speedtest-rule);
+    }
+    .opn-run-status-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 1rem;
+    }
+    .opn-run-status .progress {
+        height: 0.45rem;
+        margin: 0.65rem 0 0.25rem;
+    }
+    .opn-run-status svg,
+    .opn-result-timeline svg {
+        display: block;
+        width: 100%;
+        height: 7.5rem;
+    }
+    .opn-live-chart-grid,
+    .opn-result-chart-grid {
+        stroke: var(--opn-speedtest-rule);
+        stroke-width: 1;
+    }
+    .opn-live-chart-line {
+        fill: none;
+        stroke-width: 3;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+    #opn-live-download,
+    #opn-result-download {
+        stroke: var(--opn-speedtest-orange);
+    }
+    #opn-live-upload,
+    #opn-result-upload {
+        stroke: var(--opn-speedtest-green);
+    }
+    .opn-run-status[data-active="false"] .progress {
+        opacity: 0.45;
+    }
     .opn-source-badge {
         display: inline-block;
         margin: 0 0.5rem 0.4rem 0;
@@ -178,6 +222,16 @@
         max-height: 11rem;
         overflow: auto;
     }
+    .opn-selection-details summary {
+        cursor: pointer;
+        color: inherit;
+        opacity: 0.72;
+    }
+    .opn-result-client-meta {
+        display: block;
+        margin-top: 0.2rem;
+        opacity: 0.72;
+    }
     .opn-history {
         padding: 1rem 1.25rem 0.5rem;
     }
@@ -228,6 +282,47 @@
     .opn-history-legend .upload {
         background: var(--opn-speedtest-green);
     }
+    .opn-results-toolbar {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 0.75rem;
+    }
+    .opn-results-toolbar .form-control {
+        min-width: 18rem;
+    }
+    .opn-results-table tbody tr {
+        cursor: pointer;
+    }
+    .opn-results-table tbody tr.is-selected,
+    .opn-results-table tbody tr:hover {
+        background: rgba(192, 62, 20, 0.08);
+    }
+    .opn-result-inspector {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--opn-speedtest-rule);
+    }
+    .opn-result-inspector-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.1fr) minmax(18rem, 1fr);
+        gap: 1.5rem;
+    }
+    .opn-result-field {
+        display: grid;
+        grid-template-columns: 10rem minmax(0, 1fr);
+        gap: 0.35rem 0.75rem;
+        margin-bottom: 0.25rem;
+    }
+    .opn-result-field dt {
+        margin: 0;
+        opacity: 0.7;
+    }
+    .opn-result-field dd {
+        margin: 0;
+        overflow-wrap: anywhere;
+    }
     @media (max-width: 767px) {
         .opn-speedtest-header {
             align-items: flex-start;
@@ -264,6 +359,18 @@
             align-items: flex-start;
             flex-direction: column;
         }
+        .opn-results-toolbar,
+        .opn-run-status-head,
+        .opn-result-inspector-grid {
+            display: block;
+        }
+        .opn-results-toolbar .form-control {
+            min-width: 0;
+            margin-bottom: 0.5rem;
+        }
+        .opn-result-field {
+            grid-template-columns: 8rem minmax(0, 1fr);
+        }
     }
 </style>
 
@@ -289,6 +396,7 @@
 
     <ul class="nav nav-tabs" data-tabs="tabs" id="speedtest-tabs">
         <li class="active"><a data-toggle="tab" href="#speedtest-run">{{ lang._('Measure') }}</a></li>
+        <li><a data-toggle="tab" href="#speedtest-results-history">{{ lang._('Results') }}</a></li>
         <li><a data-toggle="tab" href="#speedtest-settings">{{ lang._('Sources and targets') }}</a></li>
     </ul>
 
@@ -323,6 +431,31 @@
                     {{ lang._('Loading enabled measurement sources...') }}
                 </div>
                 <div id="speedtest-provider-badges" class="opn-source-badges"></div>
+                <div id="speedtest-live-status" class="opn-run-status"
+                     style="display:none" data-active="false" aria-live="polite">
+                    <div class="opn-run-status-head">
+                        <strong id="speedtest-live-title">{{ lang._('Preparing measurement') }}</strong>
+                        <small id="speedtest-live-time" class="text-muted">0 s</small>
+                    </div>
+                    <div id="speedtest-live-message" class="text-muted">
+                        {{ lang._('Preparing the selected measurement network') }}
+                    </div>
+                    <div class="progress">
+                        <div id="speedtest-live-progress"
+                             class="progress-bar progress-bar-warning progress-bar-striped active"
+                             role="progressbar" aria-valuemin="0" aria-valuemax="100"
+                             aria-valuenow="0" style="width:0%">
+                        </div>
+                    </div>
+                    <svg id="speedtest-live-chart" viewBox="0 0 720 110"
+                         role="img" aria-label="{{ lang._('Live download and upload activity') }}"
+                         style="display:none">
+                        <line class="opn-live-chart-grid" x1="12" x2="708" y1="22" y2="22"/>
+                        <line class="opn-live-chart-grid" x1="12" x2="708" y1="88" y2="88"/>
+                        <polyline class="opn-live-chart-line" id="opn-live-download" points=""/>
+                        <polyline class="opn-live-chart-line" id="opn-live-upload" points=""/>
+                    </svg>
+                </div>
                 <div class="row">
                     <div class="col-sm-5">
                         <label for="speedtest-provider">{{ lang._('Network source') }}</label>
@@ -414,12 +547,18 @@
                         <dt>{{ lang._('Selection') }}</dt>
                         <dd>
                             <div id="result_selection"></div>
-                            <small id="speedtest-selection-probes" class="text-muted"></small>
+                            <details class="opn-selection-details" id="speedtest-selection-details">
+                                <summary id="speedtest-selection-summary">{{ lang._('Target checks') }}</summary>
+                                <div id="speedtest-selection-probes" class="text-muted"></div>
+                            </details>
                         </dd>
                         <dt id="result_warnings_row" style="display:none">{{ lang._('Warnings') }}</dt>
                         <dd id="result_warnings" class="text-warning" style="display:none"></dd>
                         <dt>{{ lang._('External IP') }}</dt>
-                        <dd id="client"></dd>
+                        <dd>
+                            <span id="client"></span>
+                            <small id="client_geo" class="opn-result-client-meta"></small>
+                        </dd>
                         <dt>{{ lang._('Shareable result') }}</dt>
                         <dd id="result"></dd>
                     </dl>
@@ -461,34 +600,62 @@
                         <polyline class="opn-history-line" id="opn-history-upload" points=""/>
                     </svg>
                 </div>
-                <table class="table table-condensed">
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="speedtest-results-history">
+            <h2>{{ lang._('Results') }}</h2>
+            <p class="help-block">
+                {{ lang._('The latest 5,000 results are shown here. Export CSV to retrieve the complete local history.') }}
+            </p>
+            <div class="opn-results-toolbar">
+                <input id="speedtest-results-search" class="form-control" type="search"
+                       placeholder="{{ lang._('Filter by date, network, target, or location') }}">
+                <div>
+                    <a href="/api/speedtest/download/csv" class="btn btn-default">
+                        {{ lang._('Export CSV') }}
+                    </a>
+                    <button class="btn btn-default" id="deletelogAct" type="button">
+                        {{ lang._('Clear history') }} <i id="deletelogAct_progress"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="content-box table-responsive">
+                <table class="table table-condensed opn-results-table">
                     <thead>
                         <tr>
-                            <th style="text-align:left" colspan="7">
-                                <a href="#"><i class="fa fa-toggle-off text-danger" id="show_advanced_log"></i></a>
-                                <small id="togglelog">{{ lang._('Show detailed history') }}</small>
-                                <span class="pull-right">
-                                    <a href="/api/speedtest/download/csv" class="btn btn-xs btn-primary">
-                                        {{ lang._('Export CSV') }}
-                                    </a>
-                                    <button class="btn btn-xs btn-primary" id="deletelogAct" type="button">
-                                        {{ lang._('Clear history') }} <i id="deletelogAct_progress"></i>
-                                    </button>
-                                </span>
-                            </th>
-                        </tr>
-                        <tr id="log_head" class="speedtest-log-advanced" style="display:none">
-                            <th>{{ lang._('Timestamp (GMT)') }}</th>
-                            <th>{{ lang._('Source') }}</th>
+                            <th>{{ lang._('Date') }}</th>
+                            <th>{{ lang._('Network') }}</th>
                             <th>{{ lang._('Target') }}</th>
+                            <th>{{ lang._('External IP / location') }}</th>
                             <th>{{ lang._('Download') }}</th>
                             <th>{{ lang._('Upload') }}</th>
                             <th>{{ lang._('Latency') }}</th>
-                            <th>{{ lang._('Jitter') }}</th>
+                            <th>{{ lang._('Details') }}</th>
                         </tr>
                     </thead>
-                    <tbody id="log_block" class="speedtest-log-advanced" style="display:none"></tbody>
+                    <tbody id="speedtest-results-body"></tbody>
                 </table>
+                <div id="speedtest-results-empty" class="help-block" style="padding:1rem">
+                    {{ lang._('No completed measurements are available.') }}
+                </div>
+            </div>
+            <div id="speedtest-result-inspector" class="opn-result-inspector" style="display:none">
+                <h3 id="speedtest-result-title">{{ lang._('Measurement details') }}</h3>
+                <div class="opn-result-inspector-grid">
+                    <dl id="speedtest-result-fields" class="opn-result-field"></dl>
+                    <div class="opn-result-timeline">
+                        <strong>{{ lang._('Run timeline') }}</strong>
+                        <div id="speedtest-result-timeline-note" class="help-block"></div>
+                        <svg id="speedtest-result-timeline-chart" viewBox="0 0 720 140"
+                             role="img" aria-label="{{ lang._('Selected measurement throughput timeline') }}">
+                            <line class="opn-result-chart-grid" x1="10" x2="710" y1="22" y2="22"/>
+                            <line class="opn-result-chart-grid" x1="10" x2="710" y1="110" y2="110"/>
+                            <polyline class="opn-live-chart-line" id="opn-result-download" points=""/>
+                            <polyline class="opn-live-chart-line" id="opn-result-upload" points=""/>
+                        </svg>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -501,6 +668,32 @@
                         <b>{{ lang._('Save source settings') }}</b>
                         <i id="saveSettingsAct_progress"></i>
                     </button>
+                </div>
+                <div class="col-md-12 __mt">
+                    <details>
+                        <summary>{{ lang._('Command line and automation help') }}</summary>
+                        <p class="help-block">
+                            {{ lang._('The plugin exposes the same network selection, progress, and saved-results functions to OPNsense automation.') }}
+                        </p>
+                        <pre>configctl speedtest version
+configctl speedtest providers
+configctl speedtest serverlist-provider all
+configctl speedtest discover all
+configctl speedtest run-provider auto auto
+configctl speedtest progress
+configctl speedtest results 1000
+configctl speedtest showstat
+configctl speedtest showlog
+configctl speedtest showrecent
+configctl speedtest deletelog
+
+configctl speedtest run 0
+configctl speedtest run 63762
+configctl speedtest serverlist</pre>
+                        <p class="help-block">
+                            {{ lang._('Direct CLI: /usr/local/opnsense/scripts/OPNsense/speedtest/opn_speedtest.py [version|providers|list|discover|run|progress|results|stat|log|recent|clear].') }}
+                        </p>
+                    </details>
                 </div>
             </div>
 
@@ -532,6 +725,10 @@
     let speedtestServers = [];
     let speedtestProviders = [];
     let speedtestSettings = {};
+    let speedtestResults = [];
+    let speedtestProgressTimer = null;
+    let speedtestProgressRequest = false;
+    let speedtestRunRequestActive = false;
 
     function speedtestFormat(value) {
         return value === null || value === undefined ? '' : String(value);
@@ -615,6 +812,153 @@
         $('#speedtest-history-chart').show();
     }
 
+    function speedtestSamplesByDirection(samples, direction) {
+        return (Array.isArray(samples) ? samples : [])
+            .filter(function(sample) {
+                return sample.direction === direction || (
+                    sample.direction === "result" && sample[direction] !== undefined
+                );
+            })
+            .map(function(sample) {
+                return {
+                    time: parseFloat(sample.time) || 0,
+                    value: parseFloat(
+                        sample.direction === "result" ? sample[direction] : sample.mbps
+                    ) || 0
+                };
+            });
+    }
+
+    function speedtestRenderActivityChart(samples, downloadSelector, uploadSelector) {
+        const download = speedtestSamplesByDirection(samples, "download");
+        const upload = speedtestSamplesByDirection(samples, "upload");
+        const values = download.concat(upload).map(function(sample) { return sample.value; });
+        if (!values.length) {
+            return false;
+        }
+        const maximum = speedtestNiceMaximum(Math.max.apply(Math, values));
+        const maximumTime = Math.max.apply(
+            Math,
+            download.concat(upload).map(function(sample) { return sample.time; })
+        ) || 1;
+        const points = function(series) {
+            if (!series.length) {
+                return "";
+            }
+            const coordinates = series.map(function(sample) {
+                const x = 12 + 696 * Math.min(sample.time / maximumTime, 1);
+                const y = 94 - 76 * Math.min(sample.value / maximum, 1);
+                return x.toFixed(2) + "," + y.toFixed(2);
+            });
+            return coordinates.length === 1
+                ? coordinates[0] + " " + coordinates[0]
+                : coordinates.join(" ");
+        };
+        $(downloadSelector).attr("points", points(download));
+        $(uploadSelector).attr("points", points(upload));
+        return true;
+    }
+
+    function speedtestRenderProgress(data) {
+        if (!data) {
+            return;
+        }
+        if (speedtestRunRequestActive && data.phase === 'idle') {
+            return;
+        }
+        const active = Boolean(data.active);
+        const percent = Math.max(0, Math.min(100, Number(data.percent) || 0));
+        $('#speedtest-live-status').show().attr('data-active', active ? 'true' : 'false');
+        $('#speedtest-live-title').text(
+            speedtestFormat(data.phase).replace(/[-_]/g, " ").replace(/\b\w/g, function(letter) {
+                return letter.toUpperCase();
+            })
+        );
+        $('#speedtest-live-message').text(data.message || "{{ lang._('Measurement in progress') }}");
+        $('#speedtest-live-time').text(Math.max(0, Number(data.elapsed) || 0).toFixed(0) + " s");
+        $('#speedtest-live-progress')
+            .css('width', percent + '%')
+            .attr('aria-valuenow', percent.toFixed(0));
+        if (data.phase === "selecting-target" || data.phase === "target-selected") {
+            $('#download-gauge-detail,#upload-gauge-detail,#latency-gauge-detail')
+                .text("{{ lang._('Selecting target') }}");
+        }
+        const samples = Array.isArray(data.samples) ? data.samples : [];
+        const hasSamples = speedtestRenderActivityChart(
+            samples,
+            '#opn-live-download',
+            '#opn-live-upload'
+        );
+        $('#speedtest-live-chart').toggle(hasSamples);
+        $('#speedtest-live-progress').toggleClass('active progress-bar-striped', !hasSamples && active);
+        const latestDownload = speedtestSamplesByDirection(samples, "download").slice(-1)[0];
+        const latestUpload = speedtestSamplesByDirection(samples, "upload").slice(-1)[0];
+        if (latestDownload) {
+            const maximum = speedtestNiceMaximum(latestDownload.value);
+            $('#dlspeed').text(latestDownload.value.toFixed(1));
+            speedtestSetGauge("download", latestDownload.value, maximum);
+            $('#download-gauge-detail').text("{{ lang._('Live') }}");
+        }
+        if (latestUpload) {
+            const maximum = speedtestNiceMaximum(latestUpload.value);
+            $('#ulspeed').text(latestUpload.value.toFixed(1));
+            speedtestSetGauge("upload", latestUpload.value, maximum);
+            $('#upload-gauge-detail').text("{{ lang._('Live') }}");
+        }
+        if (data.phase === "complete") {
+            $('#speedtest-live-title').text("{{ lang._('Complete') }}");
+            $('#speedtest-live-progress').removeClass('progress-bar-warning').addClass('progress-bar-success');
+        }
+        if (data.phase === "error") {
+            $('#speedtest-live-progress').removeClass('progress-bar-warning progress-bar-success').addClass('progress-bar-danger');
+        }
+    }
+
+    function speedtestStopProgressPolling() {
+        if (speedtestProgressTimer !== null) {
+            clearInterval(speedtestProgressTimer);
+            speedtestProgressTimer = null;
+        }
+    }
+
+    function speedtestPollProgress() {
+        if (speedtestProgressRequest) {
+            return;
+        }
+        speedtestProgressRequest = true;
+        ajaxCall(url = "/api/speedtest/service/progress", sendData = {}, callback = function(data, status) {
+            speedtestProgressRequest = false;
+            speedtestRenderProgress(data);
+            if (
+                data &&
+                data.active === false &&
+                (data.phase === 'complete' || data.phase === 'error' || !speedtestRunRequestActive)
+            ) {
+                speedtestStopProgressPolling();
+            }
+        });
+    }
+
+    function speedtestStartProgressPolling() {
+        speedtestRunRequestActive = true;
+        speedtestStopProgressPolling();
+        $('#test_results').addClass('opn-speedtest-running').show();
+        $('#speedtest-live-status')
+            .show()
+            .attr('data-active', 'true');
+        $('#speedtest-live-title').text("{{ lang._('Preparing') }}");
+        $('#speedtest-live-message').text("{{ lang._('Preparing the selected measurement network') }}");
+        $('#speedtest-live-time').text("0 s");
+        $('#speedtest-live-progress').css('width', '0%').attr('aria-valuenow', '0');
+        $('#speedtest-live-progress')
+            .removeClass('progress-bar-success progress-bar-danger')
+            .addClass('progress-bar-warning progress-bar-striped active');
+        speedtestRenderActivityChart([], '#opn-live-download', '#opn-live-upload');
+        $('#speedtest-live-chart').hide();
+        speedtestPollProgress();
+        speedtestProgressTimer = setInterval(speedtestPollProgress, 750);
+    }
+
     function speedtestStatReload() {
         ajaxCall(url = "/api/speedtest/service/showstat", sendData = {}, callback = function(l, status) {
             if (!l || l.error) {
@@ -641,23 +985,176 @@
 
     function speedtestLogReload() {
         ajaxCall(url = "/api/speedtest/service/showlog", sendData = {}, callback = function(l, status) {
-            const body = $('#log_block').empty();
             if (!Array.isArray(l)) {
                 speedtestRenderHistory([]);
                 return;
             }
-            l.forEach(function(row) {
-                $('<tr>')
-                    .append($('<td>').text(speedtestFormat(row[0])))
-                    .append($('<td>').text(speedtestFormat(row[9])))
-                    .append($('<td>').text((speedtestFormat(row[2]) + " " + speedtestFormat(row[3])).trim()))
-                    .append($('<td>').text(parseFloat(row[5] || 0).toFixed(2)))
-                    .append($('<td>').text(parseFloat(row[6] || 0).toFixed(2)))
-                    .append($('<td>').text(parseFloat(row[7] || 0).toFixed(2)))
-                    .append($('<td>').text(parseFloat(row[10] || 0).toFixed(2)))
-                    .appendTo(body);
-            });
             speedtestRenderHistory(l);
+        });
+    }
+
+    function speedtestResultDetails(row) {
+        try {
+            const details = JSON.parse(row[13] || "{}");
+            return details && typeof details === "object" ? details : {};
+        } catch (error) {
+            return {};
+        }
+    }
+
+    function speedtestProviderName(provider) {
+        const match = speedtestProviders.find(function(item) {
+            return item.id === provider;
+        });
+        return match ? match.label : provider;
+    }
+
+    function speedtestClientLocation(client) {
+        if (!client || typeof client !== "object") {
+            return "";
+        }
+        const location = [
+            client.city,
+            client.region || client.region_name,
+            client.country || client.country_name
+        ].filter(function(value) { return value; });
+        let coordinates = client.loc || client.location || client.coordinates;
+        if (!coordinates && (client.lat || client.latitude) && (client.lon || client.longitude)) {
+            coordinates = (client.lat || client.latitude) + ", " + (client.lon || client.longitude);
+        } else if (coordinates && typeof coordinates === "object") {
+            coordinates = [
+                coordinates.latitude || coordinates.lat,
+                coordinates.longitude || coordinates.lon
+            ].filter(function(value) { return value !== undefined && value !== ""; }).join(", ");
+        }
+        if (coordinates) {
+            location.push(String(coordinates));
+        }
+        return location.join(", ");
+    }
+
+    function speedtestClientNetwork(client) {
+        if (!client || typeof client !== "object") {
+            return "";
+        }
+        return [
+            client.isp,
+            client.org || client.as_name,
+            client.asn || client.as,
+            client.timezone
+        ].filter(function(value) { return value; }).join(" / ");
+    }
+
+    function speedtestShowResultDetail(row) {
+        const details = speedtestResultDetails(row);
+        const client = details.client || {};
+        const server = details.server || {};
+        const network = details.network || {};
+        const selection = details.selection || {};
+        const samples = details.samples || [];
+        const fields = [];
+        const addField = function(label, value) {
+            if (value === null || value === undefined || value === "") {
+                return;
+            }
+            fields.push(
+                $('<dt>').text(label),
+                $('<dd>').text(String(value))
+            );
+        };
+        addField("{{ lang._('Date') }}", row[0]);
+        addField("{{ lang._('Network') }}", speedtestProviderName(row[9]));
+        addField(
+            "{{ lang._('Target') }}",
+            server.name || [row[2], row[3]].filter(function(value) { return value; }).join(" ")
+        );
+        addField("{{ lang._('External IP') }}", client.ip || row[1]);
+        addField("{{ lang._('Location') }}", speedtestClientLocation(client));
+        addField("{{ lang._('ISP / network') }}", speedtestClientNetwork(client));
+        addField("{{ lang._('Result') }}", row[5] + " Mbps / " + row[6] + " Mbps");
+        addField("{{ lang._('Latency / jitter') }}", row[7] + " ms / " + row[10] + " ms");
+        addField(
+            "{{ lang._('Selection') }}",
+            selection.method === "manual"
+                ? "{{ lang._('Selected manually') }}"
+                : "{{ lang._('Checked') }} " + ((selection.probes || []).length) + " {{ lang._('targets') }}"
+        );
+        addField(
+            "{{ lang._('Network details') }}",
+            Object.keys(network).length ? JSON.stringify(network) : ""
+        );
+        addField("{{ lang._('Warnings') }}", (details.warnings || []).join(" \u2022 "));
+        addField("{{ lang._('Shareable result') }}", row[8]);
+        $('#speedtest-result-title').text(
+            speedtestProviderName(row[9]) + " \u2014 " + row[0]
+        );
+        $('#speedtest-result-fields').empty().append(fields);
+        const hasTimeline = speedtestRenderActivityChart(
+            samples,
+            '#opn-result-download',
+            '#opn-result-upload'
+        );
+        const hasLiveSamples = samples.some(function(sample) {
+            return !sample.summary;
+        });
+        $('#speedtest-result-timeline-chart').toggle(hasTimeline);
+        $('#speedtest-result-timeline-note').text(
+            hasTimeline && hasLiveSamples
+                ? "{{ lang._('Captured transfer activity for this measurement') }}"
+                : "{{ lang._('This source reported final totals only; no intermediate samples were available.') }}"
+        );
+        $('#speedtest-result-inspector').show();
+    }
+
+    function speedtestRenderResults(filter) {
+        const term = (filter || "").toLowerCase();
+        const body = $('#speedtest-results-body').empty();
+        const rows = speedtestResults.filter(function(row) {
+            const details = speedtestResultDetails(row);
+            return !term || [
+                row.join(" "),
+                JSON.stringify(details)
+            ].join(" ").toLowerCase().indexOf(term) !== -1;
+        });
+        rows.forEach(function(row) {
+            const details = speedtestResultDetails(row);
+            const client = details.client || {};
+            const location = speedtestClientLocation(client);
+            const trigger = $('<button>')
+                .addClass('btn btn-xs btn-default')
+                .text("{{ lang._('View') }}")
+                .on('click', function(event) {
+                    event.stopPropagation();
+                    speedtestShowResultDetail(row);
+                });
+            $('<tr>')
+                .append($('<td>').text(speedtestFormat(row[0])))
+                .append($('<td>').text(speedtestProviderName(row[9])))
+                .append($('<td>').text((speedtestFormat(row[2]) + " " + speedtestFormat(row[3])).trim()))
+                .append($('<td>').text(
+                    [client.ip || row[1], location].filter(function(value) { return value; }).join(" \u2014 ")
+                ))
+                .append($('<td>').text(parseFloat(row[5] || 0).toFixed(2) + " Mbps"))
+                .append($('<td>').text(parseFloat(row[6] || 0).toFixed(2) + " Mbps"))
+                .append($('<td>').text(parseFloat(row[7] || 0).toFixed(2) + " ms"))
+                .append($('<td>').append(trigger))
+                .on('click', function() {
+                    speedtestShowResultDetail(row);
+                })
+                .appendTo(body);
+        });
+        $('#speedtest-results-empty').toggle(rows.length === 0);
+    }
+
+    function speedtestResultsReload() {
+        ajaxCall(url = "/api/speedtest/service/results/5000", sendData = {}, callback = function(data, status) {
+            if (!Array.isArray(data)) {
+                $('#speedtest-results-body').empty();
+                $('#speedtest-results-empty').show();
+                return;
+            }
+            speedtestResults = data;
+            speedtestRenderResults($('#speedtest-results-search').val());
         });
     }
 
@@ -795,7 +1292,7 @@
         if (selection.method === 'latency-fallback') {
             return "{{ lang._('First selected target failed; retried the next healthy target') }}";
         }
-        return "{{ lang._('Lowest median endpoint latency with jitter penalty') }}";
+        return "{{ lang._('The most responsive target was selected automatically') }}";
     }
 
     function speedtestRenderResult(result) {
@@ -827,12 +1324,21 @@
             "{{ lang._('Jitter') }} " + (parseFloat(result.jitter) || 0).toFixed(2) + " ms"
         );
         $('#result_provider').text(result.providerLabel || result.provider);
+        const visibleServerId =
+            result.provider === "cloudflare" && result.serverid === "edge"
+                ? ""
+                : (result.serverid ? "id: " + result.serverid : "");
         $('#result_server').text(
-            [(result.serverid ? "id: " + result.serverid : ""), result.servername, result.country]
+            [visibleServerId, result.servername, result.country]
                 .filter(function(value) { return value; })
                 .join(" \u2014 ")
         );
-        $('#client').text(result.clientip || "\u2014");
+        const client = result.client || {};
+        $('#client').text(client.ip || result.clientip || "\u2014");
+        $('#client_geo').text([
+            speedtestClientLocation(client),
+            speedtestClientNetwork(client)
+        ].filter(function(value) { return value; }).join(" \u2022 "));
         const resultBox = $('#result').empty();
         if (result.link) {
             $('<a>').attr('href', result.link).attr('target', '_blank').attr('rel', 'noopener noreferrer')
@@ -841,14 +1347,24 @@
             resultBox.text("\u2014");
         }
         const selection = result.selection || {};
+        const probes = selection.probes || [];
+        const checked = probes.length;
         $('#result_selection').text(
             speedtestSelectionLabel(selection) +
+            (selection.method === 'manual'
+                ? ""
+                : " \u2014 " + checked + " {{ lang._('targets checked') }}") +
             (selection.latency === null || selection.latency === undefined
                 ? ""
                 : " \u2014 " + speedtestFormat(selection.latency) + " ms / " +
                     speedtestFormat(selection.jitter) + " ms jitter")
         );
-        const probes = selection.probes || [];
+        $('#speedtest-selection-summary').text(
+            "{{ lang._('Target checks') }} (" + checked + ")"
+        );
+        $('#speedtest-selection-details')
+            .prop('open', false)
+            .toggle(checked > 0);
         $('#speedtest-selection-probes').text(probes.map(function(probe) {
             return (probe.providerLabel || probe.provider) + "/" +
                 (probe.server || probe.serverId || "{{ lang._('automatic') }}") + ": " +
@@ -857,6 +1373,23 @@
         const warnings = result.warnings || [];
         $('#result_warnings_row,#result_warnings').toggle(warnings.length > 0);
         $('#result_warnings').text(warnings.join(" \u2022 "));
+        speedtestRunRequestActive = false;
+        speedtestStopProgressPolling();
+        speedtestRenderProgress({
+            active: false,
+            phase: "complete",
+            message: "{{ lang._('Measurement complete') }}",
+            percent: 100,
+            elapsed: (result.samples || []).reduce(function(maximum, sample) {
+                return Math.max(maximum, Number(sample.time) || 0);
+            }, 0),
+            samples: result.samples || []
+        });
+        speedtestRenderActivityChart(
+            result.samples || [],
+            '#opn-live-download',
+            '#opn-live-upload'
+        );
     }
 
     $(document).ready(function() {
@@ -897,9 +1430,15 @@
             speedtestRefreshServers(false);
         });
         $('#speedtest-tabs a[data-toggle="tab"]').on('shown.bs.tab', function(event) {
-            if ($(event.target).attr('href') === '#speedtest-settings') {
+            const target = $(event.target).attr('href');
+            if (target === '#speedtest-settings') {
                 $("#{{serverGrid['table_id']}}").bootgrid("reload");
+            } else if (target === '#speedtest-results-history') {
+                speedtestResultsReload();
             }
+        });
+        $('#speedtest-results-search').on('input', function() {
+            speedtestRenderResults($(this).val());
         });
 
         $('#saveSettingsAct').click(function() {
@@ -926,7 +1465,7 @@
                 ? providerSelection
                 : selectedServer.attr('data-provider') || providerSelection;
             $('#speedtest-error').hide();
-            $('#test_results').addClass('opn-speedtest-running').show();
+            speedtestStartProgressPolling();
             $('#reportAct_progress').addClass("fa fa-spinner fa-pulse");
             $('#reportAct').prop('disabled', true);
             $('#result_provider,#result_server,#result_selection,#speedtest-selection-probes').text('');
@@ -934,33 +1473,37 @@
             speedtestSetGauge('download', 8, 100);
             speedtestSetGauge('upload', 8, 100);
             speedtestSetGauge('latency', 8, 100);
+            $('#download-gauge-detail,#upload-gauge-detail,#latency-gauge-detail')
+                .text("{{ lang._('Preparing') }}");
             ajaxCall(
                 url = "/api/speedtest/service/run/" + encodeURIComponent(provider) + "/" + encodeURIComponent(server),
                 sendData = {},
                 callback = function(result, status) {
+                    speedtestRunRequestActive = false;
                     $('#reportAct_progress').removeClass("fa fa-spinner fa-pulse");
                     $('#reportAct').prop('disabled', false);
                     if (result && result.error) {
+                        speedtestStopProgressPolling();
+                        speedtestRenderProgress({
+                            active: false,
+                            phase: "error",
+                            message: result.error,
+                            percent: 0
+                        });
                         $('#test_results').hide().removeClass('opn-speedtest-running');
                         $('#speedtest-error').text(result.error).show();
                     } else if (result) {
                         speedtestRenderResult(result);
                     } else {
+                        speedtestStopProgressPolling();
                         $('#test_results').hide().removeClass('opn-speedtest-running');
                         $('#speedtest-error').text("{{ lang._('The measurement backend returned no result.') }}").show();
                     }
                     speedtestStatReload();
                     speedtestLogReload();
+                    speedtestResultsReload();
                 }
             );
-        });
-
-        $('#show_advanced_log').click(function(event) {
-            event.preventDefault();
-            const expanded = $(this).hasClass('fa-toggle-on');
-            $('.speedtest-log-advanced').toggle(!expanded);
-            $(this).toggleClass('fa-toggle-off fa-toggle-on');
-            $('#togglelog').text(expanded ? "{{ lang._('Show detailed history') }}" : "{{ lang._('Hide detailed history') }}");
         });
 
         $('#deletelogAct').click(function() {
@@ -968,6 +1511,9 @@
             ajaxCall(url = "/api/speedtest/service/deletelog", sendData = {}, callback = function() {
                 speedtestStatReload();
                 speedtestLogReload();
+                speedtestResults = [];
+                speedtestRenderResults("");
+                $('#speedtest-result-inspector').hide();
                 $('#deletelogAct_progress').removeClass("fa fa-spinner fa-pulse");
             });
         });

@@ -22,9 +22,9 @@ class ProviderAdapter(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def probe(self, server: Server, settings: Settings) -> ProbeResult:
+    def probe(self, server: Server, settings: Settings, progress=None) -> ProbeResult:
         raise NotImplementedError
 
     @abstractmethod
-    def run(self, server: Server, settings: Settings) -> SpeedResult:
+    def run(self, server: Server, settings: Settings, progress=None) -> SpeedResult:
         raise NotImplementedError

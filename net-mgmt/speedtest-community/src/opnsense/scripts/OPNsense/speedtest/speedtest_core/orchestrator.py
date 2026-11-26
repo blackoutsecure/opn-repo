@@ -12,9 +12,10 @@ from .providers import provider_adapters
 
 
 class SpeedtestOrchestrator:
-    def __init__(self, settings: Settings, adapters=None):
+    def __init__(self, settings: Settings, adapters=None, progress=None):
         self.settings = settings
         self.adapters = adapters or provider_adapters()
+        self.progress = progress
 
     def provider_ids(self, requested: str = "all") -> List[str]:
         requested = requested.lower()
@@ -210,12 +211,27 @@ class SpeedtestOrchestrator:
         results = []
         with ThreadPoolExecutor(max_workers=min(self.settings.probe_workers, len(candidates))) as executor:
             futures = {
-                executor.submit(self.adapters[provider_id].probe, server, self.settings): (
+                (
+                    executor.submit(
+                        self.adapters[provider_id].probe,
+                        server,
+                        self.settings,
+                        self.progress,
+                    )
+                    if self.progress is not None
+                    else executor.submit(
+                        self.adapters[provider_id].probe,
+                        server,
+                        self.settings,
+                    )
+                ): (
                     provider_id,
                     server,
                 )
                 for provider_id, server in candidates
             }
+            total = len(futures)
+            checked = 0
             for future in as_completed(futures):
                 provider_id, server = futures[future]
                 try:
@@ -223,6 +239,15 @@ class SpeedtestOrchestrator:
                 except Exception as exc:
                     result = ProbeResult(server=server, error=f"{provider_id}: {exc}")
                 results.append(result)
+                checked += 1
+                if self.progress is not None:
+                    self.progress.update(
+                        "selecting-target",
+                        f"Checking measurement target {checked} of {total}",
+                        5 + checked / total * 35,
+                        checked=checked,
+                        total=total,
+                    )
         return results
 
     @staticmethod
@@ -252,6 +277,15 @@ class SpeedtestOrchestrator:
         if successful:
             successful.sort(key=lambda probe: probe.score)
             chosen = successful[0]
+            if self.progress is not None:
+                self.progress.update(
+                    "target-selected",
+                    f"Selected {chosen.server.selection_name}",
+                    42,
+                    provider=chosen.server.provider,
+                    target=chosen.server.selection_name,
+                    latency=round(chosen.latency, 2),
+                )
             return chosen.server, self._selection_payload(chosen, probes, "median-latency-jitter"), probes
 
         # Legacy speedtest-cli cannot expose endpoint hosts for a preflight. It remains
@@ -316,6 +350,13 @@ class SpeedtestOrchestrator:
         server_key = server_key.strip() if isinstance(server_key, str) else str(server_key)
         server_key = server_key or "auto"
         retries = []
+        if self.progress is not None:
+            self.progress.start(provider_id, server_key)
+            self.progress.update(
+                "selecting-target",
+                "Checking the available measurement targets",
+                5,
+            )
 
         if provider_id == "auto" and server_key != "auto":
             matches = [
@@ -359,11 +400,30 @@ class SpeedtestOrchestrator:
                 "probes": [],
             }
 
+        if self.progress is not None:
+            self.progress.update(
+                "preparing-transfer",
+                f"Preparing {getattr(self.adapters[server.provider], 'label', server.provider)} "
+                f"at {server.selection_name}",
+                44,
+                provider=server.provider,
+                target=server.selection_name,
+            )
         candidates = [server] + retries
         failures = []
         for candidate_index, candidate in enumerate(candidates):
             try:
-                result = self.adapters[candidate.provider].run(candidate, self.settings).as_dict()
+                if self.progress is None:
+                    result = self.adapters[candidate.provider].run(
+                        candidate,
+                        self.settings,
+                    ).as_dict()
+                else:
+                    result = self.adapters[candidate.provider].run(
+                        candidate,
+                        self.settings,
+                        self.progress,
+                    ).as_dict()
                 if candidate_index:
                     selection["method"] = "latency-fallback"
                     selection["provider"] = candidate.provider
@@ -374,6 +434,9 @@ class SpeedtestOrchestrator:
                     selection["jitter"] = None
                 selection["fallbackErrors"] = failures
                 result["selection"] = selection
+                if self.progress is not None:
+                    result["samples"] = self.progress.samples()
+                    self.progress.complete(result)
                 return result
             except SpeedtestError as exc:
                 failures.append(f"{candidate.provider}/{candidate.server_id or candidate.name}: {exc}")

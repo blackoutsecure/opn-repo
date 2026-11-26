@@ -13,6 +13,7 @@ from speedtest_core.config import load_settings
 from speedtest_core.errors import SpeedtestError
 from speedtest_core.history import append_result, clear_history, read_log, recent_result, statistics_result
 from speedtest_core.orchestrator import SpeedtestOrchestrator
+from speedtest_core.progress import ProgressReporter, read_progress
 
 
 def json_output(payload) -> None:
@@ -24,7 +25,11 @@ def run(argv):
     settings = load_settings()
 
     if command in ("l", "log"):
-        return read_log()
+        limit = int(argv[2]) if len(argv) > 2 and argv[2].isdigit() else 50
+        return read_log(min(max(limit, 1), 5000))
+    if command == "results":
+        limit = int(argv[2]) if len(argv) > 2 and argv[2].isdigit() else 1000
+        return read_log(min(max(limit, 1), 10000))
     if command in ("r", "recent"):
         return recent_result()
     if command in ("s", "stat"):
@@ -32,6 +37,8 @@ def run(argv):
     if command == "clear":
         clear_history()
         return {"status": "ok"}
+    if command == "progress":
+        return read_progress()
 
     orchestrator = SpeedtestOrchestrator(settings)
     if command in ("v", "version"):
@@ -54,9 +61,15 @@ def run(argv):
         provider, server = "ookla", command
     else:
         raise SpeedtestError(f"Unknown speedtest command: {command}")
-    result = orchestrator.run(provider, server)
-    append_result(result)
-    return result
+    progress = ProgressReporter()
+    orchestrator = SpeedtestOrchestrator(settings, progress=progress)
+    try:
+        result = orchestrator.run(provider, server)
+        append_result(result)
+        return result
+    except Exception as exc:
+        progress.fail(str(exc))
+        raise
 
 
 def main() -> None:

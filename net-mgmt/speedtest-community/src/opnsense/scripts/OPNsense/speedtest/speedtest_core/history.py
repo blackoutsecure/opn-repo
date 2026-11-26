@@ -3,6 +3,7 @@
 
 import csv
 import fcntl
+import json
 import os
 import statistics
 from datetime import datetime, timezone
@@ -21,7 +22,13 @@ LEGACY_FIELDS = [
     "Latency",
     "Link",
 ]
-FIELDS = LEGACY_FIELDS + ["Provider", "Jitter", "SelectionMethod"]
+FIELDS = LEGACY_FIELDS + [
+    "Provider",
+    "Jitter",
+    "SelectionMethod",
+    "Engine",
+    "DetailsJson",
+]
 
 
 def history_path() -> str:
@@ -52,13 +59,13 @@ def ensure_history() -> None:
         if not rows:
             csv.writer(stream).writerow(FIELDS)
         elif rows[0] != FIELDS:
-            if rows[0][: len(LEGACY_FIELDS)] == LEGACY_FIELDS:
+            if FIELDS[: len(rows[0])] == rows[0]:
                 stream.seek(0)
                 stream.truncate()
                 writer = csv.writer(stream)
                 writer.writerow(FIELDS)
                 for row in rows[1:]:
-                    writer.writerow((row + ["", "", ""])[: len(FIELDS)])
+                    writer.writerow((row + [""] * len(FIELDS))[: len(FIELDS)])
             else:
                 raise ValueError("Unsupported speedtest CSV header")
         fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
@@ -83,6 +90,19 @@ def append_result(result: Dict) -> None:
         result.get("provider", ""),
         result.get("jitter", 0),
         result.get("selection", {}).get("method", "manual"),
+        result.get("engine", ""),
+        json.dumps(
+            {
+                "client": result.get("client", {}),
+                "server": result.get("serverDetails", {}),
+                "network": result.get("network", {}),
+                "selection": result.get("selection", {}),
+                "samples": result.get("samples", []),
+                "warnings": result.get("warnings", []),
+            },
+            separators=(",", ":"),
+            sort_keys=True,
+        ),
     ]
     with open(history_path(), "a", encoding="utf-8", newline="") as stream:
         fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
@@ -95,7 +115,7 @@ def read_log(limit: int = 50) -> List[List]:
     rows = _read_unlocked()
     normalized = []
     for row in rows[1:]:
-        padded = (row + ["", "", ""])[: len(FIELDS)]
+        padded = (row + [""] * len(FIELDS))[: len(FIELDS)]
         try:
             padded[0] = datetime.fromtimestamp(float(padded[0]), timezone.utc).isoformat()
         except (TypeError, ValueError, OverflowError):
@@ -119,6 +139,10 @@ def recent_result() -> Dict:
             "error": "No speedtest results yet",
         }
     row = rows[0]
+    try:
+        details = json.loads(row[13]) if row[13] else {}
+    except (TypeError, ValueError, json.JSONDecodeError):
+        details = {}
     return {
         "date": row[0],
         "provider": row[9],
@@ -127,6 +151,8 @@ def recent_result() -> Dict:
         "upload": row[6],
         "latency": row[7],
         "url": row[8],
+        "client": details.get("client", {}),
+        "network": details.get("network", {}),
     }
 
 

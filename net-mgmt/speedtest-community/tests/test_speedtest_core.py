@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: BSD-2-Clause
 
 import csv
+import io
 import json
 import os
 import sys
@@ -20,6 +21,7 @@ from speedtest_core.errors import ProviderUnavailableError  # noqa: E402
 from speedtest_core.history import FIELDS, append_result, clear_history, read_log  # noqa: E402
 from speedtest_core.models import PROVIDER_LABELS, ProbeResult, Server, SpeedResult  # noqa: E402
 from speedtest_core.orchestrator import SpeedtestOrchestrator  # noqa: E402
+from speedtest_core.progress import ProgressReporter, read_progress  # noqa: E402
 from speedtest_core.providers.cloudflare import CloudflareAdapter  # noqa: E402
 from speedtest_core.providers.librespeed import LibreSpeedAdapter  # noqa: E402
 from speedtest_core.providers.ookla import OoklaAdapter  # noqa: E402
@@ -113,7 +115,12 @@ class ProviderParsingTests(unittest.TestCase):
         }
         payload = {
             "timestamp": "2026-11-26T10:00:00Z",
-            "interface": {"externalIp": "192.0.2.10"},
+            "interface": {
+                "externalIp": "192.0.2.10",
+                "name": "igc0",
+                "isVpn": False,
+            },
+            "isp": "Example ISP",
             "server": {
                 "id": 10,
                 "name": "Example",
@@ -134,6 +141,8 @@ class ProviderParsingTests(unittest.TestCase):
         self.assertEqual(output["serverid"], 10)
         self.assertEqual(output["timestamp"], "2026-11-26T10:00:00Z")
         self.assertEqual(output["clientip"], "192.0.2.10")
+        self.assertEqual(output["client"]["isp"], "Example ISP")
+        self.assertEqual(output["serverDetails"]["id"], 10)
 
     def test_http_providers_probe_their_configured_ping_endpoints(self):
         settings = Settings(ping_samples=2)
@@ -205,22 +214,91 @@ class ProviderParsingTests(unittest.TestCase):
             {
                 "timestamp": "2026-11-26T12:00:00Z",
                 "server": {"name": "Rust target", "url": server.base_url},
-                "client": {"ip": "192.0.2.4"},
+                "client": {
+                    "ip": "192.0.2.4",
+                    "city": "Atlanta",
+                    "region": "Georgia",
+                    "country": "US",
+                    "org": "Example ISP",
+                },
                 "ping": 9.5,
                 "jitter": 0.8,
                 "download": 850.25,
                 "upload": 120.5,
                 "share": "",
+                "bytes_sent": 1000,
+                "bytes_received": 2000,
+                "tls": {"version": "TLSv1.3", "cipher": "AES"},
             }
         ]
+        process = mock.Mock()
+        process.stdin = io.StringIO()
+        process.stdout = [json.dumps(report) + "\n"]
+        process.stderr = io.StringIO("")
+        process.wait.return_value = 0
         with mock.patch(
-            "speedtest_core.providers.librespeed.subprocess.run",
-            return_value=mock.Mock(stdout=json.dumps(report), stderr=""),
+            "speedtest_core.providers.librespeed.subprocess.Popen",
+            return_value=process,
         ):
             result = adapter._run_rust(server, Settings(test_duration=4), probe)
         self.assertEqual(result.engine, "rust")
         self.assertEqual(result.download, 850.25)
         self.assertEqual(result.client_ip, "192.0.2.4")
+        self.assertEqual(result.client_metadata["city"], "Atlanta")
+        self.assertEqual(result.network_metadata["bytesReceived"], 2000)
+
+    def test_librespeed_keeps_provider_supplied_client_geo_metadata(self):
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.return_value = json.dumps(
+            {
+                "processedString": "203.0.113.8 - Example ISP, United States",
+                "rawIspInfo": {
+                    "ip": "203.0.113.8",
+                    "city": "Atlanta",
+                    "region": "Georgia",
+                    "country": "US",
+                    "loc": "33.7490,-84.3880",
+                    "org": "AS64500 Example ISP",
+                    "timezone": "America/New_York",
+                },
+            }
+        ).encode()
+        server = Server(
+            provider="librespeed",
+            name="Geo target",
+            server_id="geo",
+            base_url="https://speed.example.test",
+            ip_path="backend/getIP.php",
+        )
+        with mock.patch(
+            "speedtest_core.providers.librespeed.open_request",
+            return_value=response,
+        ):
+            ip, metadata, warnings = LibreSpeedAdapter()._client_info(server, Settings())
+        self.assertEqual(ip, "203.0.113.8")
+        self.assertEqual(metadata["loc"], "33.7490,-84.3880")
+        self.assertEqual(metadata["org"], "AS64500 Example ISP")
+        self.assertEqual(warnings, [])
+
+    def test_cloudflare_keeps_edge_trace_metadata(self):
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.return_value = (
+            b"ip=198.51.100.4\nloc=US\ncolo=ATL\ntls=TLSv1.3\n"
+        )
+        server = Server(
+            provider="cloudflare",
+            name="Edge",
+            server_id="edge",
+            base_url="https://speed.example.test",
+        )
+        with mock.patch(
+            "speedtest_core.providers.cloudflare.open_request",
+            return_value=response,
+        ):
+            metadata, warnings = CloudflareAdapter._client_info(server, Settings())
+        self.assertEqual(metadata["colo"], "ATL")
+        self.assertEqual(metadata["loc"], "US")
+        self.assertEqual(warnings, [])
 
 
 class FakeAdapter:
@@ -245,7 +323,7 @@ class FakeAdapter:
     def discover(self, settings):
         return self.discovered
 
-    def probe(self, server, settings):
+    def probe(self, server, settings, progress=None):
         self.probed.append(server.server_id)
         latency = self.latencies[server.server_id]
         jitter = 1.0
@@ -257,8 +335,10 @@ class FakeAdapter:
             score=latency + 0.25,
         )
 
-    def run(self, server, settings):
+    def run(self, server, settings, progress=None):
         self.runs.append((self.provider, server.server_id))
+        if progress is not None:
+            progress.sample("download", 100.0, 0.5, 50.0)
         return SpeedResult(
             provider=self.provider,
             timestamp="2026-11-26T00:00:00+00:00",
@@ -373,7 +453,7 @@ class SelectionTests(unittest.TestCase):
         runs = []
 
         class FailingAdapter(FakeAdapter):
-            def run(self, server, settings):
+            def run(self, server, settings, progress=None):
                 raise ProviderUnavailableError("simulated transfer failure")
 
         adapters = {
@@ -432,6 +512,32 @@ class SelectionTests(unittest.TestCase):
         result = SpeedtestOrchestrator(Settings(), {"ookla": adapter}).legacy_ookla_version()
         self.assertEqual(result, {"version": "cli", "message": "fake"})
 
+    def test_orchestrator_records_live_progress_for_ui_polling(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "progress.json"
+            reporter = ProgressReporter(str(path))
+            runs = []
+            adapters = {
+                "ookla": FakeAdapter("ookla", {"100": 40.0}, runs),
+                "librespeed": FakeAdapter("librespeed", {"libre": 10.0}, runs),
+                "cloudflare": FakeAdapter("cloudflare", {"edge": 20.0}, runs),
+            }
+            result = SpeedtestOrchestrator(
+                self.configured_settings(),
+                adapters,
+                progress=reporter,
+            ).run("auto", "auto")
+            self.assertGreater(len(result["selection"].get("probes", [])), 0)
+            self.assertTrue(result["samples"])
+            with mock.patch.dict(
+                os.environ,
+                {"OPNSENSE_SPEEDTEST_PROGRESS": str(path)},
+            ):
+                state = read_progress()
+            self.assertFalse(state["active"])
+            self.assertEqual(state["phase"], "complete")
+            self.assertEqual(state["result"]["samples"][0]["direction"], "download")
+
 
 class HistoryTests(unittest.TestCase):
     def test_legacy_csv_is_migrated_without_losing_rows(self):
@@ -439,7 +545,7 @@ class HistoryTests(unittest.TestCase):
             path = Path(directory) / "speedtest.csv"
             with path.open("w", encoding="utf-8", newline="") as stream:
                 writer = csv.writer(stream)
-                writer.writerow(FIELDS[:9])
+                writer.writerow(FIELDS[:12])
                 writer.writerow(
                     [1764115200, "192.0.2.1", "1", "Old", "GB", 100, 20, 5, "https://example.test"]
                 )
@@ -459,13 +565,42 @@ class HistoryTests(unittest.TestCase):
                         "jitter": 1,
                         "link": "",
                         "selection": {"method": "manual"},
+                        "engine": "rust",
+                        "client": {
+                            "ip": "192.0.2.2",
+                            "city": "Atlanta",
+                            "region": "Georgia",
+                            "country": "US",
+                            "org": "Example ISP",
+                        },
+                        "serverDetails": {"id": "2", "name": "New"},
+                        "network": {"protocol": "HTTP"},
+                        "samples": [{"direction": "download", "mbps": 200, "time": 1}],
                     }
                 )
                 self.assertEqual(len(read_log()), 2)
                 with path.open("r", encoding="utf-8", newline="") as stream:
-                    self.assertEqual(next(csv.reader(stream)), FIELDS)
+                    reader = csv.reader(stream)
+                    self.assertEqual(next(reader), FIELDS)
+                    newest = list(reader)[-1]
+                    self.assertEqual(newest[12], "rust")
+                    self.assertEqual(json.loads(newest[13])["client"]["city"], "Atlanta")
                 clear_history()
             self.assertEqual(path.exists(), True)
+
+    def test_progress_file_records_live_samples_and_final_result(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "progress.json"
+            reporter = ProgressReporter(str(path))
+            reporter.start("librespeed", "53")
+            reporter.update("measuring-download", "Measuring download at 500 Mbps", 50)
+            reporter.sample("download", 500.0, 1.25, 50.0)
+            reporter.complete({"provider": "librespeed", "download": 500.0, "upload": 100.0})
+            with mock.patch.dict(os.environ, {"OPNSENSE_SPEEDTEST_PROGRESS": str(path)}):
+                payload = read_progress()
+            self.assertFalse(payload["active"])
+            self.assertEqual(payload["phase"], "complete")
+            self.assertEqual(payload["result"]["samples"][0]["direction"], "download")
 
 
 if __name__ == "__main__":
