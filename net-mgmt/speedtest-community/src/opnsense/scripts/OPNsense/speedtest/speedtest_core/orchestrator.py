@@ -77,6 +77,19 @@ class SpeedtestOrchestrator:
             elif provider_id == "librespeed":
                 rust = adapter.rust_status()
                 version = rust if rust else "Built-in HTTP transfer engine"
+            elif provider_id == "cloudflare":
+                rust = adapter.rust_status()
+                version = rust if rust else "Built-in HTTP transfer engine"
+            role_parts = [
+                value
+                for value in (
+                    status.get("protocol"),
+                    status.get("client"),
+                )
+                if value
+            ]
+            if provider_id == "cloudflare" and rust:
+                role_parts.append("external GPL-3.0 diagnostic")
             components.append(
                 {
                     "name": status["label"],
@@ -84,15 +97,7 @@ class SpeedtestOrchestrator:
                     "website": status.get("website", ""),
                     "status": "available" if status.get("available") else "unavailable",
                     "required": False,
-                    "role": " / ".join(
-                        value
-                        for value in (
-                            status.get("protocol"),
-                            status.get("client"),
-                        )
-                        if value
-                    )
-                    or "Measurement network adapter",
+                    "role": " / ".join(role_parts) or "Measurement network adapter",
                 }
             )
 

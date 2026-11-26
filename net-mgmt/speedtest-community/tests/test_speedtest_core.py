@@ -306,6 +306,66 @@ class ProviderParsingTests(unittest.TestCase):
         self.assertEqual(metadata["loc"], "US")
         self.assertEqual(warnings, [])
 
+    def test_cloudflare_can_capture_optional_rust_udp_loss_diagnostic(self):
+        adapter = CloudflareAdapter()
+        adapter._rust_available = "cloudflare-speed-cli 1.0.12"
+        server = Server(
+            provider="cloudflare",
+            name="Automatic global edge",
+            server_id="edge",
+            base_url="https://speed.example.test",
+            download_path="__down",
+            upload_path="__up",
+            ping_path="__down",
+        )
+        diagnostic = {
+            "meta": {
+                "clientIp": "198.51.100.9",
+                "city": "Atlanta",
+                "region": "Georgia",
+                "country": "US",
+                "latitude": "33.7",
+                "longitude": "-84.4",
+                "asOrganization": "Example ISP",
+                "asn": 64500,
+                "colo": {"iata": "ATL"},
+            },
+            "ip": "198.51.100.9",
+            "asn": 64500,
+            "as_org": "Example ISP",
+            "experimental_udp": {
+                "target": "stun:stun.cloudflare.com:3478",
+                "latency": {"sent": 20, "received": 20, "loss": 0.0, "jitter_ms": 0.2},
+                "mos": 4.4,
+                "quality_label": "Excellent",
+            },
+        }
+        with mock.patch.object(adapter, "probe", return_value=ProbeResult(
+                server=server,
+                latency=20.0,
+                jitter=1.0,
+                samples=[19, 20, 21],
+                score=20.25,
+            )), \
+            mock.patch.object(adapter, "_client_info", return_value=({"ip": "198.51.100.9"}, [])), \
+            mock.patch.object(adapter, "_run_rust_diagnostic", return_value=diagnostic), \
+            mock.patch(
+                "speedtest_core.providers.cloudflare.timed_download",
+                return_value=(500.0, []),
+            ), \
+            mock.patch(
+                "speedtest_core.providers.cloudflare.timed_upload",
+                return_value=(100.0, []),
+            ):
+            result = adapter.run(server, Settings())
+        self.assertEqual(result.packet_loss, 0.0)
+        self.assertEqual(result.packet_loss_method, "udp-stun")
+        self.assertEqual(result.client_metadata["city"], "Atlanta")
+        self.assertEqual(
+            result.network_metadata["packetLossProbe"]["target"],
+            "stun:stun.cloudflare.com:3478",
+        )
+
 
 class FakeAdapter:
     def __init__(self, provider, latencies, runs, discovered=None):

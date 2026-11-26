@@ -47,9 +47,18 @@ install_native_client() {
 }
 
 install_rust_engine() {
+  LIBRESPEED_RUST=0
+  CLOUDFLARE_RUST=0
   if /usr/local/bin/librespeed-cli-rust --version 2>/dev/null |
       grep -q '^librespeed-cli v1\.2\.1 '; then
-    echo "Native Rust transfer engine 1.2.1 is already installed."
+    LIBRESPEED_RUST=1
+  fi
+  if /usr/local/bin/cloudflare-speed-rust --version 2>/dev/null |
+      grep -q '^cloudflare-speed-cli 1\.0\.12$'; then
+    CLOUDFLARE_RUST=1
+  fi
+  if [ "${LIBRESPEED_RUST}" -eq 1 ] && [ "${CLOUDFLARE_RUST}" -eq 1 ]; then
+    echo "Native Rust measurement engines are already installed."
     return 0
   fi
   RUST_REMOVE=0
@@ -68,13 +77,24 @@ install_rust_engine() {
   mkdir -p /var/tmp/opnsense-librespeed-rust/home \
     /var/tmp/opnsense-librespeed-rust/root \
     /var/tmp/opnsense-librespeed-rust/target
-  CARGO_HOME=/var/tmp/opnsense-librespeed-rust/home \
-    CARGO_TARGET_DIR=/var/tmp/opnsense-librespeed-rust/target \
-    cargo install --locked --version 1.2.1 librespeed-cli \
-      --root /var/tmp/opnsense-librespeed-rust/root
-  install -m 0755 -o root -g wheel \
-    /var/tmp/opnsense-librespeed-rust/root/bin/librespeed-cli \
-    /usr/local/bin/librespeed-cli-rust
+  if [ "${LIBRESPEED_RUST}" -eq 0 ]; then
+    CARGO_HOME=/var/tmp/opnsense-librespeed-rust/home \
+      CARGO_TARGET_DIR=/var/tmp/opnsense-librespeed-rust/target \
+      cargo install --locked --version 1.2.1 librespeed-cli \
+        --root /var/tmp/opnsense-librespeed-rust/root
+    install -m 0755 -o root -g wheel \
+      /var/tmp/opnsense-librespeed-rust/root/bin/librespeed-cli \
+      /usr/local/bin/librespeed-cli-rust
+  fi
+  if [ "${CLOUDFLARE_RUST}" -eq 0 ]; then
+    CARGO_HOME=/var/tmp/opnsense-librespeed-rust/home \
+      CARGO_TARGET_DIR=/var/tmp/opnsense-librespeed-rust/target \
+      cargo install --locked --version 1.0.12 --no-default-features cloudflare-speed-cli \
+        --root /var/tmp/opnsense-librespeed-rust/root
+    install -m 0755 -o root -g wheel \
+      /var/tmp/opnsense-librespeed-rust/root/bin/cloudflare-speed-cli \
+      /usr/local/bin/cloudflare-speed-rust
+  fi
 }
 
 case "$1" in
@@ -88,6 +108,7 @@ case "$1" in
     pkg delete -y speedtest >/dev/null 2>&1 || true
     remove_legacy_python_client
     rm -f /usr/local/bin/librespeed-cli-rust
+    rm -f /usr/local/bin/cloudflare-speed-rust
     ;;
   *)
     echo "Usage: $0 {native|rust|delete}" >&2

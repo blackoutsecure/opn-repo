@@ -35,6 +35,27 @@ Measurement engines are implementation details. The plugin uses a compatible
 native engine when available and otherwise uses its standard-library fallback;
 operators do not need to select or install an engine from the UI.
 
+### Cloudflare and Rust
+
+Cloudflare's official `@cloudflare/speedtest` engine is browser-only: its
+throughput timings depend on `PerformanceResourceTiming`, and its official
+packet-loss path uses WebRTC/TURN. Running that JavaScript on the firewall would
+measure the browser's route instead of OPNsense's route, so the browser engine
+is not bundled.
+
+Speedtest therefore uses an independent standard-library HTTP adapter for live
+Cloudflare download/upload graphs. When an external `cloudflare-speed-cli`
+binary is present, the plugin may additionally run its UDP/STUN diagnostic with
+zero-byte transfer durations. Results are explicitly labeled `udp-stun`; this
+is a useful native approximation, not a claim of Cloudflare's browser/TURN
+measurement.
+
+`cloudflare-speed-cli` is a separate GPL-3.0 program and is not linked into or
+copied into the BSD-licensed plugin. The optional Rust engine build installs it
+as an external executable, and About Speedtest identifies the version, role,
+and license. If unavailable, the normal Cloudflare HTTP test remains fully
+functional but reports packet loss as not supplied.
+
 ## Direct CLI
 
 The installed command-line wrapper is:
