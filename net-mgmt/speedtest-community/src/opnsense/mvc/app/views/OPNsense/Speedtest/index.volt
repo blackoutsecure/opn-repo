@@ -1546,12 +1546,12 @@ configctl speedtest serverlist</pre>
 
     $(document).ready(function() {
         $("#{{serverGrid['table_id']}}").UIBootgrid({
-            search: '/api/speedtest/settings/search_server',
-            get: '/api/speedtest/settings/get_server',
-            set: '/api/speedtest/settings/set_server',
-            add: '/api/speedtest/settings/add_server',
-            del: '/api/speedtest/settings/del_server',
-            toggle: '/api/speedtest/settings/toggle_server'
+            search: '/api/speedtest/settings/search_server/',
+            get: '/api/speedtest/settings/get_server/',
+            set: '/api/speedtest/settings/set_server/',
+            add: '/api/speedtest/settings/add_server/',
+            del: '/api/speedtest/settings/del_server/',
+            toggle: '/api/speedtest/settings/toggle_server/'
         });
 
         const dataGetMap = {'frm_speedtest_settings': "/api/speedtest/settings/get"};
