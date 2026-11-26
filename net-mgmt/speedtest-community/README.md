@@ -476,9 +476,11 @@ older versions are also left alone because they may be used independently.
 Cleanup is skipped for an alternate package root; it must be performed within
 that installation instead.
 
-The repository ignores common local firewall configuration backups, environment
-files, private keys, certificate bundles, custom LibreSpeed server lists and
-measurement history. Ignore rules do not remove files already tracked by Git.
+Keep firewall backups, custom server lists, and raw history exports outside the
+checkout. Detailed exports can contain the firewall's public IP and ISP. Git
+ignores common local filenames, including `speedtest.csv` and `speedtest.jsonl`,
+but cannot protect renamed files or remove data already tracked. Use synthetic
+data for committed test fixtures.
 
 The previous packaging framework could declare a package in conflict with
 itself, causing a misconfigured firmware status. `Mk/plugins.mk` now omits that
@@ -513,6 +515,12 @@ LIBRESPEED_TEST_BINARY="$PWD/contrib/.build/engine/bin/librespeed-cli" \
   python3 -B -m unittest discover -s tests -v
 make ENGINE_ROOT="$PWD/contrib/.build/engine" package
 ```
+
+For release builds, stage `Mk`, `Templates`, `Scripts`, and
+`net-mgmt/speedtest-community` from a reviewed commit with `git archive`, and
+pass its full SHA as `PLUGIN_HASH` to `make package`. The packager reads `src/`
+directly, so ignored local files can still be included when building from a
+working tree. Keep release archives and their checksums outside the checkout.
 
 Use the same engine directory for building, testing and packaging. Archive the
 compiler version and package manifest with each qualification; the source pin

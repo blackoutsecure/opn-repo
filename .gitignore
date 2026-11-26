@@ -1,4 +1,5 @@
 # Local firewall configurations and backups can contain credentials.
+/conf/backup/
 config.xml
 config.xml.*
 config-*.xml
@@ -12,7 +13,25 @@ config-*.xml.*
 *.pem
 *.p12
 *.pfx
+ca.pem.*
 
-# Local LibreSpeed server configuration and measurement history.
+# Local LibreSpeed settings, measurement history, and browser download copies.
 librespeed-servers.json
+librespeed-servers.json.*
+!librespeed-servers.json.example
 speedtest.csv*
+speedtest.jsonl*
+speedtest ([0-9]*).csv*
+speedtest ([0-9]*).jsonl*
+
+# Speedtest package staging and release artifacts.
+/net-mgmt/speedtest-community/work/
+os-speedtest-community-*.pkg
+os-speedtest-community-*.pkg.*
+
+# Generated Python bytecode and macOS filesystem metadata.
+__pycache__/
+*.pyc
+.DS_Store
+._*
+__MACOSX/
