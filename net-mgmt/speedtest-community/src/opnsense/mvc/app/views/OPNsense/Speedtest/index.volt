@@ -950,11 +950,38 @@ configctl speedtest serverlist</pre>
         $('#speedtest-live-progress')
             .css('width', percent + '%')
             .attr('aria-valuenow', percent.toFixed(0));
-        if (data.phase === "selecting-target" || data.phase === "target-selected") {
+        const phase = data.phase || "";
+        if (phase === "preparing" || phase === "selecting-target") {
             $('#download-gauge-detail,#upload-gauge-detail,#latency-gauge-detail')
                 .text("{{ lang._('Selecting target') }}");
+        } else if (phase === "target-selected" || phase === "preparing-transfer") {
+            $('#download-gauge-detail,#upload-gauge-detail').text("{{ lang._('Waiting') }}");
+            $('#latency-gauge-detail').text(
+                data.latency !== undefined
+                    ? data.latency + " ms {{ lang._('selected') }}"
+                    : "{{ lang._('Target selected') }}"
+            );
+        } else if (phase === "measuring-download") {
+            $('#download-gauge-detail').text("{{ lang._('Measuring') }}");
+            $('#upload-gauge-detail').text("{{ lang._('Waiting') }}");
+            $('#latency-gauge-detail').text("{{ lang._('Selected') }}");
+        } else if (phase === "measuring-upload") {
+            $('#download-gauge-detail').text("{{ lang._('Complete') }}");
+            $('#upload-gauge-detail').text("{{ lang._('Measuring') }}");
+            $('#latency-gauge-detail').text("{{ lang._('Selected') }}");
+        } else if (phase === "measuring-throughput") {
+            $('#download-gauge-detail,#upload-gauge-detail').text("{{ lang._('Measuring') }}");
+            $('#latency-gauge-detail').text("{{ lang._('Final result pending') }}");
+        } else if (phase === "checking-udp-quality") {
+            $('#download-gauge-detail,#upload-gauge-detail').text("{{ lang._('Complete') }}");
+            $('#latency-gauge-detail').text("{{ lang._('Measuring') }}");
         }
         const samples = Array.isArray(data.samples) ? data.samples : [];
+        if (data.latency !== undefined && data.latency !== null) {
+            const selectedLatency = Number(data.latency) || 0;
+            $('#latency').text(selectedLatency.toFixed(2));
+            speedtestSetGauge("latency", selectedLatency, Math.max(100, selectedLatency * 1.15));
+        }
         const hasSamples = speedtestRenderActivityChart(
             samples,
             '#opn-live-download',
@@ -968,19 +995,29 @@ configctl speedtest serverlist</pre>
             const maximum = speedtestNiceMaximum(latestDownload.value);
             $('#dlspeed').text(latestDownload.value.toFixed(1));
             speedtestSetGauge("download", latestDownload.value, maximum);
-            $('#download-gauge-detail').text("{{ lang._('Live') }}");
+            $('#download-gauge-detail').text(
+                phase === "measuring-download"
+                    ? "{{ lang._('Measuring live') }}"
+                    : "{{ lang._('Complete') }}"
+            );
         }
         if (latestUpload) {
             const maximum = speedtestNiceMaximum(latestUpload.value);
             $('#ulspeed').text(latestUpload.value.toFixed(1));
             speedtestSetGauge("upload", latestUpload.value, maximum);
-            $('#upload-gauge-detail').text("{{ lang._('Live') }}");
+            $('#upload-gauge-detail').text(
+                phase === "measuring-upload"
+                    ? "{{ lang._('Measuring live') }}"
+                    : "{{ lang._('Complete') }}"
+            );
         }
-        if (data.phase === "complete") {
+        if (phase === "complete") {
             $('#speedtest-live-title').text("{{ lang._('Complete') }}");
             $('#speedtest-live-progress').removeClass('progress-bar-warning').addClass('progress-bar-success');
+            $('#download-gauge-detail,#upload-gauge-detail,#latency-gauge-detail')
+                .text("{{ lang._('Complete') }}");
         }
-        if (data.phase === "error") {
+        if (phase === "error") {
             $('#speedtest-live-progress').removeClass('progress-bar-warning progress-bar-success').addClass('progress-bar-danger');
         }
     }
