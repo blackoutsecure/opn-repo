@@ -128,6 +128,7 @@ class ProviderParsingTests(unittest.TestCase):
                 "country": "GB",
             },
             "ping": {"latency": 12.5, "jitter": 1.25},
+            "packetLoss": 1.5,
             "download": {"bandwidth": 12500000},
             "upload": {"bandwidth": 2500000},
             "result": {"url": "https://www.speedtest.net/result/example"},
@@ -143,6 +144,8 @@ class ProviderParsingTests(unittest.TestCase):
         self.assertEqual(output["clientip"], "192.0.2.10")
         self.assertEqual(output["client"]["isp"], "Example ISP")
         self.assertEqual(output["serverDetails"]["id"], 10)
+        self.assertEqual(output["packetLoss"], 1.5)
+        self.assertTrue(output["packetLossMeasured"])
 
     def test_http_providers_probe_their_configured_ping_endpoints(self):
         settings = Settings(ping_samples=2)
@@ -593,6 +596,8 @@ class HistoryTests(unittest.TestCase):
                         "link": "",
                         "selection": {"method": "manual"},
                         "engine": "rust",
+                        "packetLoss": 0.5,
+                        "packetLossMethod": "provider",
                         "client": {
                             "ip": "192.0.2.2",
                             "city": "Atlanta",
@@ -612,6 +617,7 @@ class HistoryTests(unittest.TestCase):
                     newest = list(reader)[-1]
                     self.assertEqual(newest[12], "rust")
                     self.assertEqual(json.loads(newest[13])["client"]["city"], "Atlanta")
+                    self.assertEqual(newest[14], "0.5")
                 clear_history()
             self.assertEqual(path.exists(), True)
 

@@ -584,6 +584,8 @@
                         </dd>
                         <dt>{{ lang._('Selected target') }}</dt>
                         <dd id="result_server"></dd>
+                        <dt>{{ lang._('Packet loss') }}</dt>
+                        <dd id="result_packet_loss">{{ lang._('Not reported yet') }}</dd>
                         <dt>{{ lang._('Selection') }}</dt>
                         <dd>
                             <div id="result_selection"></div>
@@ -671,6 +673,7 @@
                             <th>{{ lang._('Download') }}</th>
                             <th>{{ lang._('Upload') }}</th>
                             <th>{{ lang._('Latency') }}</th>
+                            <th>{{ lang._('Packet loss') }}</th>
                             <th>{{ lang._('Details') }}</th>
                         </tr>
                     </thead>
@@ -1162,6 +1165,12 @@ configctl speedtest serverlist</pre>
         addField("{{ lang._('Result') }}", row[5] + " Mbps / " + row[6] + " Mbps");
         addField("{{ lang._('Latency / jitter') }}", row[7] + " ms / " + row[10] + " ms");
         addField(
+            "{{ lang._('Packet loss') }}",
+            row[14] === ""
+                ? "{{ lang._('Not reported by this provider') }}"
+                : row[14] + "% " + (row[15] ? "(" + row[15] + ")" : "")
+        );
+        addField(
             "{{ lang._('Selection') }}",
             selection.method === "manual"
                 ? "{{ lang._('Selected manually') }}"
@@ -1225,6 +1234,9 @@ configctl speedtest serverlist</pre>
                 .append($('<td>').text(parseFloat(row[5] || 0).toFixed(2) + " Mbps"))
                 .append($('<td>').text(parseFloat(row[6] || 0).toFixed(2) + " Mbps"))
                 .append($('<td>').text(parseFloat(row[7] || 0).toFixed(2) + " ms"))
+                .append($('<td>').text(
+                    row[14] === "" ? "\u2014" : parseFloat(row[14]).toFixed(2) + "%"
+                ))
                 .append($('<td>').append(trigger))
                 .on('click', function() {
                     speedtestShowResultDetail(row);
@@ -1485,6 +1497,12 @@ configctl speedtest serverlist</pre>
                 .filter(function(value) { return value; })
                 .join(" \u2014 ")
         );
+        $('#result_packet_loss').text(
+            result.packetLossMeasured && result.packetLoss !== null && result.packetLoss !== undefined
+                ? Number(result.packetLoss).toFixed(2) + "% " +
+                    (result.packetLossMethod ? "(" + result.packetLossMethod + ")" : "")
+                : "{{ lang._('Not reported by this provider') }}"
+        );
         const client = result.client || {};
         $('#client').text(client.ip || result.clientip || "\u2014");
         $('#client_geo').text([
@@ -1622,6 +1640,7 @@ configctl speedtest serverlist</pre>
             $('#reportAct_progress').addClass("fa fa-spinner fa-pulse");
             $('#reportAct').prop('disabled', true);
             $('#result_provider,#result_server,#result_selection,#speedtest-selection-probes').text('');
+            $('#result_packet_loss').text("{{ lang._('Waiting for the provider result') }}");
             $('#dlspeed,#ulspeed,#latency').text('...');
             speedtestSetGauge('download', 8, 100);
             speedtestSetGauge('upload', 8, 100);

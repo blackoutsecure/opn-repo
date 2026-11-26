@@ -28,6 +28,8 @@ FIELDS = LEGACY_FIELDS + [
     "SelectionMethod",
     "Engine",
     "DetailsJson",
+    "PacketLoss",
+    "PacketLossMethod",
 ]
 
 
@@ -103,6 +105,8 @@ def append_result(result: Dict) -> None:
             separators=(",", ":"),
             sort_keys=True,
         ),
+        "" if result.get("packetLoss") is None else result.get("packetLoss"),
+        result.get("packetLossMethod", ""),
     ]
     with open(history_path(), "a", encoding="utf-8", newline="") as stream:
         fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
@@ -135,6 +139,8 @@ def recent_result() -> Dict:
             "download": "",
             "upload": "",
             "latency": "",
+            "packetLoss": None,
+            "packetLossMethod": "",
             "url": "",
             "error": "No speedtest results yet",
         }
@@ -143,6 +149,12 @@ def recent_result() -> Dict:
         details = json.loads(row[13]) if row[13] else {}
     except (TypeError, ValueError, json.JSONDecodeError):
         details = {}
+    packet_loss = None
+    if row[14] != "":
+        try:
+            packet_loss = float(row[14])
+        except (TypeError, ValueError):
+            pass
     return {
         "date": row[0],
         "provider": row[9],
@@ -150,6 +162,8 @@ def recent_result() -> Dict:
         "download": row[5],
         "upload": row[6],
         "latency": row[7],
+        "packetLoss": packet_loss,
+        "packetLossMethod": row[15],
         "url": row[8],
         "client": details.get("client", {}),
         "network": details.get("network", {}),
@@ -163,12 +177,15 @@ def statistics_result() -> Dict:
     downloads = []
     uploads = []
     latencies = []
+    packet_losses = []
     for row in rows:
         try:
             timestamps.append(datetime.fromisoformat(row[0]).timestamp())
             downloads.append(float(row[5]))
             uploads.append(float(row[6]))
             latencies.append(float(row[7]))
+            if row[14] != "":
+                packet_losses.append(float(row[14]))
         except (TypeError, ValueError, OverflowError):
             continue
     if not timestamps:
@@ -196,6 +213,12 @@ def statistics_result() -> Dict:
             "avg": round(statistics.mean(uploads), 2),
             "min": round(min(uploads), 2),
             "max": round(max(uploads), 2),
+        },
+        "packetLoss": {
+            "samples": len(packet_losses),
+            "avg": round(statistics.mean(packet_losses), 2) if packet_losses else None,
+            "min": round(min(packet_losses), 2) if packet_losses else None,
+            "max": round(max(packet_losses), 2) if packet_losses else None,
         },
     }
 

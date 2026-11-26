@@ -55,7 +55,9 @@ class DownloadController extends ApiControllerBase
                 'Jitter',
                 'SelectionMethod',
                 'Engine',
-                'DetailsJson'
+                'DetailsJson',
+                'PacketLoss',
+                'PacketLossMethod'
             ]) . PHP_EOL;
         }
         $this->response->setContent($data);

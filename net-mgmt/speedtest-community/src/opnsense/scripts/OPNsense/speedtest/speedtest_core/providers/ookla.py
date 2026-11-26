@@ -288,6 +288,12 @@ class OoklaAdapter(ProviderAdapter):
             result_data = payload.get("result", {})
             interface = payload.get("interface", {})
             server_payload = payload.get("server", {})
+            packet_loss = payload.get("packetLoss")
+            if packet_loss is not None:
+                try:
+                    packet_loss = round(float(packet_loss), 2)
+                except (TypeError, ValueError):
+                    packet_loss = None
             client_metadata = {
                 "ip": interface.get("externalIp", ""),
                 "isp": payload.get("isp", ""),
@@ -326,6 +332,8 @@ class OoklaAdapter(ProviderAdapter):
                 server=resolved,
                 latency=float(ping.get("latency", 0)),
                 jitter=float(ping.get("jitter", 0)),
+                packet_loss=packet_loss,
+                packet_loss_method="provider" if packet_loss is not None else "",
                 download=download,
                 upload=upload,
                 link=str(result_data.get("url", "")),
@@ -346,6 +354,12 @@ class OoklaAdapter(ProviderAdapter):
 
         legacy_server = payload.get("server", {})
         legacy_client = payload.get("client", {})
+        legacy_packet_loss = payload.get("packetLoss")
+        if legacy_packet_loss is not None:
+            try:
+                legacy_packet_loss = round(float(legacy_packet_loss), 2)
+            except (TypeError, ValueError):
+                legacy_packet_loss = None
         resolved = Server(
             provider="ookla",
             name=legacy_server.get("sponsor", server.name),
@@ -365,6 +379,8 @@ class OoklaAdapter(ProviderAdapter):
             client_ip=str(payload.get("client", {}).get("ip", "")),
             server=resolved,
             latency=float(payload.get("ping", 0)),
+            packet_loss=legacy_packet_loss,
+            packet_loss_method="provider" if legacy_packet_loss is not None else "",
             download=float(payload.get("download", 0)) / 1_000_000.0,
             upload=float(payload.get("upload", 0)) / 1_000_000.0,
             link=str(payload.get("share") or "").removesuffix(".png"),
@@ -391,6 +407,7 @@ class OoklaAdapter(ProviderAdapter):
             },
             network_metadata={
                 "protocol": "native-cli",
+                "packetLoss": legacy_packet_loss,
                 "bytesSent": payload.get("bytes_sent"),
                 "bytesReceived": payload.get("bytes_received"),
             },

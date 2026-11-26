@@ -87,6 +87,8 @@ class SpeedResult:
     server_id_output: Any = None
     link: str = ""
     jitter: float = 0.0
+    packet_loss: Any = None
+    packet_loss_method: str = ""
     loaded_latency: float = 0.0
     engine: str = ""
     warnings: List[str] = field(default_factory=list)
@@ -111,6 +113,9 @@ class SpeedResult:
             "location": self.server.location,
             "latency": round(self.latency, 2),
             "jitter": round(self.jitter, 2),
+            "packetLoss": self.packet_loss,
+            "packetLossMeasured": self.packet_loss is not None,
+            "packetLossMethod": self.packet_loss_method,
             "loadedLatency": round(self.loaded_latency, 2),
             "download": round(self.download, 2),
             "upload": round(self.upload, 2),

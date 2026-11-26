@@ -104,6 +104,8 @@ engine and a `DetailsJson` object containing:
 - target ID, name, URL/host, location, country, sponsor, and edge information;
 - selection candidates, live transfer samples, warnings, and provider-specific
   protocol/byte/TLS details.
+- Packet loss is appended as a measured percentage plus method. It remains
+  blank for providers that do not report packet loss.
 
 Only data supplied by the selected measurement network is recorded. The plugin
 does not call a separate geolocation service. History stays local to the
