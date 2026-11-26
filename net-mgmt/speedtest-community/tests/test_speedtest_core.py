@@ -28,6 +28,16 @@ from speedtest_core.providers.librespeed import LibreSpeedAdapter  # noqa: E402
 from speedtest_core.providers.ookla import OoklaAdapter  # noqa: E402
 
 
+class InterfaceRenderingTests(unittest.TestCase):
+    def test_live_gauge_values_override_stylesheet_dasharray(self):
+        view = (
+            PLUGIN_ROOT
+            / "src/opnsense/mvc/app/views/OPNsense/Speedtest/index.volt"
+        ).read_text(encoding="utf-8")
+        self.assertIn(".css(\n            'stroke-dasharray',", view)
+        self.assertNotIn(".attr('stroke-dasharray'", view)
+
+
 class ConfigTests(unittest.TestCase):
     def test_config_reads_provider_flags_and_server_rows(self):
         payload = """<?xml version="1.0"?>

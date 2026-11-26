@@ -840,7 +840,10 @@ configctl speedtest serverlist</pre>
 
     function speedtestSetGaugeAmount(kind, amount) {
         const clamped = Math.max(0, Math.min(100, Number(amount) || 0));
-        $('#' + kind + '-gauge-arc').attr('stroke-dasharray', clamped.toFixed(2) + ' 100');
+        $('#' + kind + '-gauge-arc').css(
+            'stroke-dasharray',
+            clamped.toFixed(2) + ' 100'
+        );
         return clamped;
     }
 
