@@ -78,7 +78,7 @@ class SettingsController extends ApiMutableModelControllerBase
         ]);
     }
 
-    public function refreshServersAction($provider = 'all')
+    public function refreshServersAction($provider = 'all', $automatic = '0')
     {
         if (!$this->request->isPost()) {
             return ['error' => gettext('A POST request is required')];
@@ -86,6 +86,68 @@ class SettingsController extends ApiMutableModelControllerBase
         $provider = strtolower((string)$provider);
         if (!in_array($provider, ['all', 'ookla', 'librespeed', 'cloudflare'], true)) {
             return ['error' => gettext('Invalid provider')];
+        }
+
+        $model = $this->getModel();
+        $serverField = $model->getNodeByReference('servers.server');
+        if ((string)$automatic === '1') {
+            if ((string)$model->autoRefresh !== '1') {
+                return [
+                    'status' => 'disabled',
+                    'automatic' => true,
+                    'discovered' => 0,
+                    'warnings' => []
+                ];
+            }
+            $providerFields = [
+                'ookla' => 'ooklaEnabled',
+                'librespeed' => 'librespeedEnabled',
+                'cloudflare' => 'cloudflareEnabled'
+            ];
+            $publicCounts = [
+                'ookla' => 0,
+                'librespeed' => 0,
+                'cloudflare' => 0
+            ];
+            foreach ($serverField->iterateItems() as $node) {
+                $nodeProvider = strtolower((string)$node->provider);
+                if ((string)$node->source === 'public' && isset($publicCounts[$nodeProvider])) {
+                    ++$publicCounts[$nodeProvider];
+                }
+            }
+            $missingTargets = false;
+            $enabledProviders = 0;
+            foreach ($providerFields as $providerId => $fieldName) {
+                if ($provider !== 'all' && $provider !== $providerId) {
+                    continue;
+                }
+                if ((string)$model->{$fieldName} !== '1') {
+                    continue;
+                }
+                ++$enabledProviders;
+                if ($publicCounts[$providerId] === 0) {
+                    $missingTargets = true;
+                }
+            }
+            if ($enabledProviders === 0) {
+                return [
+                    'status' => 'disabled',
+                    'automatic' => true,
+                    'discovered' => 0,
+                    'warnings' => []
+                ];
+            }
+            $lastRefresh = (int)(string)$model->lastRefresh;
+            $refreshInterval = (int)(string)$model->refreshInterval * 60;
+            $stale = $lastRefresh === 0 || time() - $lastRefresh >= $refreshInterval;
+            if (!$stale && !$missingTargets) {
+                return [
+                    'status' => 'unchanged',
+                    'automatic' => true,
+                    'discovered' => 0,
+                    'warnings' => []
+                ];
+            }
         }
 
         $discovery = trim((new Backend())->configdpRun('speedtest discover', [$provider], false, 120));
@@ -98,8 +160,6 @@ class SettingsController extends ApiMutableModelControllerBase
         }
 
         Config::getInstance()->lock();
-        $model = $this->getModel();
-        $serverField = $model->getNodeByReference('servers.server');
         $existing = [];
         foreach ($serverField->iterateItems() as $node) {
             $key = $this->serverKey(

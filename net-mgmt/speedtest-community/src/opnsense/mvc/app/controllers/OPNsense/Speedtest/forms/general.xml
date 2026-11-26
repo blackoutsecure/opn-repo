@@ -9,7 +9,7 @@
         <id>speedtest.librespeedEnabled</id>
         <label>Enable compatible HTTP networks</label>
         <type>checkbox</type>
-        <help>Use interoperable self-hosted PHP, Go, Node, or Rust measurement targets.</help>
+        <help>Use interoperable self-hosted measurement targets.</help>
     </field>
     <field>
         <id>speedtest.cloudflareEnabled</id>

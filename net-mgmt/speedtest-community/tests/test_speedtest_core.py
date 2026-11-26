@@ -18,7 +18,7 @@ sys.path.insert(0, str(SCRIPT_ROOT))
 from speedtest_core.config import Settings, load_settings, normalize_http_url  # noqa: E402
 from speedtest_core.errors import ProviderUnavailableError  # noqa: E402
 from speedtest_core.history import FIELDS, append_result, clear_history, read_log  # noqa: E402
-from speedtest_core.models import ProbeResult, Server, SpeedResult  # noqa: E402
+from speedtest_core.models import PROVIDER_LABELS, ProbeResult, Server, SpeedResult  # noqa: E402
 from speedtest_core.orchestrator import SpeedtestOrchestrator  # noqa: E402
 from speedtest_core.providers.cloudflare import CloudflareAdapter  # noqa: E402
 from speedtest_core.providers.librespeed import LibreSpeedAdapter  # noqa: E402
@@ -69,6 +69,11 @@ class ConfigTests(unittest.TestCase):
 
 
 class ProviderParsingTests(unittest.TestCase):
+    def test_provider_labels_put_network_name_before_connection_type(self):
+        self.assertEqual(PROVIDER_LABELS["ookla"], "Ookla (CLI)")
+        self.assertEqual(PROVIDER_LABELS["librespeed"], "LibreSpeed (HTTP)")
+        self.assertEqual(PROVIDER_LABELS["cloudflare"], "Cloudflare (Edge)")
+
     def test_librespeed_preserves_rust_backend_paths(self):
         server = LibreSpeedAdapter._server_from_payload(
             {

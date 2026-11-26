@@ -20,7 +20,7 @@ from ..models import ProbeResult, Server, SpeedResult
 
 class CloudflareAdapter(ProviderAdapter):
     provider_id = "cloudflare"
-    label = "Automatic edge (Cloudflare)"
+    label = "Cloudflare (Edge)"
 
     def status(self, settings: Settings) -> Dict:
         return {

@@ -83,9 +83,9 @@
                     <default>librespeed</default>
                     <Required>Y</Required>
                     <OptionValues>
-                        <ookla>Public CLI (Ookla)</ookla>
-                        <librespeed>Open HTTP (LibreSpeed)</librespeed>
-                        <cloudflare>Automatic edge (Cloudflare)</cloudflare>
+                        <ookla>Ookla (CLI)</ookla>
+                        <librespeed>LibreSpeed (HTTP)</librespeed>
+                        <cloudflare>Cloudflare (Edge)</cloudflare>
                     </OptionValues>
                 </provider>
                 <name type="TextField">

@@ -2,5 +2,4 @@ Speedtest for OPNsense measures WAN throughput and latency using
 multiple interchangeable public or private measurement networks. It
 supports automatic target selection, custom endpoints, public target
 discovery, scheduled measurements, local history, and dashboard reporting.
-LibreSpeed transfers can use an optional native Rust engine, with a
-dependency-free standard-library fallback.
+Transfer engines are managed internally with no operator setup required.

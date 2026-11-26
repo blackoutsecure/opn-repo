@@ -20,7 +20,7 @@ from ..models import ProbeResult, Server, SpeedResult
 
 class OoklaAdapter(ProviderAdapter):
     provider_id = "ookla"
-    label = "Public CLI (Ookla)"
+    label = "Ookla (CLI)"
 
     def __init__(self):
         self.binary = os.environ.get("OPNSENSE_SPEEDTEST_BIN", "speedtest")

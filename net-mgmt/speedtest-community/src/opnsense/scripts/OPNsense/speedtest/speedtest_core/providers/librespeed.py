@@ -27,7 +27,7 @@ from ..models import ProbeResult, Server, SpeedResult
 
 class LibreSpeedAdapter(ProviderAdapter):
     provider_id = "librespeed"
-    label = "Open HTTP (LibreSpeed)"
+    label = "LibreSpeed (HTTP)"
 
     def __init__(self):
         self.rust_binary = os.environ.get(
@@ -68,7 +68,7 @@ class LibreSpeedAdapter(ProviderAdapter):
             "available": True,
             "client": "rust-native" if rust_version else "standard-library",
             "message": (
-                f"Native Rust transfer engine {rust_match.group(1)}"
+                f"Native transfer engine {rust_match.group(1)}"
                 if rust_match
                 else "Dependency-free transfer engine"
             ),

@@ -228,22 +228,6 @@
     .opn-history-legend .upload {
         background: var(--opn-speedtest-green);
     }
-    .opn-engine-status {
-        display: grid;
-        grid-template-columns: 13rem minmax(0, 1fr);
-        gap: 0.65rem 1rem;
-        padding: 0.8rem 0;
-        border-top: 1px solid var(--opn-speedtest-rule);
-    }
-    .opn-engine-status:first-of-type {
-        border-top: 0;
-    }
-    .opn-engine-actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.6rem;
-        margin-top: 0.9rem;
-    }
     @media (max-width: 767px) {
         .opn-speedtest-header {
             align-items: flex-start;
@@ -424,7 +408,6 @@
                         <dt>{{ lang._('Measurement source') }}</dt>
                         <dd>
                             <strong id="result_provider"></strong>
-                            <span class="text-muted" id="result_engine"></span>
                         </dd>
                         <dt>{{ lang._('Selected target') }}</dt>
                         <dd id="result_server"></dd>
@@ -519,31 +502,6 @@
                         <i id="saveSettingsAct_progress"></i>
                     </button>
                 </div>
-            </div>
-
-            <h2>{{ lang._('Native engines') }}</h2>
-            <div class="content-box" style="padding:1rem">
-                <div class="opn-engine-status">
-                    <strong>{{ lang._('Public server CLI') }}</strong>
-                    <span id="native-client-status" class="text-muted">{{ lang._('Checking...') }}</span>
-                </div>
-                <div class="opn-engine-status">
-                    <strong>{{ lang._('Rust transfer engine') }}</strong>
-                    <span id="rust-engine-status" class="text-muted">{{ lang._('Checking...') }}</span>
-                </div>
-                <div class="opn-engine-actions">
-                    <button class="btn btn-default" id="binAct" type="button">
-                        <b>{{ lang._('Install or update native CLI') }}</b>
-                        <i id="binAct_progress"></i>
-                    </button>
-                    <button class="btn btn-default" id="rustAct" type="button">
-                        <b>{{ lang._('Build optional Rust engine') }}</b>
-                        <i id="rustAct_progress"></i>
-                    </button>
-                </div>
-                <p class="help-block">
-                    {{ lang._('The measurement core remains dependency-free by default. The optional Rust engine is pinned, kept only as a compiled binary, and removes the temporary build toolchain after installation.') }}
-                </p>
             </div>
 
             <h2>{{ lang._('Measurement targets') }}</h2>
@@ -706,16 +664,6 @@
                 .prop("disabled", !provider.enabled || !provider.available)
                 .text(provider.label + (provider.available && provider.enabled ? "" : " (" + suffix + ")"))
                 .appendTo(select);
-            if (provider.id === "ookla") {
-                $('#native-client-status').text(provider.message);
-            }
-            if (provider.id === "librespeed") {
-                $('#rust-engine-status').text(
-                    provider.client === "rust-native"
-                        ? provider.message
-                        : "{{ lang._('Not installed; dependency-free fallback is active.') }}"
-                );
-            }
         });
         $('#speedtest-provider-loading').hide();
         $('#reportAct').prop('disabled', available === 0);
@@ -786,24 +734,36 @@
 
     function speedtestRefreshServers(automatic) {
         $('#refreshServersAct_progress').addClass('fa fa-spinner fa-pulse');
-        ajaxCall(url = "/api/speedtest/settings/refresh_servers/all", sendData = {}, callback = function(data, status) {
-            $('#refreshServersAct_progress').removeClass('fa fa-spinner fa-pulse');
-            if (data && data.error) {
-                $('#speedtest-refresh-status').text(data.error).show();
+        ajaxCall(
+            url = "/api/speedtest/settings/refresh_servers/all/" + (automatic ? "1" : "0"),
+            sendData = {},
+            callback = function(data, status) {
+                $('#refreshServersAct_progress').removeClass('fa fa-spinner fa-pulse');
+                if (data && data.error) {
+                    $('#speedtest-refresh-status').text(data.error).show();
+                    speedtestServerlistReload();
+                    return;
+                }
+                if (data && (data.status === 'unchanged' || data.status === 'disabled')) {
+                    speedtestServerlistReload();
+                    return;
+                }
+                if (automatic) {
+                    $('#speedtest-refresh-status').hide();
+                } else {
+                    $('#speedtest-refresh-status')
+                        .removeClass('alert-warning')
+                        .addClass('alert-success')
+                        .text("{{ lang._('Public target lists refreshed') }}" +
+                            ": " + (data.discovered || 0) + " {{ lang._('targets') }}." +
+                            ((data.warnings || []).length ? " " + data.warnings.join(" ") : ""))
+                        .show();
+                }
+                $("#{{serverGrid['table_id']}}").bootgrid("reload");
+                speedtestSettings.lastRefresh = Math.floor(Date.now() / 1000).toString();
                 speedtestServerlistReload();
-                return;
             }
-            $('#speedtest-refresh-status')
-                .removeClass('alert-warning')
-                .addClass('alert-success')
-                .text((automatic ? "{{ lang._('Public target lists refreshed automatically') }}" : "{{ lang._('Public target lists refreshed') }}") +
-                    ": " + (data.discovered || 0) + " {{ lang._('targets') }}." +
-                    ((data.warnings || []).length ? " " + data.warnings.join(" ") : ""))
-                .show();
-            $("#{{serverGrid['table_id']}}").bootgrid("reload");
-            speedtestSettings.lastRefresh = Math.floor(Date.now() / 1000).toString();
-            speedtestServerlistReload();
-        });
+        );
     }
 
     function speedtestSelectionLabel(selection) {
@@ -845,7 +805,6 @@
             "{{ lang._('Jitter') }} " + (parseFloat(result.jitter) || 0).toFixed(2) + " ms"
         );
         $('#result_provider').text(result.providerLabel || result.provider);
-        $('#result_engine').text(result.engine ? " (" + result.engine + ")" : "");
         $('#result_server').text(
             [(result.serverid ? "id: " + result.serverid : ""), result.servername, result.country]
                 .filter(function(value) { return value; })
@@ -893,17 +852,10 @@
             speedtestSettings = data && data.speedtest ? data.speedtest : {};
             formatTokenizersUI();
             $('.selectpicker').selectpicker('refresh');
-            const refreshAge = Math.floor(Date.now() / 1000) - parseInt(speedtestSettings.lastRefresh || "0", 10);
-            const interval = parseInt(speedtestSettings.refreshInterval || "1440", 10) * 60;
-            if (String(speedtestSettings.autoRefresh) === "1" &&
-                (!speedtestSettings.lastRefresh || refreshAge >= interval)) {
-                speedtestRefreshServers(true);
-            } else {
-                speedtestServerlistReload();
-            }
         });
 
         speedtestReloadProviders();
+        speedtestRefreshServers(true);
         speedtestStatReload();
         speedtestLogReload();
     });
@@ -951,7 +903,7 @@
             $('#test_results').addClass('opn-speedtest-running').show();
             $('#reportAct_progress').addClass("fa fa-spinner fa-pulse");
             $('#reportAct').prop('disabled', true);
-            $('#result_provider,#result_engine,#result_server,#result_selection,#speedtest-selection-probes').text('');
+            $('#result_provider,#result_server,#result_selection,#speedtest-selection-probes').text('');
             $('#dlspeed,#ulspeed,#latency').text('...');
             speedtestSetGauge('download', 8, 100);
             speedtestSetGauge('upload', 8, 100);
@@ -994,23 +946,5 @@
             });
         });
 
-        $('#binAct').click(function() {
-            $('#binAct_progress').addClass("fa fa-spinner fa-pulse");
-            $('#binAct').prop('disabled', true);
-            ajaxCall(url = "/api/speedtest/service/installsocket", sendData = {}, callback = function() {
-                $('#binAct_progress').removeClass("fa fa-spinner fa-pulse");
-                $('#binAct').prop('disabled', false);
-                speedtestReloadProviders();
-            });
-        });
-        $('#rustAct').click(function() {
-            $('#rustAct_progress').addClass("fa fa-spinner fa-pulse");
-            $('#rustAct').prop('disabled', true);
-            ajaxCall(url = "/api/speedtest/service/installrust", sendData = {}, callback = function(data, status) {
-                $('#rustAct_progress').removeClass("fa fa-spinner fa-pulse");
-                $('#rustAct').prop('disabled', false);
-                speedtestReloadProviders();
-            });
-        });
     });
 </script>
