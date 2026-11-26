@@ -20,16 +20,15 @@ class SettingsController extends ApiMutableModelControllerBase
     public function searchServerAction()
     {
         $result = $this->searchBase('servers.server', null, 'provider');
-        foreach ($result['rows'] ?? [] as &$record) {
+        foreach ($result['rows'] ?? [] as $index => $record) {
             if (
                 strtolower((string)($record['provider'] ?? '')) === 'cloudflare' &&
                 strtolower((string)($record['source'] ?? '')) === 'public' &&
                 (string)($record['serverId'] ?? '') === 'edge'
             ) {
-                $record['serverId'] = '';
+                $result['rows'][$index]['serverId'] = '';
             }
         }
-        unset($record);
         return $result;
     }
 
