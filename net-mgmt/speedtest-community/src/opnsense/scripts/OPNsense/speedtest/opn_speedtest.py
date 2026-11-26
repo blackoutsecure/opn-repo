@@ -5,7 +5,9 @@
 # Copyright (C) 2026
 # SPDX-License-Identifier: BSD-2-Clause
 
+import fcntl
 import json
+import os
 import sys
 import traceback
 
@@ -16,8 +18,24 @@ from speedtest_core.orchestrator import SpeedtestOrchestrator
 from speedtest_core.progress import ProgressReporter, read_progress
 
 
+DEFAULT_RUN_LOCK = "/var/run/opnsense-speedtest.lock"
+
+
 def json_output(payload) -> None:
     print(json.dumps(payload, separators=(",", ":")))
+
+
+def acquire_run_lock():
+    path = os.environ.get("OPNSENSE_SPEEDTEST_LOCK", DEFAULT_RUN_LOCK)
+    descriptor = os.open(path, os.O_CREAT | os.O_RDWR, 0o644)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as exc:
+        os.close(descriptor)
+        raise SpeedtestError(
+            "Another Speedtest measurement is already running; wait for it to finish."
+        ) from exc
+    return descriptor
 
 
 def run(argv):
@@ -64,14 +82,18 @@ def run(argv):
     else:
         raise SpeedtestError(f"Unknown speedtest command: {command}")
     progress = ProgressReporter()
-    orchestrator = SpeedtestOrchestrator(settings, progress=progress)
+    lock_descriptor = acquire_run_lock()
     try:
-        result = orchestrator.run(provider, server)
-        append_result(result)
-        return result
-    except Exception as exc:
-        progress.fail(str(exc))
-        raise
+        orchestrator = SpeedtestOrchestrator(settings, progress=progress)
+        try:
+            result = orchestrator.run(provider, server)
+            append_result(result)
+            return result
+        except Exception as exc:
+            progress.fail(str(exc))
+            raise
+    finally:
+        os.close(lock_descriptor)
 
 
 def main() -> None:

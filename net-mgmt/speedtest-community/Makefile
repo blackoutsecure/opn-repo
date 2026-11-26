@@ -1,6 +1,6 @@
 PLUGIN_NAME=		speedtest-community
 PLUGIN_VERSION=		1.0
-PLUGIN_REVISION=	13
+PLUGIN_REVISION=	14
 PLUGIN_COMMENT=		Speedtest
 PLUGIN_MAINTAINER=	miha.kralj@outlook.com
 

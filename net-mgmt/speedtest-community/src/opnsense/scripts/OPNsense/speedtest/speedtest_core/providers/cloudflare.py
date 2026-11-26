@@ -5,6 +5,7 @@ import datetime
 import json
 import os
 import subprocess
+import statistics
 import time
 from typing import Dict, List
 from .base import ProviderAdapter
@@ -97,16 +98,39 @@ class CloudflareAdapter(ProviderAdapter):
     def probe(self, server: Server, settings: Settings, progress=None) -> ProbeResult:
         try:
             server = self._prepare(server, settings)
-            latency, jitter, samples = measure_http_latency(
-                with_query(endpoint(server.base_url, server.ping_path), bytes=0),
-                settings.ping_samples,
-                settings.probe_timeout,
+            timings = []
+            errors = []
+            url = with_query(endpoint(server.base_url, server.ping_path), bytes=0)
+            for _ in range(settings.ping_samples):
+                for _attempt in range(2):
+                    try:
+                        _latency, _jitter, sample = measure_http_latency(
+                            url,
+                            1,
+                            settings.probe_timeout,
+                        )
+                        timings.extend(sample)
+                        break
+                    except Exception as exc:
+                        errors.append(str(exc))
+            if not timings:
+                raise ProviderUnavailableError(
+                    errors[-1] if errors else "No latency samples were returned"
+                )
+            latency = statistics.median(timings)
+            jitter = (
+                statistics.mean(
+                    abs(current - previous)
+                    for previous, current in zip(timings, timings[1:])
+                )
+                if len(timings) > 1
+                else 0.0
             )
             return ProbeResult(
                 server=server,
                 latency=latency,
                 jitter=jitter,
-                samples=samples,
+                samples=timings,
                 score=latency + jitter * 0.25,
             )
         except Exception as exc:
