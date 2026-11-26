@@ -29,6 +29,7 @@ class Server:
     ip_path: str = ""
     source: str = "public"
     enabled: bool = True
+    available: bool = True
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     @property

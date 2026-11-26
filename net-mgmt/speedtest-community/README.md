@@ -25,7 +25,13 @@ not removed.
 - **Results** lists saved measurements, supports text filtering, and exposes
   provider-supplied client, ISP, network, target, selection, and geo data.
 - **Sources and targets** controls enabled networks, selection behavior, public
-  list URLs, individual target availability, and custom targets.
+  list URLs, and two separate target catalogs:
+  - **Public targets** are provider-managed, sanitized on refresh, and cannot
+    be edited or deleted. Operators can only include or exclude them. A target's
+    availability and inclusion preference are preserved separately, so a
+    temporarily missing target cannot silently become included again.
+  - **Custom targets** are operator-managed and retain normal add/edit/delete
+    controls after provider-specific validation.
 
 Providers that expose only final totals show a truthful status/elapsed-time view
 until completion. Providers that expose streamed progress drive the live

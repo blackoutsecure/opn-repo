@@ -35,6 +35,7 @@ class IndexController extends \OPNsense\Base\IndexController
         $this->view->pick('OPNsense/Speedtest/index');
         $this->view->generalForm = $this->getForm('general');
         $this->view->serverForm = $this->getForm('dialogServer');
+        $this->view->publicServerGrid = $this->getFormGrid('publicServer');
         $this->view->serverGrid = $this->getFormGrid('dialogServer');
     }
     public function installAction()

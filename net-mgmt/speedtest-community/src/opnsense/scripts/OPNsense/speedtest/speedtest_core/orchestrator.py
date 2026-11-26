@@ -5,11 +5,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import os
 import platform
+import re
 import ssl
 import time
 from typing import Dict, Iterable, List, Tuple
+from urllib.parse import urlsplit
 
-from .config import Settings
+from .config import Settings, normalize_http_url
 from .errors import ProviderUnavailableError, ServerNotFoundError, SpeedtestError
 from .models import ProbeResult, Server
 from .providers import provider_adapters
@@ -163,11 +165,18 @@ class SpeedtestOrchestrator:
             if not discovered:
                 warnings.append(f"{provider_id} returned no public servers")
                 continue
-            providers.append(provider_id)
+            valid = []
             for server in discovered:
-                server.source = "public"
-                server.enabled = True
-                servers.append(server)
+                normalized = self._sanitize_public_server(server)
+                if normalized is None:
+                    warnings.append(f"{provider_id} omitted one invalid public target")
+                    continue
+                normalized.source = "public"
+                normalized.available = True
+                valid.append(normalized)
+            if valid:
+                providers.append(provider_id)
+                servers.extend(valid)
         if not servers:
             message = "; ".join(warnings) if warnings else "No public servers were discovered"
             raise ProviderUnavailableError(message)
@@ -181,7 +190,13 @@ class SpeedtestOrchestrator:
         return [
             server
             for server in self.settings.servers
-            if server.provider == provider_id and (not enabled_only or server.enabled)
+            if (
+                server.provider == provider_id
+                and (
+                    not enabled_only
+                    or (server.enabled and server.available)
+                )
+            )
         ]
 
     def servers_for_provider(self, provider_id: str) -> Tuple[List[Server], List[str]]:
@@ -208,6 +223,14 @@ class SpeedtestOrchestrator:
                 return [], [f"All configured {provider_id} servers are disabled"]
         try:
             discovered = self.adapters[provider_id].discover(self.settings)
+            discovered_count = len(discovered)
+            discovered = [
+                normalized
+                for server in discovered
+                if (normalized := self._sanitize_public_server(server)) is not None
+            ]
+            if discovered_count and not discovered:
+                warnings.append(f"{provider_id} returned no valid public targets")
             disabled_keys = {server.key for server in all_configured if not server.enabled}
             refreshed = [
                 server
@@ -222,6 +245,45 @@ class SpeedtestOrchestrator:
         except SpeedtestError as exc:
             warnings.append(str(exc))
             return self._deduplicate(configured), warnings
+
+    @staticmethod
+    def _clean_public_text(value, maximum: int) -> str:
+        text = re.sub(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]", "", str(value or "")).strip()
+        return text[:maximum]
+
+    def _sanitize_public_server(self, server: Server):
+        if server.provider not in self.adapters:
+            return None
+        server.name = self._clean_public_text(server.name, 160)
+        server.server_id = self._clean_public_text(server.server_id, 128)
+        server.location = self._clean_public_text(server.location, 160)
+        server.country = self._clean_public_text(server.country, 80)
+        server.host = self._clean_public_text(server.host, 255)
+        if not server.name:
+            return None
+        if server.provider == "ookla" and not server.server_id.isdigit():
+            return None
+        if server.provider != "ookla":
+            server.base_url = normalize_http_url(server.base_url)
+            parsed = urlsplit(server.base_url)
+            if (
+                not server.base_url
+                or not parsed.hostname
+                or parsed.username
+                or parsed.password
+            ):
+                return None
+        for field in ("download_path", "upload_path", "ping_path", "ip_path"):
+            value = self._clean_public_text(getattr(server, field), 512)
+            if value and (
+                value.startswith("//")
+                or re.match(r"^[a-z][a-z0-9+.-]*://", value, re.I)
+            ):
+                return None
+            setattr(server, field, value)
+        server.source = "public"
+        server.available = True
+        return server
 
     @staticmethod
     def _deduplicate(servers: Iterable[Server]) -> List[Server]:
@@ -253,6 +315,7 @@ class SpeedtestOrchestrator:
             "baseUrl": server.base_url,
             "source": server.source,
             "enabled": server.enabled,
+            "available": server.available,
             "selectionName": server.selection_name,
         }
         return payload
@@ -261,6 +324,7 @@ class SpeedtestOrchestrator:
     def server_to_config(server: Server) -> Dict:
         return {
             "enabled": "1" if server.enabled else "0",
+            "available": "1" if server.available else "0",
             "provider": server.provider,
             "name": server.name,
             "serverId": server.server_id,

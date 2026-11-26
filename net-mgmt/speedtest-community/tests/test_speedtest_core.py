@@ -7,6 +7,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -40,6 +41,7 @@ class ConfigTests(unittest.TestCase):
       <servers>
         <server uuid="0193f5f0-c3d9-4f5a-9f5c-7d3b9eaf0001">
           <enabled>0</enabled>
+          <available>0</available>
           <provider>librespeed</provider>
           <name>Local</name>
           <serverId>local</serverId>
@@ -60,6 +62,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(settings.max_candidates, 12)
         self.assertEqual(len(settings.servers), 1)
         self.assertFalse(settings.servers[0].enabled)
+        self.assertFalse(settings.servers[0].available)
         self.assertEqual(settings.servers[0].source, "custom")
 
     def test_url_normalization_accepts_protocol_relative_http_servers(self):
@@ -514,6 +517,52 @@ class SelectionTests(unittest.TestCase):
         orchestrator = SpeedtestOrchestrator(settings, {"librespeed": adapter})
         servers = orchestrator.servers_for_provider("librespeed")[0]
         self.assertEqual([server.server_id for server in servers], ["new"])
+
+    def test_unavailable_public_target_is_not_selectable(self):
+        target = Server(
+            provider="librespeed",
+            name="Offline public",
+            server_id="offline",
+            base_url="https://offline.example.test",
+            source="public",
+            enabled=True,
+            available=False,
+        )
+        settings = Settings(
+            providers={"ookla": False, "librespeed": True, "cloudflare": False},
+            servers=[target],
+            last_refresh=int(time.time()),
+        )
+        orchestrator = SpeedtestOrchestrator(
+            settings,
+            {"librespeed": FakeAdapter("librespeed", {"offline": 10.0}, [])},
+        )
+        servers, warnings = orchestrator.servers_for_provider("librespeed")
+        self.assertEqual(servers, [])
+        self.assertTrue(warnings)
+
+    def test_public_discovery_rejects_invalid_endpoint_records(self):
+        valid = Server(
+            provider="librespeed",
+            name="Valid",
+            server_id="valid",
+            base_url="https://speed.example.test",
+            download_path="backend/garbage.php",
+        )
+        invalid = Server(
+            provider="librespeed",
+            name="Unsafe",
+            server_id="unsafe",
+            base_url="file:///tmp/speedtest",
+        )
+        adapter = FakeAdapter("librespeed", {"valid": 10.0}, [], [valid, invalid])
+        orchestrator = SpeedtestOrchestrator(
+            Settings(providers={"ookla": False, "librespeed": True, "cloudflare": False}),
+            {"librespeed": adapter},
+        )
+        payload = orchestrator.discover("librespeed")
+        self.assertEqual(len(payload["servers"]), 1)
+        self.assertTrue(any("invalid public target" in warning for warning in payload["warnings"]))
 
     def test_auto_retries_next_provider_when_chosen_transfer_fails(self):
         runs = []

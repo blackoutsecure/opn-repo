@@ -122,6 +122,7 @@ def load_settings(config_path: Optional[str] = None) -> Settings:
             Server(
                 uuid=server_node.attrib.get("uuid", ""),
                 enabled=parse_boolean(server_node.findtext("enabled"), True),
+                available=parse_boolean(server_node.findtext("available"), True),
                 provider=provider,
                 name=child_text(server_node, "name", provider),
                 server_id=child_text(server_node, "serverId"),

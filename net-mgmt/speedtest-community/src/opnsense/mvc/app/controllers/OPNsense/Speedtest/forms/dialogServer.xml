@@ -118,13 +118,4 @@
         </grid_view>
         <advanced>true</advanced>
     </field>
-    <field>
-        <id>server.source</id>
-        <label>Origin</label>
-        <type>dropdown</type>
-        <help>Public entries are refreshed automatically. Custom entries are retained during public-list refreshes.</help>
-        <grid_view>
-            <width>7em</width>
-        </grid_view>
-    </field>
 </form>

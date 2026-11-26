@@ -1,0 +1,57 @@
+<form>
+    <field>
+        <id>server.enabled</id>
+        <label>Included</label>
+        <type>checkbox</type>
+        <help>Include this public target in automatic and manual selection.</help>
+        <grid_view>
+            <width>5em</width>
+            <type>boolean</type>
+            <formatter>rowtoggle</formatter>
+        </grid_view>
+    </field>
+    <field>
+        <id>server.available</id>
+        <label>Available</label>
+        <type>checkbox</type>
+        <help>Whether this target was present in the latest public provider list.</help>
+        <grid_view>
+            <width>5em</width>
+            <type>boolean</type>
+        </grid_view>
+    </field>
+    <field>
+        <id>server.provider</id>
+        <label>Provider</label>
+        <type>dropdown</type>
+        <grid_view>
+            <width>8em</width>
+        </grid_view>
+    </field>
+    <field>
+        <id>server.name</id>
+        <label>Name</label>
+        <type>text</type>
+    </field>
+    <field>
+        <id>server.serverId</id>
+        <label>Target id</label>
+        <type>text</type>
+        <grid_view>
+            <width>8em</width>
+        </grid_view>
+    </field>
+    <field>
+        <id>server.location</id>
+        <label>Location</label>
+        <type>text</type>
+        <grid_view>
+            <width>12em</width>
+        </grid_view>
+    </field>
+    <field>
+        <id>server.baseUrl</id>
+        <label>Endpoint</label>
+        <type>text</type>
+    </field>
+</form>

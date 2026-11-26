@@ -743,7 +743,7 @@ configctl speedtest serverlist</pre>
 
             <h2>{{ lang._('Measurement targets') }}</h2>
             <div class="alert alert-info">
-                {{ lang._("Refresh imports each enabled network's public target list while preserving individual on/off choices. Custom targets remain in place during refresh.") }}
+                {{ lang._("Public targets are refreshed and managed automatically. Toggle Included to remember whether a public target participates; metadata and endpoints cannot be edited.") }}
             </div>
             <div class="alert alert-warning" id="speedtest-refresh-status" style="display:none"></div>
             <div style="margin-bottom:0.75rem">
@@ -753,6 +753,17 @@ configctl speedtest serverlist</pre>
                 </button>
             </div>
             <div class="content-box">
+                <h3>{{ lang._('Public targets') }}</h3>
+                <p class="help-block">
+                    {{ lang._('Provider-managed targets. Refresh updates availability and metadata only; inclusion choices are preserved.') }}
+                </p>
+                {{ partial('layout_partials/base_bootgrid_table', publicServerGrid) }}
+            </div>
+            <div class="content-box">
+                <h3>{{ lang._('Custom targets') }}</h3>
+                <p class="help-block">
+                    {{ lang._('Operator-managed targets. These can be added, edited, deleted, enabled, or disabled.') }}
+                </p>
                 {{ partial('layout_partials/base_bootgrid_table', serverGrid) }}
             </div>
 
@@ -814,28 +825,6 @@ configctl speedtest serverlist</pre>
 
     function speedtestFormat(value) {
         return value === null || value === undefined ? '' : String(value);
-    }
-
-    function speedtestUpdateManagedTargetId() {
-        const dialog = document.getElementById("{{serverGrid['edit_dialog_id']}}");
-        if (!dialog) {
-            return;
-        }
-        const provider = dialog.querySelector('[id="server.provider"]');
-        const source = dialog.querySelector('[id="server.source"]');
-        const targetId = dialog.querySelector('[id="server.serverId"]');
-        if (!provider || !source || !targetId) {
-            return;
-        }
-        const managed =
-            provider.value === "cloudflare" &&
-            source.value === "public" &&
-            targetId.value === "edge";
-        targetId.readOnly = managed;
-        targetId.setAttribute("aria-readonly", managed ? "true" : "false");
-        targetId.title = managed
-            ? "{{ lang._('Managed automatically; this internal target id cannot be edited.') }}"
-            : "";
     }
 
     function speedtestNiceMaximum(value) {
@@ -1442,6 +1431,7 @@ configctl speedtest serverlist</pre>
                             ((data.warnings || []).length ? " " + data.warnings.join(" ") : ""))
                         .show();
                 }
+                $("#{{publicServerGrid['table_id']}}").bootgrid("reload");
                 $("#{{serverGrid['table_id']}}").bootgrid("reload");
                 speedtestSettings.lastRefresh = Math.floor(Date.now() / 1000).toString();
                 speedtestServerlistReload();
@@ -1563,8 +1553,12 @@ configctl speedtest serverlist</pre>
     }
 
     $(document).ready(function() {
+        $("#{{publicServerGrid['table_id']}}").UIBootgrid({
+            search: '/api/speedtest/settings/search_public_server/',
+            toggle: '/api/speedtest/settings/toggle_public_server/'
+        });
         $("#{{serverGrid['table_id']}}").UIBootgrid({
-            search: '/api/speedtest/settings/search_server/',
+            search: '/api/speedtest/settings/search_custom_server/',
             get: '/api/speedtest/settings/get_server/',
             set: '/api/speedtest/settings/set_server/',
             add: '/api/speedtest/settings/add_server/',
@@ -1584,10 +1578,6 @@ configctl speedtest serverlist</pre>
         speedtestStatReload();
         speedtestLogReload();
         speedtestAboutReload();
-        $('#{{serverGrid['edit_dialog_id']}}')
-            .on('shown.bs.modal change', function() {
-                setTimeout(speedtestUpdateManagedTargetId, 0);
-            });
     });
 
     $(function() {
@@ -1603,6 +1593,7 @@ configctl speedtest serverlist</pre>
         $('#speedtest-tabs a[data-toggle="tab"]').on('shown.bs.tab', function(event) {
             const target = $(event.target).attr('href');
             if (target === '#speedtest-settings') {
+                $("#{{publicServerGrid['table_id']}}").bootgrid("reload");
                 $("#{{serverGrid['table_id']}}").bootgrid("reload");
             } else if (target === '#speedtest-results-history') {
                 speedtestResultsReload();

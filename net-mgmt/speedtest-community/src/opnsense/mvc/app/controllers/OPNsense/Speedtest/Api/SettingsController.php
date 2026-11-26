@@ -19,7 +19,28 @@ class SettingsController extends ApiMutableModelControllerBase
 
     public function searchServerAction()
     {
-        $result = $this->searchBase('servers.server', null, 'provider');
+        return $this->searchServers(null);
+    }
+
+    public function searchPublicServerAction()
+    {
+        return $this->searchServers('public');
+    }
+
+    public function searchCustomServerAction()
+    {
+        return $this->searchServers('custom');
+    }
+
+    private function searchServers(?string $source)
+    {
+        $filter = null;
+        if ($source !== null) {
+            $filter = function ($record) use ($source) {
+                return strtolower((string)$record->source) === $source;
+            };
+        }
+        $result = $this->searchBase('servers.server', null, 'provider', $filter);
         foreach ($result['rows'] ?? [] as $index => $record) {
             if (
                 strtolower((string)($record['provider'] ?? '')) === 'cloudflare' &&
@@ -39,46 +60,108 @@ class SettingsController extends ApiMutableModelControllerBase
 
     public function addServerAction()
     {
-        return $this->addBase('server', 'servers.server');
+        return $this->addBase('server', 'servers.server', [
+            'source' => 'custom',
+            'available' => '1'
+        ]);
     }
 
     public function setServerAction($uuid)
     {
+        $this->requireServerSource($uuid, 'custom');
         return $this->setBase('server', 'servers.server', $uuid);
     }
 
     public function delServerAction($uuid)
     {
+        $this->requireServerSource($uuid, 'custom');
         return $this->delBase('servers.server', $uuid);
     }
 
     public function toggleServerAction($uuid, $enabled = null)
     {
+        $this->requireServerSource($uuid, 'custom');
         return $this->toggleBase('servers.server', $uuid, $enabled);
+    }
+
+    public function togglePublicServerAction($uuid, $enabled = null)
+    {
+        $this->requireServerSource($uuid, 'public');
+        return $this->toggleBase('servers.server', $uuid, $enabled);
+    }
+
+    private function requireServerSource($uuid, string $source): void
+    {
+        foreach (explode(',', (string)$uuid) as $itemUuid) {
+            $node = $this->getModel()->getNodeByReference('servers.server.' . $itemUuid);
+            if ($node === null || (string)$node->source !== $source) {
+                throw new UserException(gettext('This action is not available for this target type.'));
+            }
+        }
     }
 
     protected function setBaseHook($node)
     {
         $provider = (string)$node->provider;
         $source = (string)$node->source;
+        $name = trim((string)$node->name);
         $serverId = trim((string)$node->serverId);
         $baseUrl = trim((string)$node->baseUrl);
 
-        if (
-            $provider === 'cloudflare' &&
-            $source === 'public' &&
-            $serverId !== 'edge'
-        ) {
-            throw new UserException(gettext('The automatic edge target id is managed automatically.'));
-        }
         if ($source !== 'custom') {
-            return;
+            throw new UserException(gettext('Public targets are managed automatically and cannot be edited.'));
+        }
+        $node->source->setValue('custom');
+        $node->available->setValue('1');
+        $this->assertSafeText($name, gettext('Target name'), 160, false);
+        $this->assertSafeText($serverId, gettext('Network target id'), 128, true);
+        $this->assertSafeText((string)$node->location, gettext('Location'), 160, true);
+        $this->assertSafeText((string)$node->country, gettext('Country'), 80, true);
+        $this->assertSafeText((string)$node->host, gettext('Latency host'), 255, true);
+        foreach (['downloadPath', 'uploadPath', 'pingPath', 'ipPath'] as $pathField) {
+            $path = trim((string)$node->{$pathField});
+            $this->assertSafeText($path, gettext('Endpoint path'), 512, true);
+            if (
+                $path !== '' &&
+                (
+                    str_starts_with($path, '//') ||
+                    preg_match('#^[a-z][a-z0-9+.-]*://#i', $path)
+                )
+            ) {
+                throw new UserException(gettext('Endpoint paths must be relative to the base URL.'));
+            }
         }
         if ($provider === 'ookla' && $serverId === '') {
             throw new UserException(gettext('A custom native-CLI target requires a network target id.'));
         }
+        if ($provider === 'ookla' && !preg_match('/^\d+$/', $serverId)) {
+            throw new UserException(gettext('The native-CLI target id must be numeric.'));
+        }
         if (in_array($provider, ['librespeed', 'cloudflare'], true) && $baseUrl === '') {
             throw new UserException(gettext('A custom HTTP server requires a base URL.'));
+        }
+        if ($baseUrl !== '') {
+            $parts = parse_url($baseUrl);
+            if (
+                $parts === false ||
+                !in_array(strtolower($parts['scheme'] ?? ''), ['http', 'https'], true) ||
+                empty($parts['host'])
+            ) {
+                throw new UserException(gettext('Base URL must use HTTP or HTTPS and include a host.'));
+            }
+        }
+    }
+
+    private function assertSafeText(string $value, string $label, int $maximum, bool $optional): void
+    {
+        if (!$optional && $value === '') {
+            throw new UserException(sprintf(gettext('%s is required.'), $label));
+        }
+        if (
+            strlen($value) > $maximum ||
+            preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', $value)
+        ) {
+            throw new UserException(sprintf(gettext('%s contains invalid or oversized text.'), $label));
         }
     }
 
@@ -211,6 +294,7 @@ class SettingsController extends ApiMutableModelControllerBase
                 $record['source']
             );
             $record['enabled'] = $existing[$key]['enabled'] ?? '1';
+            $record['available'] = '1';
             $freshKeys[$key] = true;
             if (!isset($recordKeys[$key])) {
                 $recordKeys[$key] = true;
@@ -218,8 +302,7 @@ class SettingsController extends ApiMutableModelControllerBase
             }
         }
 
-        $removed = 0;
-        $staleUuids = [];
+        $unavailable = 0;
         foreach ($serverField->iterateItems() as $node) {
             $nodeProvider = strtolower((string)$node->provider);
             $nodeSource = (string)$node->source;
@@ -233,13 +316,10 @@ class SettingsController extends ApiMutableModelControllerBase
                     $node->source
                 )])
             ) {
-                $uuid = (string)$node->getAttribute('uuid');
-                $staleUuids[] = $uuid;
-            }
-        }
-        foreach ($staleUuids as $uuid) {
-            if ($serverField->del($uuid)) {
-                ++$removed;
+                if ((string)$node->available !== '0') {
+                    $node->available->setValue('0');
+                    ++$unavailable;
+                }
             }
         }
         $imported = $serverField->importRecordSet(
@@ -255,7 +335,7 @@ class SettingsController extends ApiMutableModelControllerBase
         $saved['discovered'] = count($records);
         $saved['inserted'] = $imported['inserted'];
         $saved['updated'] = $imported['updated'];
-        $saved['removed'] = $removed;
+        $saved['unavailable'] = $unavailable;
         $saved['warnings'] = $payload['warnings'] ?? [];
         $saved['validations'] = array_merge($saved['validations'] ?? [], $imported['validations']);
         return $saved;
