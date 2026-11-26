@@ -72,9 +72,9 @@ class ConfigTests(unittest.TestCase):
 
 class ProviderParsingTests(unittest.TestCase):
     def test_provider_labels_put_network_name_before_connection_type(self):
-        self.assertEqual(PROVIDER_LABELS["ookla"], "Ookla (CLI)")
-        self.assertEqual(PROVIDER_LABELS["librespeed"], "LibreSpeed (HTTP)")
-        self.assertEqual(PROVIDER_LABELS["cloudflare"], "Cloudflare (Edge)")
+        self.assertEqual(PROVIDER_LABELS["ookla"], "Ookla")
+        self.assertEqual(PROVIDER_LABELS["librespeed"], "LibreSpeed")
+        self.assertEqual(PROVIDER_LABELS["cloudflare"], "Cloudflare")
 
     def test_librespeed_preserves_rust_backend_paths(self):
         server = LibreSpeedAdapter._server_from_payload(

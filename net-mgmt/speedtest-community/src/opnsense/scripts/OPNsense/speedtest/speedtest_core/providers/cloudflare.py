@@ -20,7 +20,7 @@ from ..models import ProbeResult, Server, SpeedResult
 
 class CloudflareAdapter(ProviderAdapter):
     provider_id = "cloudflare"
-    label = "Cloudflare (Edge)"
+    label = "Cloudflare"
 
     def status(self, settings: Settings) -> Dict:
         return {
@@ -31,6 +31,8 @@ class CloudflareAdapter(ProviderAdapter):
             "client": "edge-http",
             "message": "Automatic global edge network",
             "supportsCustomServers": True,
+            "website": "https://speed.cloudflare.com/",
+            "protocol": "Edge HTTP",
         }
 
     def discover(self, settings: Settings) -> List[Server]:

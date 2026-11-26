@@ -81,9 +81,18 @@ class SpeedtestOrchestrator:
                 {
                     "name": status["label"],
                     "version": version,
+                    "website": status.get("website", ""),
                     "status": "available" if status.get("available") else "unavailable",
                     "required": False,
-                    "role": "Measurement network adapter",
+                    "role": " / ".join(
+                        value
+                        for value in (
+                            status.get("protocol"),
+                            status.get("client"),
+                        )
+                        if value
+                    )
+                    or "Measurement network adapter",
                 }
             )
 

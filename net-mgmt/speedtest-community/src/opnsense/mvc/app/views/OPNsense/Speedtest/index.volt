@@ -120,6 +120,13 @@
     .opn-source-badge {
         display: inline-block;
         margin: 0 0.5rem 0.4rem 0;
+        text-decoration: none;
+    }
+    a.opn-source-badge:hover,
+    a.opn-source-badge:focus {
+        color: #fff;
+        text-decoration: none;
+        filter: brightness(1.08);
     }
     .opn-gauge-panel {
         padding: 1.35rem 0.75rem 0.9rem;
@@ -1261,8 +1268,15 @@ configctl speedtest serverlist</pre>
             const body = $('#speedtest-about-dependencies').empty();
             (data.dependencies || []).forEach(function(dependency) {
                 const available = dependency.status === "available";
+                const name = dependency.website
+                    ? $('<a>')
+                        .attr('href', dependency.website)
+                        .attr('target', '_blank')
+                        .attr('rel', 'noopener noreferrer')
+                        .text(dependency.name)
+                    : $('<span>').text(dependency.name);
                 $('<tr>')
-                    .append($('<td>').text(dependency.name))
+                    .append($('<td>').append(name))
                     .append($('<td>').text(dependency.version || "\u2014"))
                     .append($('<td>').text(dependency.role || ""))
                     .append(
@@ -1299,10 +1313,23 @@ configctl speedtest serverlist</pre>
                     available += 1;
                 }
             }
-            $('<span>')
+            const badge = $('<a>')
                 .addClass("label " + css + " opn-source-badge")
-                .text(provider.label + ": " + suffix)
-                .appendTo('#speedtest-provider-badges');
+                .attr('href', provider.website || '#')
+                .attr('target', provider.website ? '_blank' : '')
+                .attr('rel', provider.website ? 'noopener noreferrer' : '')
+                .attr(
+                    'aria-label',
+                    provider.label + " - " + suffix + ". " +
+                    (provider.website ? "{{ lang._('Open provider site') }}" : "")
+                )
+                .attr('title', provider.label + " - " + suffix)
+                .text(
+                    provider.enabled && provider.available
+                        ? provider.label
+                        : provider.label + " (" + suffix + ")"
+                );
+            badge.appendTo('#speedtest-provider-badges');
             $('<option>')
                 .val(provider.id)
                 .prop("disabled", !provider.enabled || !provider.available)

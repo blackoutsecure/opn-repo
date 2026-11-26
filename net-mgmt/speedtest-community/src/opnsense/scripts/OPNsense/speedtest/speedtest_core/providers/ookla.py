@@ -21,7 +21,7 @@ from ..models import ProbeResult, Server, SpeedResult
 
 class OoklaAdapter(ProviderAdapter):
     provider_id = "ookla"
-    label = "Ookla (CLI)"
+    label = "Ookla"
 
     def __init__(self):
         self.binary = os.environ.get("OPNSENSE_SPEEDTEST_BIN", "speedtest")
@@ -85,6 +85,8 @@ class OoklaAdapter(ProviderAdapter):
                     else "Native measurement CLI"
                 ),
                 "supportsCustomServers": True,
+                "website": "https://www.speedtest.net/",
+                "protocol": "Native CLI",
             }
         except (ProviderUnavailableError, OSError) as exc:
             return {
@@ -95,6 +97,8 @@ class OoklaAdapter(ProviderAdapter):
                 "client": "",
                 "message": str(exc),
                 "supportsCustomServers": True,
+                "website": "https://www.speedtest.net/",
+                "protocol": "Native CLI",
             }
 
     @staticmethod

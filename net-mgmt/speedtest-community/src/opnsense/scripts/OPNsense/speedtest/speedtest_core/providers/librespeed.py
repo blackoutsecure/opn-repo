@@ -27,7 +27,7 @@ from ..models import ProbeResult, Server, SpeedResult
 
 class LibreSpeedAdapter(ProviderAdapter):
     provider_id = "librespeed"
-    label = "LibreSpeed (HTTP)"
+    label = "LibreSpeed"
 
     def __init__(self):
         self.rust_binary = os.environ.get(
@@ -73,6 +73,8 @@ class LibreSpeedAdapter(ProviderAdapter):
                 else "Dependency-free transfer engine"
             ),
             "supportsCustomServers": True,
+            "website": "https://librespeed.org/",
+            "protocol": "HTTP",
         }
 
     @staticmethod

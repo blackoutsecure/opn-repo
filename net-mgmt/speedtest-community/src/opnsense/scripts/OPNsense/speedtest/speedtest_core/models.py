@@ -6,9 +6,9 @@ from typing import Any, Dict, List
 
 
 PROVIDER_LABELS = {
-    "ookla": "Ookla (CLI)",
-    "librespeed": "LibreSpeed (HTTP)",
-    "cloudflare": "Cloudflare (Edge)",
+    "ookla": "Ookla",
+    "librespeed": "LibreSpeed",
+    "cloudflare": "Cloudflare",
 }
 
 

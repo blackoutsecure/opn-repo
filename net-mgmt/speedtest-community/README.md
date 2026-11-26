@@ -4,9 +4,13 @@ Speedtest measures WAN download, upload, latency, jitter, and target quality
 through interchangeable public and custom measurement networks. The interface
 provides provider-first labels:
 
-- `Ookla (CLI)`
-- `LibreSpeed (HTTP)`
-- `Cloudflare (Edge)`
+- Ookla
+- LibreSpeed
+- Cloudflare
+
+Technical connection and client details are shown in **Sources and targets >
+About Speedtest**, where they can be viewed without cluttering the normal
+network selection controls.
 
 Target lists are refreshed automatically when the page first opens, when an
 enabled network has no saved targets, or when the configured refresh interval
