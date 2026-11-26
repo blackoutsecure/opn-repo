@@ -537,6 +537,28 @@
         return value === null || value === undefined ? '' : String(value);
     }
 
+    function speedtestUpdateManagedTargetId() {
+        const dialog = document.getElementById("{{serverGrid['edit_dialog_id']}}");
+        if (!dialog) {
+            return;
+        }
+        const provider = dialog.querySelector('[id="server.provider"]');
+        const source = dialog.querySelector('[id="server.source"]');
+        const targetId = dialog.querySelector('[id="server.serverId"]');
+        if (!provider || !source || !targetId) {
+            return;
+        }
+        const managed =
+            provider.value === "cloudflare" &&
+            source.value === "public" &&
+            targetId.value === "edge";
+        targetId.readOnly = managed;
+        targetId.setAttribute("aria-readonly", managed ? "true" : "false");
+        targetId.title = managed
+            ? "{{ lang._('Managed automatically; this internal target id cannot be edited.') }}"
+            : "";
+    }
+
     function speedtestNiceMaximum(value) {
         const numeric = Math.max(Number(value) || 0, 0);
         const minimum = 100;
@@ -858,6 +880,10 @@
         speedtestRefreshServers(true);
         speedtestStatReload();
         speedtestLogReload();
+        $('#{{serverGrid['edit_dialog_id']}}')
+            .on('shown.bs.modal change', function() {
+                setTimeout(speedtestUpdateManagedTargetId, 0);
+            });
     });
 
     $(function() {

@@ -19,7 +19,22 @@ class SettingsController extends ApiMutableModelControllerBase
 
     public function searchServerAction()
     {
-        return $this->searchBase('servers.server', null, 'provider');
+        $result = $this->searchBase('servers.server', null, 'provider');
+        foreach ($result['rows'] ?? [] as &$record) {
+            $node = $this->getModel()->getNodeByReference(
+                'servers.server.' . ($record['uuid'] ?? '')
+            );
+            if (
+                $node !== null &&
+                (string)$node->provider === 'cloudflare' &&
+                (string)$node->source === 'public' &&
+                (string)$node->serverId === 'edge'
+            ) {
+                $record['serverId'] = '';
+            }
+        }
+        unset($record);
+        return $result;
     }
 
     public function getServerAction($uuid = null)
@@ -59,6 +74,13 @@ class SettingsController extends ApiMutableModelControllerBase
         }
         if ($provider === 'ookla' && $serverId === '') {
             throw new UserException(gettext('A custom native-CLI target requires a network target id.'));
+        }
+        if (
+            $provider === 'cloudflare' &&
+            $source === 'public' &&
+            $serverId !== 'edge'
+        ) {
+            throw new UserException(gettext('The automatic edge target id is managed automatically.'));
         }
         if (in_array($provider, ['librespeed', 'cloudflare'], true) && $baseUrl === '') {
             throw new UserException(gettext('A custom HTTP server requires a base URL.'));
