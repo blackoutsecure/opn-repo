@@ -1825,7 +1825,9 @@ configctl speedtest serverlist</pre>
             speedtestStartProgressPolling();
             $('#reportAct_progress').addClass("fa fa-spinner fa-pulse");
             $('#reportAct').prop('disabled', true);
-            $('#result_provider,#result_server,#result_selection,#speedtest-selection-probes').text('');
+            $('#result_provider,#result_server,#result_selection,#speedtest-selection-probes,'
+                + '#client,#client_geo,#result,#result_warnings').text('');
+            $('#result_warnings_row,#speedtest-selection-details').hide();
             $('#result_packet_loss').text("{{ lang._('Waiting for the provider result') }}");
             speedtestResetGaugeNumbers();
             speedtestSetGauge('download', 8, 100);

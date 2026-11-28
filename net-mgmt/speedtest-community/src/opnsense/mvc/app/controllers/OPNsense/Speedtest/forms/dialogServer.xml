@@ -56,7 +56,7 @@
         <id>server.baseUrl</id>
         <label>Base URL</label>
         <type>text</type>
-        <help>HTTP(S) origin for compatible measurement endpoints. Not required for native-CLI target IDs.</help>
+        <help>HTTP(S) origin/path for compatible measurement endpoints. Do not include credentials, a query, or a fragment. Not required for native-CLI target IDs.</help>
     </field>
     <field>
         <id>server.host</id>

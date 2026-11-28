@@ -31,7 +31,9 @@ not removed.
     availability and inclusion preference are preserved separately, so a
     temporarily missing target cannot silently become included again.
   - **Custom targets** are operator-managed and retain normal add/edit/delete
-    controls after provider-specific validation.
+    controls after provider-specific validation. Base URLs are normalized to
+    HTTP(S) origin/path form and reject embedded credentials, query strings,
+    fragments, control characters, and backslashes; endpoint paths stay relative.
 
 Providers that expose only final totals show a truthful status/elapsed-time view
 until completion. Providers that expose streamed progress drive the live

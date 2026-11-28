@@ -93,6 +93,26 @@ class ConfigTests(unittest.TestCase):
         )
         self.assertEqual(normalize_http_url("file:///tmp/server"), "")
 
+    def test_url_normalization_rejects_unsafe_or_credentialed_urls(self):
+        invalid = [
+            "https://user:secret@speed.example.test/backend",
+            "https://speed.example.test/backend?token=secret",
+            "https://speed.example.test/backend#fragment",
+            "https://speed.example.test/back\nend",
+            "https://speed.example.test\\backend",
+            "https://" + ("a" * 2049),
+        ]
+        for url in invalid:
+            with self.subTest(url=url[:80]):
+                self.assertEqual(normalize_http_url(url), "")
+        self.assertEqual(
+            normalize_http_url(
+                "https://speed.example.test/servers.json?region=west",
+                allow_query=True,
+            ),
+            "https://speed.example.test/servers.json?region=west",
+        )
+
 
 class ProviderParsingTests(unittest.TestCase):
     def test_provider_labels_put_network_name_before_connection_type(self):
@@ -235,6 +255,33 @@ class ProviderParsingTests(unittest.TestCase):
         arguments = popen.call_args.args[0]
         self.assertIn("jsonl", arguments)
         self.assertIn("--progress=yes", arguments)
+
+    def test_official_ookla_stream_stops_child_when_progress_handling_fails(self):
+        adapter = OoklaAdapter()
+        process = mock.Mock()
+        process.stdout = io.StringIO(
+            json.dumps({"type": "ping", "ping": {"latency": 1, "progress": 1}}) + "\n"
+        )
+        process.stderr = io.StringIO()
+        process.args = ["speedtest"]
+        process.poll.return_value = None
+        process.wait.return_value = 0
+        with mock.patch(
+            "speedtest_core.providers.ookla.subprocess.Popen",
+            return_value=process,
+        ), mock.patch.object(
+            adapter,
+            "_report_live_event",
+            side_effect=RuntimeError("progress write failed"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "progress write failed"):
+                adapter._stream_official_result(
+                    ["-f", "jsonl"],
+                    30,
+                    Server(provider="ookla", name="Example"),
+                    mock.Mock(),
+                )
+        process.kill.assert_called_once_with()
 
     def test_http_providers_probe_their_configured_ping_endpoints(self):
         settings = Settings(ping_samples=2)

@@ -188,6 +188,9 @@ class OoklaAdapter(ProviderAdapter):
             process.wait(timeout=5)
             raise ProviderUnavailableError("The native measurement CLI timed out") from exc
         finally:
+            if process.poll() is None:
+                process.kill()
+                process.wait(timeout=5)
             stdout_thread.join(timeout=1)
             stderr_thread.join(timeout=1)
 

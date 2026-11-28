@@ -118,6 +118,7 @@ class SettingsController extends ApiMutableModelControllerBase
         $this->assertSafeText((string)$node->location, gettext('Location'), 160, true);
         $this->assertSafeText((string)$node->country, gettext('Country'), 80, true);
         $this->assertSafeText((string)$node->host, gettext('Latency host'), 255, true);
+        $this->assertSafeText($baseUrl, gettext('Base URL'), 2048, true);
         foreach (['downloadPath', 'uploadPath', 'pingPath', 'ipPath'] as $pathField) {
             $path = trim((string)$node->{$pathField});
             $this->assertSafeText($path, gettext('Endpoint path'), 512, true);
@@ -145,9 +146,18 @@ class SettingsController extends ApiMutableModelControllerBase
             if (
                 $parts === false ||
                 !in_array(strtolower($parts['scheme'] ?? ''), ['http', 'https'], true) ||
-                empty($parts['host'])
+                empty($parts['host']) ||
+                isset($parts['user']) ||
+                isset($parts['pass']) ||
+                isset($parts['query']) ||
+                isset($parts['fragment']) ||
+                str_contains($baseUrl, '\\')
             ) {
-                throw new UserException(gettext('Base URL must use HTTP or HTTPS and include a host.'));
+                throw new UserException(
+                    gettext(
+                        'Base URL must use HTTP or HTTPS and include a host without credentials, query, or fragment.'
+                    )
+                );
             }
         }
     }

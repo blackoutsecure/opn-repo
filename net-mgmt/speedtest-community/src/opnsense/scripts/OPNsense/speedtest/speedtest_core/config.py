@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: BSD-2-Clause
 
 import os
+import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
@@ -36,14 +37,35 @@ def child_text(node, name: str, default: str = "") -> str:
     return default if value is None else value.strip()
 
 
-def normalize_http_url(value: str, default: str = "") -> str:
-    value = value.strip()
+def normalize_http_url(
+    value: str,
+    default: str = "",
+    allow_query: bool = False,
+) -> str:
+    value = str(value or "").strip()
     if not value:
         return default
+    if (
+        len(value) > 2048
+        or "\\" in value
+        or re.search(r"\s|[\x00-\x1f\x7f]", value)
+    ):
+        return ""
     if value.startswith("//"):
         value = "https:" + value
-    parsed = urlsplit(value)
-    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+    try:
+        parsed = urlsplit(value)
+        parsed.port
+    except ValueError:
+        return ""
+    if (
+        parsed.scheme not in ("http", "https")
+        or not parsed.hostname
+        or parsed.username
+        or parsed.password
+        or (parsed.query and not allow_query)
+        or parsed.fragment
+    ):
         return ""
     return value.rstrip("/")
 
@@ -93,7 +115,9 @@ def load_settings(config_path: Optional[str] = None) -> Settings:
         )
 
     settings.librespeed_list_url = normalize_http_url(
-        child_text(node, "librespeedListUrl"), DEFAULT_LIBRESPEED_LIST_URL
+        child_text(node, "librespeedListUrl"),
+        DEFAULT_LIBRESPEED_LIST_URL,
+        allow_query=True,
     )
     settings.cloudflare_base_url = normalize_http_url(
         child_text(node, "cloudflareBaseUrl"), DEFAULT_CLOUDFLARE_BASE_URL
